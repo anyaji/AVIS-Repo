@@ -231,14 +231,57 @@ function cleanOldBuilds() {
 app.whenReady().then(() => {
   ensureDirs();
   migrateKeys();
-  createWindow();
-  initAutoUpdater();
 
   // Log which keys are loaded on startup
   const keys = store.get('apiKeys', {});
   Object.entries(keys).forEach(([provider, key]) => {
     if (key && key.length > 0) log.info(`Key loaded: ${provider} = ${key.substring(0, 8)}...`);
   });
+
+  // Show cinematic startup splash
+  const splash = new BrowserWindow({
+    width: 1200, height: 700, frame: false, transparent: false,
+    backgroundColor: '#000000', resizable: false, center: true,
+    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    webPreferences: { nodeIntegration: true, contextIsolation: false }
+  });
+
+  // Inject version into startup.html
+  const startupPath = path.join(__dirname, 'src', 'startup.html');
+  let startupHtml = fs.readFileSync(startupPath, 'utf-8');
+  const version = require('./package.json').version;
+  startupHtml = startupHtml.replace('id="version-tag"></div>', `id="version-tag">v${version}</div>`);
+  const tmpStartup = path.join(APPDATA_DIR, '_startup.html');
+  fs.writeFileSync(tmpStartup, startupHtml, 'utf-8');
+  splash.loadFile(tmpStartup);
+
+  // Create main window hidden
+  createWindow();
+  mainWindow.hide();
+
+  // When startup finishes, show main window
+  ipcMain.once('startup-complete', () => {
+    splash.destroy();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.executeJavaScript(`
+      document.body.style.opacity = '0';
+      document.body.style.transition = 'opacity 0.4s ease';
+      setTimeout(() => document.body.style.opacity = '1', 50);
+    `).catch(() => {});
+    // Clean up temp file
+    try { fs.unlinkSync(tmpStartup); } catch (e) {}
+  });
+
+  // Fallback: if startup never signals, show main after 6s
+  setTimeout(() => {
+    if (splash && !splash.isDestroyed()) {
+      splash.destroy();
+      if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); }
+    }
+  }, 6000);
+
+  initAutoUpdater();
 });
 
 app.on('window-all-closed', () => { app.quit(); });

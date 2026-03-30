@@ -9,35 +9,40 @@
 </head>
 <body>
 
-  <!-- Title Bar -->
+  <!-- Title Bar with centered nav tabs -->
   <div class="titlebar">
-    <div class="titlebar-brand">
+    <div class="titlebar-left">
       <div class="status-dot" id="global-status"></div>
       <span class="logo" id="app-title">AVIS</span>
-      <span class="subtitle" id="app-subtitle">Avel Intelligence Services</span>
       <span id="app-version" class="app-version"></span>
     </div>
-    <div class="titlebar-controls">
-      <button onclick="avis.minimize()" title="Minimize">&#x2500;</button>
-      <button onclick="avis.maximize()" title="Maximize">&#x25A1;</button>
-      <button class="close-btn" onclick="avis.close()" title="Close">&#x2715;</button>
+    <div class="titlebar-center">
+      <button class="nav-tab active" data-tab="providers">Status</button>
+      <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="history">History</button>
+      <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="search">Search</button>
+      <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="browser">Browser</button>
+      <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="terminal">Terminal</button>
+      <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="changelog">Changes</button>
+      <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="developer">Dev</button>
+    </div>
+    <div class="titlebar-right">
+      <button class="window-btn" onclick="avis.minimize()" title="Minimize">&#x2500;</button>
+      <button class="window-btn" onclick="avis.maximize()" title="Maximize">&#x25A1;</button>
+      <button class="window-btn close" onclick="avis.close()" title="Close">&#x2715;</button>
     </div>
   </div>
 
   <!-- Main Layout -->
   <div class="main-layout">
 
-    <!-- Left Panel -->
+    <!-- Left Panel (no more tabs here — they're in titlebar now) -->
     <div class="left-panel">
-      <div class="panel-tabs">
-        <button class="panel-tab active" data-tab="providers">Status</button>
-        <button class="panel-tab" data-tab="history">History</button>
-        <button class="panel-tab" data-tab="search">Search</button>
-        <button class="panel-tab" data-tab="browser">Browser</button>
-        <button class="panel-tab" data-tab="terminal">Terminal</button>
-        <button class="panel-tab" data-tab="changelog">Changes</button>
-        <button class="panel-tab" data-tab="developer">Dev</button>
-      </div>
       <div class="panel-content">
         <!-- Providers Section -->
         <div class="panel-section active" id="providers-section" style="display:block;">

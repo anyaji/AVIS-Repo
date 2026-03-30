@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800;900&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+  }
+
+  #startup-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    opacity: 0;
+    animation: containerFadeIn 0.3s ease 0.5s forwards;
+  }
+
+  @keyframes containerFadeIn { to { opacity: 1; } }
+
+  #logo-text {
+    font-size: 72px;
+    font-weight: 900;
+    letter-spacing: 24px;
+    color: transparent;
+    -webkit-text-stroke: 1px #00a8ff;
+    text-shadow:
+      0 0 40px rgba(0, 168, 255, 0.8),
+      0 0 80px rgba(0, 168, 255, 0.4),
+      0 0 120px rgba(0, 168, 255, 0.2);
+    animation: logoGlow 0.8s ease 0.8s forwards;
+    opacity: 0;
+  }
+
+  @keyframes logoGlow {
+    0% { opacity: 0; letter-spacing: 48px; filter: blur(20px); }
+    100% { opacity: 1; letter-spacing: 24px; filter: blur(0); color: #00a8ff; -webkit-text-stroke: 0; }
+  }
+
+  #divider-line {
+    width: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #00a8ff, transparent);
+    animation: lineExpand 0.6s ease 1.6s forwards;
+  }
+  @keyframes lineExpand { to { width: 400px; } }
+
+  #subtitle {
+    font-size: 13px;
+    letter-spacing: 6px;
+    color: #8899aa;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 1.8s forwards;
+  }
+
+  #company {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: #445566;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: fadeUp 0.5s ease 2.0s forwards;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  #boot-text {
+    position: absolute;
+    bottom: 60px;
+    left: 60px;
+    text-align: left;
+    opacity: 0;
+    animation: fadeUp 0.3s ease 2.4s forwards;
+  }
+
+  .boot-line {
+    font-size: 11px;
+    color: #445566;
+    line-height: 1.8;
+    opacity: 0;
+  }
+  .boot-line .status { font-weight: 700; }
+  .boot-line.ok .status { color: #00ff88; }
+  .boot-line.ready .status { color: #00a8ff; }
+
+  #version-tag {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    font-size: 10px;
+    color: #334455;
+    letter-spacing: 2px;
+    opacity: 0;
+    animation: fadeUp 0.3s ease 2.2s forwards;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  body.fade-out { animation: startupFadeOut 0.6s ease forwards; }
+  @keyframes startupFadeOut { to { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="startup-container">
+  <div id="logo-text">AVIS</div>
+  <div id="divider-line"></div>
+  <div id="subtitle">Avel Intelligence Services</div>
+  <div id="company">by Avel Productions LLC</div>
+</div>
+
+<div id="boot-text">
+  <div class="boot-line ok" id="boot-1">> INITIALIZING AVIS CORE <span class="status">OK</span></div>
+  <div class="boot-line ok" id="boot-2">> LOADING AI PROVIDERS <span class="status">OK</span></div>
+  <div class="boot-line ok" id="boot-3">> ESTABLISHING SECURE CHANNELS <span class="status">OK</span></div>
+  <div class="boot-line ready" id="boot-4">> CLAUDE ORCHESTRATOR <span class="status">READY</span></div>
+  <div class="boot-line ready" id="boot-5">> SYSTEM STATUS <span class="status">NOMINAL</span></div>
+</div>
+
+<div id="version-tag"></div>
+
+<script>
+  // Stagger boot lines
+  document.querySelectorAll('.boot-line').forEach((line, i) => {
+    setTimeout(() => {
+      line.style.opacity = '1';
+      line.style.transition = 'opacity 0.2s ease';
+    }, 2600 + (i * 150));
+  });
+
+  // Fade out and signal main process
+  setTimeout(() => {
+    document.body.classList.add('fade-out');
+    setTimeout(() => {
+      const { ipcRenderer } = require('electron');
+      ipcRenderer.send('startup-complete');
+    }, 600);
+  }, 3800);
+</script>
+</body>
+</html>

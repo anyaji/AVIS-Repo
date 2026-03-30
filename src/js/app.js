@@ -152,9 +152,9 @@ const AVIS = {
     return { status: 'error', label: 'ERROR' };
   },
 
-  // FIX 1: Robust tab switching — force display style as fallback
+  // Tab switching — uses .nav-tab in titlebar
   setupTabs() {
-    const allTabs = document.querySelectorAll('.panel-tab');
+    const allTabs = document.querySelectorAll('.nav-tab');
     const allSections = document.querySelectorAll('.panel-section');
 
     allTabs.forEach(tab => {
@@ -162,21 +162,13 @@ const AVIS = {
         e.preventDefault();
         e.stopPropagation();
 
-        // Deactivate all tabs and sections
         allTabs.forEach(t => t.classList.remove('active'));
-        allSections.forEach(s => {
-          s.classList.remove('active');
-          s.style.display = 'none';
-        });
+        allSections.forEach(s => { s.classList.remove('active'); s.style.display = 'none'; });
 
-        // Activate clicked tab
         tab.classList.add('active');
         const targetId = `${tab.dataset.tab}-section`;
         const targetSection = document.getElementById(targetId);
-        if (targetSection) {
-          targetSection.classList.add('active');
-          targetSection.style.display = 'block';
-        }
+        if (targetSection) { targetSection.classList.add('active'); targetSection.style.display = 'block'; }
       });
     });
   },
@@ -786,7 +778,7 @@ const AVIS = {
   },
 
   switchToTab(tabName) {
-    const tab = document.querySelector(`.panel-tab[data-tab="${tabName}"]`);
+    const tab = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
     if (tab) tab.click();
   },
 
