@@ -405,6 +405,17 @@ const AVIS = {
     }
   },
 
+  parseTestError(errMsg) {
+    const msg = (errMsg || '').toLowerCase();
+    if (msg.includes('401') || msg.includes('invalid') || msg.includes('auth')) return 'Invalid API key';
+    if (msg.includes('429') || msg.includes('rate')) return 'Rate limited — try later';
+    if (msg.includes('404') || msg.includes('not found')) return 'Wrong endpoint or model';
+    if (msg.includes('402') || msg.includes('payment') || msg.includes('billing')) return 'Payment required';
+    if (msg.includes('403') || msg.includes('forbidden')) return 'Access denied';
+    if (msg.includes('timeout') || msg.includes('econnrefused') || msg.includes('enotfound')) return 'Network error — check connection';
+    return errMsg.substring(0, 60) || 'Unknown error';
+  },
+
   manualUpdateCheck() {
     const btn = document.getElementById('btn-check-update');
     if (btn) btn.textContent = '\u21BB Checking...';
@@ -1000,9 +1011,21 @@ const AVIS = {
     if (!key) { btn.textContent = 'Skip'; return; }
     btn.textContent = '...';
     const result = await window.avis.testProvider(provider, key);
-    btn.textContent = result.success ? '\u2713' : '\u2717';
-    btn.className = `test-btn ${result.success ? 'success' : 'fail'}`;
-    if (result.success) await window.avis.setApiKey(provider, key);
+    if (result.success) {
+      btn.textContent = '\u2713';
+      btn.className = 'test-btn success';
+      btn.title = 'Connected';
+      await window.avis.setApiKey(provider, key);
+    } else {
+      const errMsg = this.parseTestError(result.error || '');
+      btn.textContent = '\u2717';
+      btn.className = 'test-btn fail';
+      btn.title = errMsg;
+      // Show error inline
+      let errEl = btn.parentElement.querySelector('.test-error');
+      if (!errEl) { errEl = document.createElement('div'); errEl.className = 'test-error'; btn.parentElement.appendChild(errEl); }
+      errEl.textContent = errMsg;
+    }
   },
 
   async finishOnboarding() {

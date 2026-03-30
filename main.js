@@ -1283,7 +1283,7 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       case 'gemini': {
         const { GoogleGenerativeAI } = require('@google/generative-ai');
         const genAI = new GoogleGenerativeAI(apiKey);
-        const m = genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const m = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         await m.generateContent('Hi');
         return { success: true };
       }
@@ -1299,7 +1299,7 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       }
       case 'perplexity': {
         const axios = require('axios');
-        await axios.post('https://api.perplexity.ai/chat/completions', { model: 'llama-3.1-sonar-small-128k-online', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
+        await axios.post('https://api.perplexity.ai/chat/completions', { model: 'sonar', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
         return { success: true };
       }
       case 'stability': {
@@ -1310,6 +1310,12 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       case 'deepseek': {
         const axios = require('axios');
         await axios.post('https://api.deepseek.com/chat/completions', { model: 'deepseek-chat', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
+        return { success: true };
+      }
+      case 'firecrawl': {
+        const FirecrawlApp = require('@mendable/firecrawl-js').default;
+        const fcApp = new FirecrawlApp({ apiKey });
+        await fcApp.scrapeUrl('https://example.com', { formats: ['markdown'] });
         return { success: true };
       }
       case 'brave': {
@@ -1420,7 +1426,7 @@ async function callOpenAI(apiKey, model, messages, systemPrompt) {
 async function callGemini(apiKey, model, messages, systemPrompt) {
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(apiKey);
-  const genModel = genAI.getGenerativeModel({ model: model || 'gemini-pro', systemInstruction: systemPrompt || undefined });
+  const genModel = genAI.getGenerativeModel({ model: model || 'gemini-1.5-pro', systemInstruction: systemPrompt || undefined });
 
   const history = [];
   for (let i = 0; i < messages.length - 1; i++) {
@@ -1441,7 +1447,7 @@ async function callGemini(apiKey, model, messages, systemPrompt) {
   const result = await chat.sendMessage(parts);
   const response = result.response;
   const usage = response.usageMetadata || {};
-  return { text: response.text(), inputTokens: usage.promptTokenCount || 0, outputTokens: usage.candidatesTokenCount || 0, model: model || 'gemini-pro' };
+  return { text: response.text(), inputTokens: usage.promptTokenCount || 0, outputTokens: usage.candidatesTokenCount || 0, model: model || 'gemini-1.5-pro' };
 }
 
 async function callGrok(apiKey, model, messages, systemPrompt) {
@@ -1479,7 +1485,7 @@ async function callPerplexity(apiKey, model, messages, systemPrompt) {
   for (const m of messages) oaiMessages.push({ role: m.role, content: m.content });
 
   const response = await axios.post('https://api.perplexity.ai/chat/completions', {
-    model: model || 'llama-3.1-sonar-large-128k-online', messages: oaiMessages, max_tokens: 4096
+    model: model || 'sonar-pro', messages: oaiMessages, max_tokens: 4096
   }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
 
   const d = response.data;

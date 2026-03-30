@@ -131,7 +131,7 @@ For every user request:
     {
       name: "call_gemini", provider: "gemini",
       description: "Call Google Gemini for a task. Best for: multimodal analysis, long context, data analysis, Google ecosystem.",
-      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Gemini" }, model: { type: "string", enum: ["gemini-pro", "gemini-ultra", "gemini-1.5-flash"], description: "Model to use (default: gemini-pro)" } }, required: ["prompt"] }
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Gemini" }, model: { type: "string", enum: ["gemini-1.5-pro", "gemini-1.5-flash"], description: "Model to use (default: gemini-1.5-pro)" } }, required: ["prompt"] }
     },
     {
       name: "call_gpt4", provider: "openai",
@@ -669,7 +669,7 @@ For every user request:
     try {
       const result = await window.avis.apiCall({
         provider: 'perplexity',
-        model: 'llama-3.1-sonar-large-128k-online',
+        model: 'sonar-pro',
         messages: [{ role: 'user', content: query }],
         systemPrompt: 'Provide concise, factual search results with sources.',
         options: {}
@@ -758,7 +758,7 @@ For every user request:
   async toolWebSearch(query) {
     if (await this.hasProvider('perplexity')) {
       try {
-        const result = await window.avis.apiCall({ provider: 'perplexity', model: 'llama-3.1-sonar-large-128k-online', messages: [{ role: 'user', content: query }], systemPrompt: 'Provide concise, factual search results with sources.', options: {} });
+        const result = await window.avis.apiCall({ provider: 'perplexity', model: 'sonar-pro', messages: [{ role: 'user', content: query }], systemPrompt: 'Provide concise, factual search results with sources.', options: {} });
         if (!result.error) {
           UsageMeter.record('perplexity', result.inputTokens || 0, result.outputTokens || 0, PerplexityProvider);
           let text = result.text;

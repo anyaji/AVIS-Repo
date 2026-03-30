@@ -2,12 +2,12 @@ const PerplexityProvider = {
   name: 'perplexity',
   displayName: 'Perplexity',
   models: [
-    { id: 'llama-3.1-sonar-large-128k-online', name: 'Sonar Large', tier: 0 },
-    { id: 'llama-3.1-sonar-small-128k-online', name: 'Sonar Small', tier: 1 }
+    { id: 'sonar-pro', name: 'Sonar Pro', tier: 0 },
+    { id: 'sonar', name: 'Sonar', tier: 1 }
   ],
   costs: {
-    'llama-3.1-sonar-large-128k-online': { input: 1, output: 1 },
-    'llama-3.1-sonar-small-128k-online': { input: 0.2, output: 0.2 }
+    'sonar-pro': { input: 3, output: 15 },
+    'sonar': { input: 1, output: 1 }
   },
   currentModelIndex: 0,
   status: 'unconfigured',

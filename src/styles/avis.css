@@ -1068,6 +1068,7 @@ body {
 .onboarding-step .test-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
 .onboarding-step .test-btn.success { border-color: var(--accent-green); color: var(--accent-green); }
 .onboarding-step .test-btn.fail { border-color: var(--accent-red); color: var(--accent-red); }
+.test-error { font-size: 9px; color: var(--accent-red); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
 
 .onboarding-finish {
   padding: 12px 32px;
