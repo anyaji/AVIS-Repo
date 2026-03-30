@@ -19,8 +19,9 @@ const AVIS = {
     this.renderMeters();
     await this.loadHistoryList();
 
-    // Wire orchestrator step callback for live UI
+    // Wire orchestrator callbacks
     Orchestrator.onStep = (id, type, message, status) => this.handleStep(id, type, message, status);
+    Orchestrator.onStreamChunk = (chunk, fullText) => this.handleStreamChunk(chunk, fullText);
 
     const firstRun = await window.avis.isFirstRun();
     if (firstRun) this.showOnboarding();
@@ -47,6 +48,18 @@ const AVIS = {
     // Render changelog + init dev console
     this.renderChangelog();
     this.initDevConsole();
+
+    // Ctrl+Shift+D toggles Dev tab visibility
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        const devBtn = document.getElementById('dev-tab-btn');
+        if (devBtn) {
+          const visible = devBtn.style.display !== 'none';
+          devBtn.style.display = visible ? 'none' : '';
+          if (!visible) this.showToast('Dev panel enabled');
+        }
+      }
+    });
 
     // Welcome particle animation
     this.initParticles();
@@ -477,10 +490,12 @@ const AVIS = {
         this.addContinueCard(result.pauseInfo);
       } else if (result.error && result.friendlyError) {
         this.addErrorCard(result.text, result.provider);
+      } else if (result.streamed) {
+        // Already rendered live via streaming — just finalize the bubble
+        this.finalizeStreamBubble(result.provider, result.model);
       } else if (result.text) {
         this.addMessageToChat('ai', result.text, result.provider, result.model);
       } else if (!result.image && !result.error && !result.paused) {
-        // Fallback — always show something
         this.addMessageToChat('ai', '(No response generated)', 'avis', 'system');
       }
 
@@ -646,6 +661,62 @@ const AVIS = {
     chatArea.appendChild(div);
     chatArea.scrollTop = chatArea.scrollHeight;
     return div;
+  },
+
+  // Streaming — live text display
+  _streamBubble: null,
+
+  createStreamBubble(provider) {
+    const chatArea = document.getElementById('chat-area');
+    // Remove typing indicator
+    document.querySelectorAll('.typing-msg').forEach(el => el.remove());
+
+    const div = document.createElement('div');
+    div.className = 'message ai';
+    div.innerHTML = `<div class="message-bubble"><div class="provider-badge claude">claude / streaming</div><div class="stream-content"></div><span class="stream-cursor">\u2588</span></div>`;
+    chatArea.appendChild(div);
+    this._streamBubble = div;
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return div;
+  },
+
+  handleStreamChunk(chunk, fullText) {
+    if (!this._streamBubble) this.createStreamBubble('claude');
+    const contentEl = this._streamBubble.querySelector('.stream-content');
+    if (contentEl) {
+      contentEl.innerHTML = this.renderMarkdown(fullText);
+      // Syntax highlight any code blocks
+      this._streamBubble.querySelectorAll('pre code').forEach(block => {
+        if (typeof hljs !== 'undefined' && !block.dataset.highlighted) {
+          hljs.highlightElement(block);
+          block.dataset.highlighted = 'true';
+        }
+      });
+    }
+    const chatArea = document.getElementById('chat-area');
+    chatArea.scrollTop = chatArea.scrollHeight;
+  },
+
+  finalizeStreamBubble(provider, model) {
+    if (!this._streamBubble) return;
+    // Remove cursor
+    const cursor = this._streamBubble.querySelector('.stream-cursor');
+    if (cursor) cursor.remove();
+    // Update provider badge
+    const badge = this._streamBubble.querySelector('.provider-badge');
+    if (badge) badge.textContent = `${provider || 'claude'} / ${model || 'sonnet'}`;
+    // Add copy buttons to code blocks
+    this._streamBubble.querySelectorAll('pre').forEach(pre => {
+      if (pre.querySelector('.code-copy-btn')) return;
+      const btn = document.createElement('button');
+      btn.className = 'code-copy-btn'; btn.textContent = 'Copy';
+      btn.onclick = () => {
+        navigator.clipboard.writeText(pre.querySelector('code')?.textContent || pre.textContent);
+        btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000);
+      };
+      pre.style.position = 'relative'; pre.appendChild(btn);
+    });
+    this._streamBubble = null;
   },
 
   renderMarkdown(text) {

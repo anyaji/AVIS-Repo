@@ -194,6 +194,7 @@ For every user request:
   },
 
   onStep: null,
+  onStreamChunk: null,  // callback for streaming text to UI
   cancelled: false,
   avisPath: null,
   _stepCounter: 0,
@@ -392,16 +393,84 @@ For every user request:
       if (await this.hasProvider('stability')) return await this.directCall('stability', userMessage, files);
     }
 
-    if (hasClaude) return await this.agenticLoop(userMessage, files);
+    if (hasClaude) {
+      // For simple chat with no files, stream directly (faster, real-time text)
+      const taskType = this.detectTaskType(userMessage);
+      if (taskType === 'simple_chat' && files.length === 0 && this.onStreamChunk) {
+        return await this.streamDirect(userMessage);
+      }
+      return await this.agenticLoop(userMessage, files);
+    }
 
     return await this.fallbackRoute(userMessage, files);
+  },
+
+  // Stream a simple Claude response directly (no tools, real-time text)
+  async streamDirect(userMessage) {
+    const systemPrompt = await this.buildSystemPrompt();
+    const rawHistory = MemoryManager.getConversationMessages();
+    const messages = [...this.trimContext(rawHistory), { role: 'user', content: userMessage }];
+
+    this.emitStep('thinking', 'Streaming response...');
+
+    // Set up chunk listener
+    let fullText = '';
+    const chunkHandler = (chunk) => {
+      fullText += chunk;
+      if (this.onStreamChunk) this.onStreamChunk(chunk, fullText);
+    };
+    window.avis.onStreamChunk(chunkHandler);
+
+    try {
+      const result = await window.avis.apiCallStream({
+        model: ClaudeProvider.getCurrentModel().id,
+        messages,
+        systemPrompt
+      });
+
+      window.avis.offStreamChunk();
+
+      if (result.error) {
+        const elapsed = ((Date.now() - this._loopStart) / 1000).toFixed(1);
+        this.emitStep('done', `Error: ${this.parseError(result.message)}`, 'error');
+        // Fall back to agentic loop on stream error
+        return await this.agenticLoop(userMessage, []);
+      }
+
+      UsageMeter.record('claude', result.inputTokens || 0, result.outputTokens || 0, ClaudeProvider);
+      ClaudeProvider.status = 'active';
+
+      const elapsed = ((Date.now() - this._loopStart) / 1000).toFixed(1);
+      this.emitStep('done', `Done in ${elapsed}s (streamed)`, 'done');
+
+      if (typeof ResponseCache !== 'undefined') ResponseCache.set('claude', userMessage, fullText);
+
+      return {
+        text: fullText || result.text,
+        provider: 'claude',
+        model: result.model || ClaudeProvider.getCurrentModel().name,
+        streamed: true  // flag so app.js knows not to re-render
+      };
+    } catch (err) {
+      window.avis.offStreamChunk();
+      // Fall back to agentic loop
+      return await this.agenticLoop(userMessage, []);
+    }
+  },
+
+  // Trim conversation history to last N messages to save tokens
+  trimContext(messages, maxMessages = 12) {
+    if (messages.length <= maxMessages) return messages;
+    // Keep first message (often contains important context) + last N
+    return [messages[0], ...messages.slice(-(maxMessages - 1))];
   },
 
   async agenticLoop(userMessage, files = []) {
     const systemPrompt = await this.buildSystemPrompt();
     const tools = await this.buildToolsList();
 
-    const messages = [...MemoryManager.getConversationMessages()];
+    const rawHistory = MemoryManager.getConversationMessages();
+    const messages = [...this.trimContext(rawHistory)];
     const lastMsg = { role: 'user', content: userMessage };
 
     if (files.length > 0) {
@@ -626,7 +695,7 @@ For every user request:
       const cached = ResponseCache.get(providerName, prompt);
       if (cached) {
         this.emitStep('tool', `Cache hit for ${providerName} (saved tokens)`, 'done');
-        return cached;
+        return cached + '\n\n`\u26A1 cached`';
       }
     }
 

@@ -8,6 +8,7 @@ const HotConfig = {
     soundEffects: false,
     startupBehavior: 'fresh',
     customSystemPrompt: '',
+    showStartupSplash: true,
     theme: 'default',
     leftPanelWidth: 260,
     rightPanelWidth: 280,
@@ -177,6 +178,12 @@ const HotConfig = {
             <option value="fresh" ${this.get('startupBehavior') === 'fresh' ? 'selected' : ''}>Fresh Start</option>
             <option value="resume" ${this.get('startupBehavior') === 'resume' ? 'selected' : ''}>Resume Last</option>
           </select>
+        </div>
+        <div class="setting-row">
+          <div class="toggle-wrap">
+            <label>Show Startup Splash</label>
+            <div class="toggle ${this.get('showStartupSplash') !== false ? 'active' : ''}" onclick="this.classList.toggle('active'); HotConfig.update('showStartupSplash', this.classList.contains('active'))"></div>
+          </div>
         </div>
         <div class="setting-row">
           <label>Custom System Prompt Addon</label>

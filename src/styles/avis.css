@@ -1656,6 +1656,17 @@ body {
 .compact-mode .step-panel { font-size: 11px; }
 .compact-mode .update-bar { height: 24px; font-size: 9px; }
 
+/* Streaming cursor */
+.stream-cursor {
+  color: var(--accent-blue);
+  animation: cursorBlink 0.8s step-end infinite;
+  font-size: 14px;
+  line-height: 1;
+}
+@keyframes cursorBlink { 50% { opacity: 0; } }
+
+.stream-content { min-height: 16px; }
+
 /* ====================================================================
    Developer Panel
    ==================================================================== */

@@ -107,7 +107,7 @@ function initAutoUpdater() {
   // Re-check every 1 minute
   setInterval(() => {
     autoUpdater.checkForUpdates().catch(() => {});
-  }, 60 * 1000);
+  }, 5 * 60 * 1000); // check every 5 minutes
 
   autoUpdater.on('checking-for-update', () => {
     log.info('=== UPDATE CHECK STARTED ===');
@@ -238,48 +238,57 @@ app.whenReady().then(() => {
     if (key && key.length > 0) log.info(`Key loaded: ${provider} = ${key.substring(0, 8)}...`);
   });
 
-  // Show cinematic startup splash
-  const splash = new BrowserWindow({
-    width: 1200, height: 700, frame: false, transparent: false,
-    backgroundColor: '#000000', resizable: false, center: true,
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
-    webPreferences: { nodeIntegration: true, contextIsolation: false }
-  });
-
-  // Inject version into startup.html
-  const startupPath = path.join(__dirname, 'src', 'startup.html');
-  let startupHtml = fs.readFileSync(startupPath, 'utf-8');
-  const version = require('./package.json').version;
-  startupHtml = startupHtml.replace('id="version-tag"></div>', `id="version-tag">v${version}</div>`);
-  const tmpStartup = path.join(APPDATA_DIR, '_startup.html');
-  fs.writeFileSync(tmpStartup, startupHtml, 'utf-8');
-  splash.loadFile(tmpStartup);
-
-  // Create main window hidden
-  createWindow();
-  mainWindow.hide();
-
-  // When startup finishes, show main window
-  ipcMain.once('startup-complete', () => {
-    splash.destroy();
-    mainWindow.show();
-    mainWindow.focus();
-    mainWindow.webContents.executeJavaScript(`
-      document.body.style.opacity = '0';
-      document.body.style.transition = 'opacity 0.4s ease';
-      setTimeout(() => document.body.style.opacity = '1', 50);
-    `).catch(() => {});
-    // Clean up temp file
-    try { fs.unlinkSync(tmpStartup); } catch (e) {}
-  });
-
-  // Fallback: if startup never signals, show main after 6s
-  setTimeout(() => {
-    if (splash && !splash.isDestroyed()) {
-      splash.destroy();
-      if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); }
+  // Check if startup splash is enabled
+  const configPath = path.join(APPDATA_DIR, 'config.json');
+  let showSplash = true;
+  try {
+    if (fs.existsSync(configPath)) {
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (cfg.showStartupSplash === false) showSplash = false;
     }
-  }, 6000);
+  } catch (e) {}
+
+  if (showSplash) {
+    const splash = new BrowserWindow({
+      width: 1200, height: 700, frame: false, transparent: false,
+      backgroundColor: '#000000', resizable: false, center: true,
+      icon: path.join(__dirname, 'assets', 'icon.ico'),
+      webPreferences: { nodeIntegration: true, contextIsolation: false }
+    });
+
+    const startupPath = path.join(__dirname, 'src', 'startup.html');
+    let startupHtml = fs.readFileSync(startupPath, 'utf-8');
+    const version = require('./package.json').version;
+    startupHtml = startupHtml.replace('id="version-tag"></div>', `id="version-tag">v${version}</div>`);
+    const tmpStartup = path.join(APPDATA_DIR, '_startup.html');
+    fs.writeFileSync(tmpStartup, startupHtml, 'utf-8');
+    splash.loadFile(tmpStartup);
+
+    createWindow();
+    mainWindow.hide();
+
+    ipcMain.once('startup-complete', () => {
+      splash.destroy();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.executeJavaScript(`
+        document.body.style.opacity = '0';
+        document.body.style.transition = 'opacity 0.4s ease';
+        setTimeout(() => document.body.style.opacity = '1', 50);
+      `).catch(() => {});
+      try { fs.unlinkSync(tmpStartup); } catch (e) {}
+    });
+
+    setTimeout(() => {
+      if (splash && !splash.isDestroyed()) {
+        splash.destroy();
+        if (mainWindow && !mainWindow.isDestroyed()) { mainWindow.show(); mainWindow.focus(); }
+      }
+    }, 6000);
+  } else {
+    // No splash — show main window immediately
+    createWindow();
+  }
 
   initAutoUpdater();
 });
@@ -1489,6 +1498,56 @@ function sanitizeClaudeMessages(messages) {
     return true;
   });
 }
+
+// ====================================================================
+// Streaming Claude call — sends chunks to renderer in real time
+// ====================================================================
+ipcMain.handle('api-call-stream-start', async (_, { model, messages, systemPrompt }) => {
+  const apiKey = store.get('apiKeys.claude', '');
+  if (!apiKey) return { error: true, message: 'No Claude API key' };
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+
+    const claudeMessages = sanitizeClaudeMessages(messages.map(m => {
+      if (Array.isArray(m.content)) return { role: m.role, content: m.content };
+      return {
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.images ? [
+          ...m.images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mimeType, data: img.data } })),
+          { type: 'text', text: (m.content && m.content.trim()) ? m.content : 'Please analyze this image.' }
+        ] : m.content
+      };
+    }));
+
+    if (claudeMessages.length === 0) return { error: true, message: 'Empty message' };
+
+    const stream = client.messages.stream({
+      model: model || 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      system: systemPrompt || '',
+      messages: claudeMessages
+    });
+
+    let inputTokens = 0, outputTokens = 0;
+
+    stream.on('text', (text) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('stream-chunk', text);
+      }
+    });
+
+    const finalMessage = await stream.finalMessage();
+    inputTokens = finalMessage.usage?.input_tokens || 0;
+    outputTokens = finalMessage.usage?.output_tokens || 0;
+    const fullText = finalMessage.content.map(b => b.text || '').join('');
+
+    return { error: false, text: fullText, inputTokens, outputTokens, model: finalMessage.model };
+  } catch (err) {
+    return { error: true, message: err.message };
+  }
+});
 
 // Provider implementation functions
 async function callClaude(apiKey, model, messages, systemPrompt) {

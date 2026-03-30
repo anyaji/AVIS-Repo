@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('avis', {
   // API calls
   apiCall: (params) => ipcRenderer.invoke('api-call', params),
   apiCallAgentic: (params) => ipcRenderer.invoke('api-call-agentic', params),
+  apiCallStream: (params) => ipcRenderer.invoke('api-call-stream-start', params),
+  onStreamChunk: (callback) => ipcRenderer.on('stream-chunk', (_, chunk) => callback(chunk)),
+  offStreamChunk: () => ipcRenderer.removeAllListeners('stream-chunk'),
   testProvider: (provider, apiKey) => ipcRenderer.invoke('test-provider', provider, apiKey),
 
   // First run
