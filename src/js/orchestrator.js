@@ -21,7 +21,8 @@ PROVIDERS YOU CAN CALL RIGHT NOW:
 - read_file / write_file — Access the file system
 - open_app — Launch applications
 - launch_steam_game — Launch Steam games by name (uses Steam URL protocol, much faster than clicking around)
-- computer_action — Control mouse and keyboard
+- computer_action — Control mouse and keyboard (DPI-aware, full desktop screenshots, click/double_click/right_click/type/key/scroll)
+COMPUTER CONTROL WORKFLOW: Always screenshot FIRST to see the screen, identify coordinates, THEN click. Coordinates are auto-DPI-scaled.
 - get_weather — Instant weather for any city (free, no API key)
 
 ROUTING RULES:
@@ -103,13 +104,16 @@ For every user request:
     },
     {
       name: "computer_action",
-      description: "Control the computer: screenshot, click, type, scroll.",
+      description: "Control the computer with DPI-aware coordinates. Actions: screenshot (full desktop), click (left click), double_click, right_click, type (text input), key (special keys like {ENTER}, ^c for Ctrl+C), scroll (up/down), move (cursor). IMPORTANT: Always take a screenshot first to see the screen, then click. Coordinates are automatically DPI-scaled.",
       input_schema: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["screenshot", "click", "type", "scroll", "move"] },
-          x: { type: "number" }, y: { type: "number" },
-          text: { type: "string" }, direction: { type: "string", enum: ["up", "down"] }, amount: { type: "number" }
+          action: { type: "string", enum: ["screenshot", "click", "double_click", "right_click", "type", "key", "scroll", "move"], description: "Action to perform" },
+          x: { type: "number", description: "X coordinate for click/move (pre-DPI, will be auto-scaled)" },
+          y: { type: "number", description: "Y coordinate for click/move (pre-DPI, will be auto-scaled)" },
+          text: { type: "string", description: "Text to type (for 'type' action) or key combo (for 'key' action, e.g. {ENTER}, ^c, %{F4})" },
+          direction: { type: "string", enum: ["up", "down"], description: "Scroll direction" },
+          amount: { type: "number", description: "Scroll amount (notches, default 3)" }
         },
         required: ["action"]
       }
@@ -558,7 +562,7 @@ For every user request:
       open_app: `Opening: ${input.target || ''}`,
       get_weather: `Getting weather for ${input.location || 'auto'}`,
       launch_steam_game: `Launching Steam game: ${input.game_name || ''}`,
-      computer_action: `Computer: ${input.action || ''}`,
+      computer_action: `Computer: ${input.action || ''}${input.x ? ` at (${input.x},${input.y})` : ''}${input.text ? ` "${input.text.substring(0,30)}"` : ''}`,
       call_claude: `Calling Claude ${(input.model || 'opus').includes('haiku') ? 'Haiku' : (input.model || '').includes('sonnet') ? 'Sonnet' : 'Opus'}: "${(input.prompt || '').substring(0, 50)}..."`,
       call_claude_code: `Launching Claude Code on ${(input.project_path || '').split(/[\\/]/).pop() || 'project'}...`,
       call_gemini: `Calling Gemini: "${(input.prompt || '').substring(0, 60)}..."`,
@@ -857,7 +861,17 @@ For every user request:
 
   async toolComputerAction(input) {
     const r = await window.avis.computerAction(input);
-    if (r.success) { if (r.action === 'screenshot' && r.image) return 'Screenshot taken.'; return `Action "${r.action}" completed.`; }
+    if (r.success) {
+      if (r.action === 'screenshot' && r.image) {
+        return `Screenshot taken (${r.width || '?'}x${r.height || '?'}, scale: ${r.scaleFactor || '?'}x).${r.fallback ? ' [Window only — desktopCapturer unavailable]' : ' [Full desktop]'}`;
+      }
+      if (r.action === 'click' || r.action === 'double_click' || r.action === 'right_click') {
+        return `${r.action} at (${r.originalX || r.x}, ${r.originalY || r.y}) → DPI-scaled to (${r.x}, ${r.y}), scale factor: ${r.scaleFactor || 1}x`;
+      }
+      if (r.action === 'type') return `Typed text successfully.`;
+      if (r.action === 'key') return `Sent key: ${input.text}`;
+      return `Action "${r.action}" completed.`;
+    }
     return `Action "${input.action}" failed: ${r.error}`;
   },
 

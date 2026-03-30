@@ -78,6 +78,7 @@ contextBridge.exposeInMainWorld('avis', {
   // App launch & computer control
   openApp: (target) => ipcRenderer.invoke('open-app', target),
   computerAction: (params) => ipcRenderer.invoke('computer-action', params),
+  getDisplayInfo: () => ipcRenderer.invoke('get-display-info'),
 
   // BUG FIX: Abort active request
   abortRequest: () => ipcRenderer.send('abort-request'),

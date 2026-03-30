@@ -1098,89 +1098,146 @@ ipcMain.handle('open-app', async (_, target) => {
 });
 
 // ====================================================================
-// UPGRADE 5: Computer Control — Screenshot, click, type
+// Computer Control — DPI-aware screenshot, click, type, scroll
 // ====================================================================
+
+// Get DPI scale factor for coordinate correction
+function getScaleFactor() {
+  return screen.getPrimaryDisplay().scaleFactor || 1;
+}
+
+// Display info for renderer
+ipcMain.handle('get-display-info', () => {
+  const d = screen.getPrimaryDisplay();
+  return { scaleFactor: d.scaleFactor, bounds: d.bounds, workArea: d.workArea, size: d.size };
+});
+
+// Write a PowerShell script to temp file and execute (avoids inline escaping issues)
+function runPowerShell(script) {
+  return new Promise((resolve) => {
+    const psFile = path.join(APPDATA_DIR, '_avis_ps.ps1');
+    fs.writeFileSync(psFile, script, 'utf-8');
+    exec(`powershell -ExecutionPolicy Bypass -File "${psFile}"`, { timeout: 10000 }, (err, stdout, stderr) => {
+      try { fs.unlinkSync(psFile); } catch (e) {}
+      resolve({ success: !err, output: (stdout || '').trim(), error: err ? (stderr || err.message) : null });
+    });
+  });
+}
+
 ipcMain.handle('computer-action', async (_, { action, x, y, text: inputText, button, direction, amount }) => {
+  const scale = getScaleFactor();
   try {
     switch (action) {
       case 'screenshot': {
-        const displays = screen.getAllDisplays();
-        const primaryDisplay = screen.getPrimaryDisplay();
-        const { width, height } = primaryDisplay.size;
-
-        // Create an offscreen window and capture the screen
-        const captureWin = new BrowserWindow({ width, height, show: false, frame: false, transparent: true });
-        // Use desktopCapturer approach via the main window
-        const sources = await mainWindow.webContents.executeJavaScript(`
-          (async () => {
-            const { desktopCapturer } = require('electron');
-            // This won't work in renderer with contextIsolation, use nativeImage instead
-            return 'use-native';
-          })().catch(() => 'error')
-        `).catch(() => 'error');
-
-        // Fallback: capture the main window
-        const image = await mainWindow.webContents.capturePage();
-        captureWin.destroy();
-        return { success: true, action: 'screenshot', image: image.toDataURL() };
+        // Use Electron's desktopCapturer for full desktop screenshot
+        const { desktopCapturer } = require('electron');
+        const sources = await desktopCapturer.getSources({
+          types: ['screen'],
+          thumbnailSize: { width: Math.round(screen.getPrimaryDisplay().size.width * scale), height: Math.round(screen.getPrimaryDisplay().size.height * scale) }
+        });
+        if (sources.length > 0) {
+          const img = sources[0].thumbnail;
+          return { success: true, action: 'screenshot', image: img.toDataURL(), width: img.getSize().width, height: img.getSize().height, scaleFactor: scale };
+        }
+        // Fallback: capture main window only
+        const fallback = await mainWindow.webContents.capturePage();
+        return { success: true, action: 'screenshot', image: fallback.toDataURL(), scaleFactor: scale, fallback: true };
       }
 
       case 'click': {
-        // Use PowerShell to simulate click
-        const psScript = `
-          Add-Type -AssemblyName System.Windows.Forms
-          [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x || 0}, ${y || 0})
-          Add-Type @"
-          using System;
-          using System.Runtime.InteropServices;
-          public class MouseOps {
-            [DllImport("user32.dll")]
-            public static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, int dwExtraInfo);
-          }
-"@
-          [MouseOps]::mouse_event(0x02, 0, 0, 0, 0)
-          [MouseOps]::mouse_event(0x04, 0, 0, 0, 0)
-        `;
-        return new Promise((resolve) => {
-          exec(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, '; ')}"`, (err) => {
-            resolve({ success: !err, action: 'click', x, y, error: err?.message });
-          });
-        });
+        // Apply DPI scaling to coordinates
+        const cx = Math.round((x || 0) * scale);
+        const cy = Math.round((y || 0) * scale);
+        const ps = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(int f,int x,int y,int d,int e);' -Name U -Namespace W
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${cx}, ${cy})
+Start-Sleep -Milliseconds 50
+[W.U]::mouse_event(0x02, 0, 0, 0, 0)
+[W.U]::mouse_event(0x04, 0, 0, 0, 0)
+`;
+        const result = await runPowerShell(ps);
+        return { success: result.success, action: 'click', x: cx, y: cy, originalX: x, originalY: y, scaleFactor: scale, error: result.error };
+      }
+
+      case 'double_click': {
+        const cx = Math.round((x || 0) * scale);
+        const cy = Math.round((y || 0) * scale);
+        const ps = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(int f,int x,int y,int d,int e);' -Name U -Namespace W
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${cx}, ${cy})
+Start-Sleep -Milliseconds 50
+[W.U]::mouse_event(0x02, 0, 0, 0, 0)
+[W.U]::mouse_event(0x04, 0, 0, 0, 0)
+Start-Sleep -Milliseconds 80
+[W.U]::mouse_event(0x02, 0, 0, 0, 0)
+[W.U]::mouse_event(0x04, 0, 0, 0, 0)
+`;
+        const result = await runPowerShell(ps);
+        return { success: result.success, action: 'double_click', x: cx, y: cy, error: result.error };
+      }
+
+      case 'right_click': {
+        const cx = Math.round((x || 0) * scale);
+        const cy = Math.round((y || 0) * scale);
+        const ps = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(int f,int x,int y,int d,int e);' -Name U -Namespace W
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${cx}, ${cy})
+Start-Sleep -Milliseconds 50
+[W.U]::mouse_event(0x08, 0, 0, 0, 0)
+[W.U]::mouse_event(0x10, 0, 0, 0, 0)
+`;
+        const result = await runPowerShell(ps);
+        return { success: result.success, action: 'right_click', x: cx, y: cy, error: result.error };
       }
 
       case 'type': {
-        // Use PowerShell SendKeys
-        const escapedText = (inputText || '').replace(/[+^%~(){}[\]]/g, '{$&}');
-        return new Promise((resolve) => {
-          exec(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escapedText.replace(/'/g, "''")}')"`, (err) => {
-            resolve({ success: !err, action: 'type', error: err?.message });
-          });
-        });
+        // Write text to a temp file and use PowerShell clip + paste for reliability
+        if (!inputText) return { success: false, action: 'type', error: 'No text provided' };
+        const textFile = path.join(APPDATA_DIR, '_avis_type.txt');
+        fs.writeFileSync(textFile, inputText, 'utf-8');
+        const ps = `
+$text = [System.IO.File]::ReadAllText("${textFile.replace(/\\/g, '\\\\')}")
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.SendKeys]::SendWait($text.Replace('+','{+}').Replace('^','{^}').Replace('%','{%}').Replace('~','{~}').Replace('(','{(}').Replace(')','{)}').Replace('{','{{}').Replace('}','{}}'))
+`;
+        const result = await runPowerShell(ps);
+        try { fs.unlinkSync(textFile); } catch (e) {}
+        return { success: result.success, action: 'type', error: result.error };
+      }
+
+      case 'key': {
+        // Send special key combos: {ENTER}, {TAB}, ^c (Ctrl+C), etc.
+        const ps = `
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.SendKeys]::SendWait("${(inputText || '').replace(/"/g, '`"')}")
+`;
+        const result = await runPowerShell(ps);
+        return { success: result.success, action: 'key', key: inputText, error: result.error };
       }
 
       case 'scroll': {
         const scrollAmount = amount || 3;
         const scrollDir = direction === 'up' ? 120 * scrollAmount : -120 * scrollAmount;
-        return new Promise((resolve) => {
-          exec(`powershell -Command "Add-Type @\\"
-using System;
-using System.Runtime.InteropServices;
-public class MouseScroll {
-  [DllImport(\\"user32.dll\\")]
-  public static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, int dwExtraInfo);
-}
-\\"@; [MouseScroll]::mouse_event(0x0800, 0, 0, ${scrollDir}, 0)"`, (err) => {
-            resolve({ success: !err, action: 'scroll', direction, error: err?.message });
-          });
-        });
+        const ps = `
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void mouse_event(int f,int x,int y,int d,int e);' -Name U -Namespace W
+[W.U]::mouse_event(0x0800, 0, 0, ${scrollDir}, 0)
+`;
+        const result = await runPowerShell(ps);
+        return { success: result.success, action: 'scroll', direction, error: result.error };
       }
 
       case 'move': {
-        return new Promise((resolve) => {
-          exec(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x || 0}, ${y || 0})"`, (err) => {
-            resolve({ success: !err, action: 'move', x, y, error: err?.message });
-          });
-        });
+        const cx = Math.round((x || 0) * scale);
+        const cy = Math.round((y || 0) * scale);
+        const ps = `
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${cx}, ${cy})
+`;
+        const result = await runPowerShell(ps);
+        return { success: result.success, action: 'move', x: cx, y: cy, error: result.error };
       }
 
       default:
