@@ -29,7 +29,7 @@
     "publish": {
       "provider": "github",
       "owner": "anyaji",
-      "repo": "AVIS",
+      "repo": "AVIS-Repo",
       "private": true
     },
     "win": {
