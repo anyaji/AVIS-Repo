@@ -1595,8 +1595,17 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       }
       case 'grok': {
         const axios = require('axios');
-        await axios.post('https://api.x.ai/v1/chat/completions', { model: 'grok-2-latest', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
-        return { success: true };
+        const grokModels = ['grok-2-latest', 'grok-beta', 'grok-2'];
+        for (const gm of grokModels) {
+          try {
+            await axios.post('https://api.x.ai/v1/chat/completions', { model: gm, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 15000 });
+            return { success: true };
+          } catch (e) {
+            if (e.response?.status === 401) throw e; // bad key, stop
+            continue; // try next model
+          }
+        }
+        throw new Error('No Grok model available');
       }
       case 'mistral': {
         const axios = require('axios');
@@ -1782,42 +1791,89 @@ async function callOpenAI(apiKey, model, messages, systemPrompt) {
 async function callGemini(apiKey, model, messages, systemPrompt) {
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(apiKey);
-  const genModel = genAI.getGenerativeModel({ model: model || 'gemini-1.5-pro', systemInstruction: systemPrompt || undefined });
+  const modelId = model || 'gemini-1.5-flash';
 
-  const history = [];
-  for (let i = 0; i < messages.length - 1; i++) {
-    const m = messages[i];
-    history.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
-  }
+  // Use generateContent for simple single-turn, startChat for multi-turn
+  const genModel = genAI.getGenerativeModel({ model: modelId });
 
-  const chat = genModel.startChat({ history });
+  // Extract the last user message
   const last = messages[messages.length - 1];
+  const prompt = (typeof last.content === 'string') ? last.content : (last.content || 'Hello');
+
+  // Build parts
   const parts = [];
+  if (systemPrompt) parts.push({ text: `System: ${systemPrompt}\n\n` });
   if (last.images) {
     for (const img of last.images) {
       parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
     }
   }
-  parts.push({ text: last.content });
+  parts.push({ text: prompt });
 
-  const result = await chat.sendMessage(parts);
-  const response = result.response;
-  const usage = response.usageMetadata || {};
-  return { text: response.text(), inputTokens: usage.promptTokenCount || 0, outputTokens: usage.candidatesTokenCount || 0, model: model || 'gemini-1.5-pro' };
+  // If multi-turn (>1 message), use chat
+  if (messages.length > 1) {
+    const history = [];
+    for (let i = 0; i < messages.length - 1; i++) {
+      const m = messages[i];
+      const text = (typeof m.content === 'string') ? m.content : JSON.stringify(m.content);
+      if (text && text.trim()) {
+        history.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text }] });
+      }
+    }
+    // Gemini requires history to start with user and alternate
+    const cleanHistory = [];
+    let lastRole = null;
+    for (const h of history) {
+      if (h.role !== lastRole) { cleanHistory.push(h); lastRole = h.role; }
+    }
+    if (cleanHistory.length > 0 && cleanHistory[0].role !== 'user') cleanHistory.shift();
+
+    try {
+      const chat = genModel.startChat({ history: cleanHistory });
+      const result = await chat.sendMessage(parts);
+      const usage = result.response.usageMetadata || {};
+      return { text: result.response.text(), inputTokens: usage.promptTokenCount || 0, outputTokens: usage.candidatesTokenCount || 0, model: modelId };
+    } catch (chatErr) {
+      // Fall through to simple generateContent
+    }
+  }
+
+  // Simple single-turn
+  const result = await genModel.generateContent(parts);
+  const usage = result.response.usageMetadata || {};
+  return { text: result.response.text(), inputTokens: usage.promptTokenCount || 0, outputTokens: usage.candidatesTokenCount || 0, model: modelId };
 }
 
 async function callGrok(apiKey, model, messages, systemPrompt) {
   const axios = require('axios');
   const oaiMessages = [];
   if (systemPrompt) oaiMessages.push({ role: 'system', content: systemPrompt });
-  for (const m of messages) oaiMessages.push({ role: m.role, content: m.content });
+  for (const m of messages) {
+    const content = (typeof m.content === 'string') ? m.content : JSON.stringify(m.content);
+    if (content && content.trim()) oaiMessages.push({ role: m.role, content });
+  }
 
-  const response = await axios.post('https://api.x.ai/v1/chat/completions', {
-    model: model || 'grok-2-latest', messages: oaiMessages, max_tokens: 4096
-  }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
+  // Try grok-2-latest first, fall back to grok-beta if it fails
+  const models = [model || 'grok-2-latest', 'grok-beta', 'grok-2'];
+  let lastErr = null;
+  for (const grokModel of models) {
+    try {
+      const response = await axios.post('https://api.x.ai/v1/chat/completions', {
+        model: grokModel, messages: oaiMessages, max_tokens: 4096
+      }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 30000 });
 
-  const d = response.data;
-  return { text: d.choices[0].message.content, inputTokens: d.usage?.prompt_tokens || 0, outputTokens: d.usage?.completion_tokens || 0, model: d.model || model };
+      const d = response.data;
+      return { text: d.choices[0].message.content, inputTokens: d.usage?.prompt_tokens || 0, outputTokens: d.usage?.completion_tokens || 0, model: d.model || grokModel };
+    } catch (err) {
+      lastErr = err;
+      // If 401 (bad key), don't try other models
+      if (err.response?.status === 401) throw err;
+      // If model not found (404), try next
+      if (err.response?.status === 404) continue;
+      throw err;
+    }
+  }
+  throw lastErr || new Error('All Grok models failed');
 }
 
 async function callMistral(apiKey, model, messages, systemPrompt) {
