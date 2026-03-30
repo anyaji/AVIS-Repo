@@ -194,7 +194,9 @@
               <option value="1024x1792">Tall</option>
             </select>
           </div>
-          <textarea id="chat-input" rows="1" placeholder="Type your message... (search, navigate, run code, open files)"></textarea>
+          <textarea id="chat-input" rows="1" placeholder="Type or speak your message..."></textarea>
+          <button class="mic-btn" id="mic-btn" onclick="AVIS.toggleVoiceInput()" title="Voice input (click to speak)">&#127908;</button>
+          <button class="tts-toggle" id="tts-toggle" onclick="AVIS.toggleTTS()" title="Read responses aloud">&#128264;</button>
           <button class="send-btn" id="send-btn" onclick="AVIS.sendMessage()">SEND</button>
           <button class="stop-btn" id="stop-btn" style="display:none;">&#9632; STOP</button>
         </div>

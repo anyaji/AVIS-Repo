@@ -538,6 +538,141 @@ const AVIS = {
     this.showToast(`Chat copied (${messages.length} messages)`);
   },
 
+  // ====================================================================
+  // Voice Input (Speech-to-Text) + Voice Output (Text-to-Speech)
+  // ====================================================================
+  _recognition: null,
+  _isListening: false,
+  _ttsEnabled: false,
+  _speaking: false,
+
+  toggleVoiceInput() {
+    if (this._isListening) {
+      this.stopListening();
+    } else {
+      this.startListening();
+    }
+  },
+
+  startListening() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      this.showToast('Voice input not supported in this browser');
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    this._recognition = new SpeechRecognition();
+    this._recognition.continuous = false;
+    this._recognition.interimResults = true;
+    this._recognition.lang = 'en-US';
+
+    const micBtn = document.getElementById('mic-btn');
+    const input = document.getElementById('chat-input');
+
+    this._recognition.onstart = () => {
+      this._isListening = true;
+      if (micBtn) micBtn.classList.add('listening');
+      if (input) input.placeholder = 'Listening...';
+    };
+
+    this._recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      if (input) input.value = transcript;
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 150) + 'px';
+
+      // If final result, auto-send
+      if (event.results[event.results.length - 1].isFinal) {
+        setTimeout(() => {
+          this.stopListening();
+          if (transcript.trim()) this.sendMessage();
+        }, 300);
+      }
+    };
+
+    this._recognition.onerror = (event) => {
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        this.showToast(`Voice error: ${event.error}`);
+      }
+      this.stopListening();
+    };
+
+    this._recognition.onend = () => {
+      this.stopListening();
+    };
+
+    this._recognition.start();
+  },
+
+  stopListening() {
+    this._isListening = false;
+    const micBtn = document.getElementById('mic-btn');
+    const input = document.getElementById('chat-input');
+    if (micBtn) micBtn.classList.remove('listening');
+    if (input) input.placeholder = 'Type or speak your message...';
+    try { this._recognition?.stop(); } catch (e) {}
+  },
+
+  // Text-to-Speech
+  toggleTTS() {
+    this._ttsEnabled = !this._ttsEnabled;
+    const btn = document.getElementById('tts-toggle');
+    if (btn) {
+      btn.classList.toggle('active', this._ttsEnabled);
+      btn.innerHTML = this._ttsEnabled ? '&#128266;' : '&#128264;';
+    }
+    if (!this._ttsEnabled) {
+      window.speechSynthesis.cancel();
+      this._speaking = false;
+    }
+    this.showToast(this._ttsEnabled ? 'Voice responses ON' : 'Voice responses OFF');
+  },
+
+  speakText(text) {
+    if (!this._ttsEnabled || !text) return;
+    // Strip markdown for cleaner speech
+    const clean = text.replace(/[#*_`~\[\]()>|]/g, '').replace(/\n+/g, '. ').substring(0, 2000);
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.rate = 1.05;
+    utterance.pitch = 1;
+
+    // Pick a good voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.name.includes('Microsoft Zira') || v.name.includes('Microsoft David') || v.name.includes('Google'));
+    if (preferred) utterance.voice = preferred;
+
+    const btn = document.getElementById('tts-toggle');
+    utterance.onstart = () => { this._speaking = true; if (btn) btn.classList.add('speaking'); };
+    utterance.onend = () => { this._speaking = false; if (btn) btn.classList.remove('speaking'); };
+
+    window.speechSynthesis.speak(utterance);
+  },
+    const update = () => {
+      const el = document.getElementById('live-clock');
+      if (el) el.textContent = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+    update();
+    setInterval(update, 30000);
+  },
+
+  // Auto-extract [MEMORY: ...] tags from AI responses
+  async extractMemories(text) {
+    const memoryPattern = /\[MEMORY:\s*(.+?)\]/gi;
+    let match;
+    while ((match = memoryPattern.exec(text)) !== null) {
+      const fact = match[1].trim();
+      if (fact.length > 3) {
+        await MemoryManager.addMemory(fact);
+        this.showToast(`Remembered: "${fact.substring(0, 40)}${fact.length > 40 ? '...' : ''}"`);
+      }
+    }
+  },
+
   startClock() {
     const update = () => {
       const el = document.getElementById('live-clock');
@@ -635,6 +770,12 @@ const AVIS = {
 
       MemoryManager.addMessage('assistant', result.text || '[No response]', result.provider, result.model);
       await MemoryManager.saveCurrentConversation();
+
+      // Speak the response if TTS is on
+      if (result.text && !result.streamed) this.speakText(result.text);
+
+      // Auto-extract and save [MEMORY: ...] tags
+      if (result.text) this.extractMemories(result.text);
 
     } catch (err) {
       typingEl.remove();

@@ -473,6 +473,24 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { app.quit(); });
+
+// Global hotkey: Alt+Space brings AVIS to front and focuses input
+const { globalShortcut } = require('electron');
+app.whenReady().then(() => {
+  globalShortcut.register('Alt+Space', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      // Focus the chat input
+      mainWindow.webContents.executeJavaScript(`
+        document.getElementById('chat-input')?.focus();
+      `).catch(() => {});
+    }
+  });
+});
+
+app.on('will-quit', () => { globalShortcut.unregisterAll(); });
 app.on('activate', () => { if (!mainWindow) createWindow(); });
 
 // Window controls
