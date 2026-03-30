@@ -83,6 +83,7 @@ contextBridge.exposeInMainWorld('avis', {
   abortRequest: () => ipcRenderer.send('abort-request'),
 
   // Auto-updater
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   installUpdate: () => ipcRenderer.send('install-update'),
   cancelUpdate: () => ipcRenderer.send('cancel-update'),
   checkForUpdates: () => ipcRenderer.send('check-for-updates'),

@@ -75,6 +75,14 @@ body {
   letter-spacing: 1px;
 }
 
+.app-version {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
 .titlebar-controls {
   display: flex;
   gap: 2px;

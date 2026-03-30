@@ -38,6 +38,15 @@ const AVIS = {
     // Auto-updater status listener
     window.avis.onUpdateStatus((data) => this.handleUpdateStatus(data));
 
+    // FIX 4: Show version in titlebar
+    try {
+      const ver = await window.avis.getAppVersion();
+      const verEl = document.getElementById('app-version');
+      if (verEl) verEl.textContent = `v${ver}`;
+      const welcomeVer = document.getElementById('welcome-version');
+      if (welcomeVer) welcomeVer.textContent = `v${ver}`;
+    } catch (e) {}
+
     // Render changelog + init dev console
     this.renderChangelog();
     this.initDevConsole();
@@ -394,6 +403,14 @@ const AVIS = {
     } catch (e) {
       this.showToast('Export failed: ' + e.message);
     }
+  },
+
+  manualUpdateCheck() {
+    const btn = document.getElementById('btn-check-update');
+    if (btn) btn.textContent = '\u21BB Checking...';
+    window.avis.checkForUpdates();
+    // Reset button text after 5s
+    setTimeout(() => { if (btn) btn.textContent = '\u21BB Check for Updates'; }, 5000);
   },
 
   showToast(message) {

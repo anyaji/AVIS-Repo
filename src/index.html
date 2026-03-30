@@ -15,6 +15,7 @@
       <div class="status-dot" id="global-status"></div>
       <span class="logo" id="app-title">AVIS</span>
       <span class="subtitle" id="app-subtitle">Avel Intelligence Services</span>
+      <span id="app-version" class="app-version"></span>
     </div>
     <div class="titlebar-controls">
       <button onclick="avis.minimize()" title="Minimize">&#x2500;</button>
@@ -185,6 +186,7 @@
       <div class="right-panel-actions">
         <button class="panel-action-btn" onclick="AVIS.openSettings()">&#9881; Settings</button>
         <button class="panel-action-btn" onclick="AVIS.newConversation()">&#43; New Chat</button>
+        <button class="panel-action-btn" id="btn-check-update" onclick="AVIS.manualUpdateCheck()">&#8635; Check for Updates</button>
       </div>
     </div>
   </div>

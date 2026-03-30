@@ -53,16 +53,28 @@ autoUpdater.logger.transports.file.level = 'info';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// FIX 3: Explicitly set feed URL — don't rely on package.json alone
+autoUpdater.setFeedURL({
+  provider: 'github',
+  owner: 'anyaji',
+  repo: 'AVIS-Repo'
+});
+
 let updateCountdown = null;
 
 function initAutoUpdater() {
-  // Clean old build artifacts on startup
   cleanOldBuilds();
 
-  // Check 3s after launch
+  // FIX 1: Debug logging
+  log.info('=== AVIS Auto-Updater Init ===');
+  log.info('Current version:', app.getVersion());
+  log.info('Feed URL:', JSON.stringify(autoUpdater.getFeedURL()));
+
+  // Check 5s after launch
   setTimeout(() => {
+    log.info('Running startup update check...');
     autoUpdater.checkForUpdates().catch(e => log.warn('Update check failed:', e.message));
-  }, 3000);
+  }, 5000);
 
   // Re-check every 1 minute
   setInterval(() => {
@@ -70,15 +82,19 @@ function initAutoUpdater() {
   }, 60 * 1000);
 
   autoUpdater.on('checking-for-update', () => {
+    log.info('=== UPDATE CHECK STARTED ===');
+    log.info('Current version:', app.getVersion());
     sendUpdateStatus('checking', 'Checking for updates...');
   });
 
   autoUpdater.on('update-available', (info) => {
+    log.info('UPDATE AVAILABLE:', info.version);
     sendUpdateStatus('available', `Update v${info.version} available — downloading...`, info.version);
   });
 
-  autoUpdater.on('update-not-available', () => {
-    sendUpdateStatus('current', 'AVIS is up to date');
+  autoUpdater.on('update-not-available', (info) => {
+    log.info('No update available. Latest:', info?.version || 'unknown');
+    sendUpdateStatus('current', `AVIS v${app.getVersion()} is up to date`);
   });
 
   autoUpdater.on('download-progress', (progress) => {
@@ -87,7 +103,6 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     log.info('Update downloaded:', info.version);
-    // Start 10-second countdown to auto-restart
     sendUpdateStatus('ready', `v${info.version} ready — restarting in 10s...`, info.version);
     let countdown = 10;
     updateCountdown = setInterval(() => {
@@ -96,7 +111,7 @@ function initAutoUpdater() {
         clearInterval(updateCountdown);
         updateCountdown = null;
         log.info('Auto-installing update...');
-        autoUpdater.quitAndInstall(false, true); // silent=false, forceRunAfter=true
+        autoUpdater.quitAndInstall(false, true);
       } else {
         sendUpdateStatus('ready', `v${info.version} ready — restarting in ${countdown}s...`, info.version);
       }
@@ -104,13 +119,17 @@ function initAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
+    log.error('Update error:', err.message);
     if (err.message && (err.message.includes('404') || err.message.includes('net::') || err.message.includes('ENOTFOUND'))) {
-      log.info('Update check skipped:', err.message);
+      log.info('Update check skipped (no release or network issue)');
       return;
     }
     sendUpdateStatus('error', 'Update check failed — will retry later');
   });
 }
+
+// FIX 4: Expose version to renderer
+ipcMain.handle('get-app-version', () => app.getVersion());
 
 function sendUpdateStatus(status, message, version, percent) {
   if (mainWindow && !mainWindow.isDestroyed()) {
