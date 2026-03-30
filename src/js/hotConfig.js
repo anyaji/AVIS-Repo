@@ -26,7 +26,13 @@ const HotConfig = {
     // Font size
     document.documentElement.style.setProperty('--font-size-base', c.fontSize + 'px');
 
-    // Accent color
+    // Theme preset
+    if (c.theme && c.theme !== 'default') {
+      document.body.className = document.body.className.replace(/theme-\S+/g, '');
+      document.body.classList.add(`theme-${c.theme}`);
+    }
+
+    // Accent color (overrides theme)
     if (c.accentColor && c.accentColor !== '#00a8ff') {
       document.documentElement.style.setProperty('--accent-blue', c.accentColor);
     }
@@ -107,7 +113,18 @@ const HotConfig = {
           <input type="text" value="${this.get('appName')}" onchange="HotConfig.update('appName', this.value)">
         </div>
         <div class="setting-row">
-          <label>Accent Color</label>
+          <label>Theme Preset</label>
+          <select onchange="AVIS.applyTheme(this.value)">
+            <option value="default" ${this.get('theme') === 'default' || !this.get('theme') ? 'selected' : ''}>Default (Cyan)</option>
+            <option value="cyberpunk" ${this.get('theme') === 'cyberpunk' ? 'selected' : ''}>Cyberpunk (Magenta)</option>
+            <option value="emerald" ${this.get('theme') === 'emerald' ? 'selected' : ''}>Emerald (Green)</option>
+            <option value="sunset" ${this.get('theme') === 'sunset' ? 'selected' : ''}>Sunset (Orange)</option>
+            <option value="arctic" ${this.get('theme') === 'arctic' ? 'selected' : ''}>Arctic (Light Blue)</option>
+            <option value="blood" ${this.get('theme') === 'blood' ? 'selected' : ''}>Blood (Red)</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>Custom Accent Color (overrides theme)</label>
           <input type="color" value="${this.get('accentColor')}" onchange="HotConfig.update('accentColor', this.value)">
         </div>
         <div class="setting-row">

@@ -34,6 +34,7 @@
         <button class="panel-tab" data-tab="search">Search</button>
         <button class="panel-tab" data-tab="browser">Browser</button>
         <button class="panel-tab" data-tab="terminal">Terminal</button>
+        <button class="panel-tab" data-tab="changelog">Changes</button>
       </div>
       <div class="panel-content">
         <!-- Providers Section -->
@@ -86,6 +87,10 @@
           <div style="font-size:11px;color:var(--accent-green);font-family:'JetBrains Mono',monospace;margin-bottom:8px;">AVIS Tool Execution Log</div>
           <pre id="terminal-output" style="font-size:10px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;white-space:pre-wrap;word-break:break-word;max-height:600px;overflow-y:auto;background:var(--bg-primary);padding:8px;border-radius:6px;border:1px solid var(--border);line-height:1.6;"></pre>
         </div>
+        <!-- Changelog Section -->
+        <div class="panel-section" id="changelog-section">
+          <div class="changelog-container" id="changelog-container"></div>
+        </div>
       </div>
     </div>
 
@@ -93,10 +98,21 @@
     <div class="center-panel">
       <div class="chat-area" id="chat-area">
         <div class="welcome-msg" id="welcome-msg">
-          <div class="big-logo">AVIS</div>
-          <p>Multi-AI Orchestration Platform</p>
-          <p style="font-size:12px;margin-top:8px;opacity:0.5;">Fully agentic: web search, code execution, file access, browser control</p>
-          <p style="font-size:12px;margin-top:16px;opacity:0.5;">Type a message to begin. Claude orchestrates everything.</p>
+          <canvas id="welcome-particles" class="welcome-particles"></canvas>
+          <div class="welcome-content">
+            <div class="big-logo glow-text">AVIS</div>
+            <div class="welcome-tagline">Avel Intelligence Services</div>
+            <div class="welcome-version" id="welcome-version">v1.3.0</div>
+            <div class="welcome-divider"></div>
+            <div class="welcome-features">
+              <div class="welcome-feature"><span class="wf-icon">&#129504;</span> Multi-AI Orchestration</div>
+              <div class="welcome-feature"><span class="wf-icon">&#127760;</span> Web Search &amp; Browser</div>
+              <div class="welcome-feature"><span class="wf-icon">&#9889;</span> Code Execution</div>
+              <div class="welcome-feature"><span class="wf-icon">&#128193;</span> File System Access</div>
+              <div class="welcome-feature"><span class="wf-icon">&#128421;</span> Computer Control</div>
+            </div>
+            <p class="welcome-hint">Type a message to begin</p>
+          </div>
         </div>
       </div>
 

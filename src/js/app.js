@@ -32,6 +32,12 @@ const AVIS = {
 
     // Auto-updater status listener
     window.avis.onUpdateStatus((data) => this.handleUpdateStatus(data));
+
+    // Render changelog
+    this.renderChangelog();
+
+    // Welcome particle animation
+    this.initParticles();
   },
 
   handleUpdateStatus(data) {
@@ -716,7 +722,26 @@ const AVIS = {
 
   async newConversation() {
     await MemoryManager.startNewConversation();
-    document.getElementById('chat-area').innerHTML = `<div class="welcome-msg" id="welcome-msg"><div class="big-logo">${HotConfig.get('appName') || 'AVIS'}</div><p>Multi-AI Orchestration Platform</p><p style="font-size:12px;margin-top:8px;opacity:0.5;">Fully agentic with live thinking display</p></div>`;
+    const name = HotConfig.get('appName') || 'AVIS';
+    document.getElementById('chat-area').innerHTML = `
+      <div class="welcome-msg" id="welcome-msg">
+        <canvas id="welcome-particles" class="welcome-particles"></canvas>
+        <div class="welcome-content">
+          <div class="big-logo glow-text">${name}</div>
+          <div class="welcome-tagline">Avel Intelligence Services</div>
+          <div class="welcome-version">v1.3.0</div>
+          <div class="welcome-divider"></div>
+          <div class="welcome-features">
+            <div class="welcome-feature"><span class="wf-icon">&#129504;</span> Multi-AI Orchestration</div>
+            <div class="welcome-feature"><span class="wf-icon">&#127760;</span> Web Search &amp; Browser</div>
+            <div class="welcome-feature"><span class="wf-icon">&#9889;</span> Code Execution</div>
+            <div class="welcome-feature"><span class="wf-icon">&#128193;</span> File System Access</div>
+            <div class="welcome-feature"><span class="wf-icon">&#128421;</span> Computer Control</div>
+          </div>
+          <p class="welcome-hint">Type a message to begin</p>
+        </div>
+      </div>`;
+    this.initParticles();
     await this.loadHistoryList();
   },
 
@@ -856,6 +881,174 @@ const AVIS = {
     document.getElementById('onboarding-overlay').style.display = 'none';
     await this.detectProviders();
     this.renderMeters();
+  },
+
+  // ====================================================================
+  // Changelog
+  // ====================================================================
+  CHANGELOG: [
+    {
+      version: '1.3.0', date: '2026-03-30', label: 'latest',
+      items: [
+        'Changelog tab with full version history',
+        'Enhanced welcome screen with particle animation',
+        'Theme presets: Cyberpunk, Emerald, Sunset, Arctic, Blood',
+        'Message slide-in animations',
+        'Provider status pulse effects',
+        'Glow text effects on logo',
+        'Input field focus glow',
+        'Meter bar shimmer animation',
+        'Improved scrollbar styling',
+        'Custom accent color + theme selection in Settings'
+      ]
+    },
+    {
+      version: '1.2.0', date: '2026-03-30', label: 'major',
+      items: [
+        'Fixed API key persistence across restarts',
+        'Python path auto-detection (python/python3/py)',
+        'Fast-path: simple questions answered without tool calls',
+        'Weather tool via wttr.in (free, no API key)',
+        'Typing indicator cleanup on completion',
+        'Step panel shows total elapsed time'
+      ]
+    },
+    {
+      version: '1.1.0', date: '2026-03-30',
+      items: [
+        'Dynamic iteration limits by task type (5-100)',
+        'Smart Steam game launcher tool',
+        'API timeout raised: 60s regular, 120s agentic, 30min claude-code',
+        'Continue button when step limit reached',
+        'Claude self-awareness: call_claude + call_claude_code tools',
+        'Gold ORCHESTRATOR badge for Claude in status panel'
+      ]
+    },
+    {
+      version: '1.0.0', date: '2026-03-30',
+      items: [
+        'Initial release — multi-AI orchestration platform',
+        '9 AI providers: Claude, DeepSeek, GPT-4, Gemini, Grok, Mistral, Perplexity, Stability',
+        'Agentic tool loop with web search, code execution, file access',
+        'Embedded browser with webview',
+        'Computer control (screenshot, click, type)',
+        'Live thinking step display',
+        'Auto-updater via GitHub Releases',
+        'Military dark theme UI'
+      ]
+    }
+  ],
+
+  renderChangelog() {
+    const container = document.getElementById('changelog-container');
+    if (!container) return;
+    container.innerHTML = this.CHANGELOG.map((entry, i) => `
+      <div class="changelog-entry" style="animation-delay:${i * 0.05}s;">
+        <div class="changelog-version">
+          <span class="ver-tag">v${entry.version}</span>
+          <span class="ver-date">${entry.date}</span>
+          ${entry.label ? `<span class="ver-label ${entry.label}">${entry.label}</span>` : ''}
+        </div>
+        <ul class="changelog-items">
+          ${entry.items.map(item => `<li>${this.escapeHtml(item)}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('');
+  },
+
+  // ====================================================================
+  // Welcome screen particles
+  // ====================================================================
+  initParticles() {
+    const canvas = document.getElementById('welcome-particles');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const particles = [];
+    let animFrame;
+
+    function resize() {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      canvas.width = parent.offsetWidth;
+      canvas.height = parent.offsetHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Create particles
+    for (let i = 0; i < 40; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        r: Math.random() * 1.5 + 0.5,
+        alpha: Math.random() * 0.4 + 0.1
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const style = getComputedStyle(document.documentElement);
+      const color = style.getPropertyValue('--accent-blue').trim() || '#00a8ff';
+
+      // Draw connecting lines
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 120) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.06 * (1 - dist / 120);
+            ctx.lineWidth = 0.5;
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Draw particles
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = p.alpha;
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1;
+      animFrame = requestAnimationFrame(draw);
+    }
+
+    draw();
+
+    // Stop animation when welcome is removed
+    const observer = new MutationObserver(() => {
+      if (!document.getElementById('welcome-particles')) {
+        cancelAnimationFrame(animFrame);
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.getElementById('chat-area') || document.body, { childList: true, subtree: true });
+  },
+
+  // Apply theme preset
+  applyTheme(themeName) {
+    document.body.className = document.body.className.replace(/theme-\S+/g, '');
+    if (themeName && themeName !== 'default') {
+      document.body.classList.add(`theme-${themeName}`);
+    }
+    HotConfig.update('theme', themeName);
   }
 };
 
