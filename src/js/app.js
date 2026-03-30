@@ -1158,50 +1158,116 @@ const AVIS = {
   // ====================================================================
   CHANGELOG: [
     {
-      version: '1.3.0', date: '2026-03-30', label: 'latest',
+      version: '2.2.2', date: '2026-03-30', label: 'latest',
       items: [
+        'Fixed Gemini: rewrote to use generateContent for single messages',
+        'Fixed Grok: model fallback chain (grok-2-latest → grok-beta → grok-2)',
+        'Better error detail on provider connection failures'
+      ]
+    },
+    {
+      version: '2.2.0', date: '2026-03-30', label: 'major',
+      items: [
+        'License key system — every install requires activation',
+        'Master key (always works, even offline, never revoked)',
+        'One-time device binding — keys locked to first machine',
+        'Remote revocation via licenses.json on GitHub',
+        '24-hour offline grace period for validated keys',
+        'License gate UI with activation screen',
+        'MASTER badge in titlebar for master tier'
+      ]
+    },
+    {
+      version: '2.1.0', date: '2026-03-30', label: 'major',
+      items: [
+        'Failover orchestrator: Claude → GPT-4o → DeepSeek → Gemini → Mistral',
+        'Direct Chat panel — talk to any provider without orchestrator',
+        'Provider dropdown: Claude Sonnet/Opus/Haiku, GPT-4o, DeepSeek, Gemini, Grok, Mistral, Perplexity',
+        'Copy + Send to Chat buttons on direct responses',
+        'Removed broken browser preview tab'
+      ]
+    },
+    {
+      version: '2.0.0', date: '2026-03-30', label: 'major',
+      items: [
+        'Streaming responses — text types out in real-time for simple questions',
+        'Blinking cursor during stream, markdown renders live',
+        'Startup splash can be disabled in Settings',
+        'Context trimming — auto-trim to last 12 messages',
+        'Dev panel hidden by default (Ctrl+Shift+D to show)',
+        'Update check reduced to every 5 minutes',
+        'Cache badge on cached responses'
+      ]
+    },
+    {
+      version: '1.8.0', date: '2026-03-30',
+      items: [
+        'Response cache — same question within 1 hour returns cached answer',
+        'Budget guardrails — blocks API call if monthly budget exceeded',
+        'Meter cards show $spent / $budget with color warnings',
+        'Layout controls in Settings: panel widths, show/hide, compact mode',
+        'Update bar moved inside center panel (no longer covers input)'
+      ]
+    },
+    {
+      version: '1.7.0', date: '2026-03-30',
+      items: [
+        'Centered nav tabs in titlebar (moved from left panel)',
+        'Cinematic startup splash with boot sequence animation',
+        'DPI-aware computer control with full desktop screenshots',
+        'Targeted window capture (screenshot specific app by name)',
+        'list_windows action to see all open applications',
+        'Codebase audit: removed 178 lines of dead code'
+      ]
+    },
+    {
+      version: '1.6.0', date: '2026-03-30',
+      items: [
+        'Firecrawl integration for clean markdown web scraping',
+        'Fixed UI layout overlaps (strict flex constraints)',
+        'Auto-updater fix: repo made public for update access',
+        'Version display in titlebar',
+        'Manual Check for Updates button',
+        'Key persistence fix: removed encryption that caused data loss'
+      ]
+    },
+    {
+      version: '1.5.0', date: '2026-03-30',
+      items: [
+        'Terminal copy/clear/export buttons with toast notifications',
+        'Provider health checks on startup + every 15 minutes',
+        'Rate limit cooldown tracker with auto-recovery',
+        'Payment/billing errors auto-disable provider',
+        'Health-aware routing: disabled providers excluded from tools'
+      ]
+    },
+    {
+      version: '1.4.0', date: '2026-03-30',
+      items: [
+        'Developer panel: code editor, patch applier, console',
         'Changelog tab with full version history',
-        'Enhanced welcome screen with particle animation',
         'Theme presets: Cyberpunk, Emerald, Sunset, Arctic, Blood',
-        'Message slide-in animations',
-        'Provider status pulse effects',
-        'Glow text effects on logo',
-        'Input field focus glow',
-        'Meter bar shimmer animation',
-        'Improved scrollbar styling',
-        'Custom accent color + theme selection in Settings'
+        'Particle animation on welcome screen',
+        'Auto-restart on update with 10s countdown'
       ]
     },
     {
-      version: '1.2.0', date: '2026-03-30', label: 'major',
+      version: '1.3.0', date: '2026-03-30',
       items: [
-        'Fixed API key persistence across restarts',
-        'Python path auto-detection (python/python3/py)',
-        'Fast-path: simple questions answered without tool calls',
-        'Weather tool via wttr.in (free, no API key)',
-        'Typing indicator cleanup on completion',
-        'Step panel shows total elapsed time'
-      ]
-    },
-    {
-      version: '1.1.0', date: '2026-03-30',
-      items: [
-        'Dynamic iteration limits by task type (5-100)',
-        'Smart Steam game launcher tool',
-        'API timeout raised: 60s regular, 120s agentic, 30min claude-code',
-        'Continue button when step limit reached',
         'Claude self-awareness: call_claude + call_claude_code tools',
-        'Gold ORCHESTRATOR badge for Claude in status panel'
+        'All AI providers callable as real tools',
+        'run_parallel for multi-provider comparisons',
+        'Gold ORCHESTRATOR badge for Claude',
+        'Dynamic iteration limits by task type (5-100)',
+        'Smart Steam game launcher'
       ]
     },
     {
       version: '1.0.0', date: '2026-03-30',
       items: [
         'Initial release — multi-AI orchestration platform',
-        '9 AI providers: Claude, DeepSeek, GPT-4, Gemini, Grok, Mistral, Perplexity, Stability',
-        'Agentic tool loop with web search, code execution, file access',
-        'Embedded browser with webview',
-        'Computer control (screenshot, click, type)',
+        '9 AI providers with agentic tool loop',
+        'Web search, code execution, file access, computer control',
         'Live thinking step display',
         'Auto-updater via GitHub Releases',
         'Military dark theme UI'
