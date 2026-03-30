@@ -54,9 +54,10 @@ const AVIS = {
       if (welcomeVer) welcomeVer.textContent = `v${ver}`;
     } catch (e) {}
 
-    // Render changelog + init dev console
+    // Render changelog + init dev console + live clock
     this.renderChangelog();
     this.initDevConsole();
+    this.startClock();
 
     // Listen for license revocation while app is running
     window.avis.onLicenseRevoked((data) => {
@@ -181,7 +182,7 @@ const AVIS = {
   async detectProviders() {
     const providers = [
       { key: 'claude', obj: ClaudeProvider }, { key: 'deepseek', obj: DeepSeekProvider }, { key: 'openai', obj: OpenAIProvider },
-      { key: 'gemini', obj: GeminiProvider }, { key: 'grok', obj: GrokProvider },
+      { key: 'gemini', obj: GeminiProvider },
       { key: 'mistral', obj: MistralProvider }, { key: 'perplexity', obj: PerplexityProvider },
     ];
     for (const p of providers) {
@@ -198,7 +199,7 @@ const AVIS = {
 
   // FIX 3: Ping all configured providers to check health
   async healthCheckAll() {
-    const providers = ['claude', 'openai', 'gemini', 'grok', 'mistral', 'deepseek', 'perplexity'];
+    const providers = ['claude', 'openai', 'gemini', 'mistral', 'deepseek', 'perplexity'];
     const checks = providers.map(async (p) => {
       const key = await window.avis.getApiKey(p);
       if (!key) { this.providerHealth[p] = { status: 'unconfigured', reason: 'NOT SET' }; return; }
@@ -535,6 +536,15 @@ const AVIS = {
 
     navigator.clipboard.writeText(text.trim());
     this.showToast(`Chat copied (${messages.length} messages)`);
+  },
+
+  startClock() {
+    const update = () => {
+      const el = document.getElementById('live-clock');
+      if (el) el.textContent = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+    update();
+    setInterval(update, 30000);
   },
 
   manualUpdateCheck() {
@@ -923,7 +933,6 @@ const AVIS = {
       'openai': { provider: 'openai', model: 'gpt-4o' },
       'deepseek': { provider: 'deepseek', model: 'deepseek-chat' },
       'gemini': { provider: 'gemini', model: 'gemini-1.5-pro' },
-      'grok': { provider: 'grok', model: 'grok-2-latest' },
       'mistral': { provider: 'mistral', model: 'mistral-large-latest' },
       'perplexity': { provider: 'perplexity', model: 'sonar-pro' }
     };
@@ -994,7 +1003,7 @@ const AVIS = {
     const providers = [
       { obj: ClaudeProvider, key: 'claude' }, { obj: DeepSeekProvider, key: 'deepseek' },
       { obj: OpenAIProvider, key: 'openai' }, { obj: GeminiProvider, key: 'gemini' },
-      { obj: GrokProvider, key: 'grok' }, { obj: MistralProvider, key: 'mistral' },
+      { obj: MistralProvider, key: 'mistral' },
       { obj: PerplexityProvider, key: 'perplexity' },     ];
     list.innerHTML = providers.map(p => {
       const isClaude = p.key === 'claude';
@@ -1022,7 +1031,7 @@ const AVIS = {
     const providers = [
       { obj: ClaudeProvider, key: 'claude' }, { obj: DeepSeekProvider, key: 'deepseek' },
       { obj: OpenAIProvider, key: 'openai' }, { obj: GeminiProvider, key: 'gemini' },
-      { obj: GrokProvider, key: 'grok' }, { obj: MistralProvider, key: 'mistral' },
+      { obj: MistralProvider, key: 'mistral' },
       { obj: PerplexityProvider, key: 'perplexity' },     ];
     container.innerHTML = providers.map(p => {
       const u = UsageMeter.providers[p.key];
@@ -1191,7 +1200,6 @@ const AVIS = {
       { key: 'claude', label: 'Anthropic (Claude)', placeholder: 'sk-ant-...' },
       { key: 'openai', label: 'OpenAI', placeholder: 'sk-...' },
       { key: 'gemini', label: 'Google Gemini', placeholder: 'AI...' },
-      { key: 'grok', label: 'xAI Grok', placeholder: 'xai-...' },
       { key: 'mistral', label: 'Mistral', placeholder: 'API key...' },
       { key: 'perplexity', label: 'Perplexity', placeholder: 'pplx-...' },
       { key: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...' },
@@ -1228,7 +1236,7 @@ const AVIS = {
   },
 
   async finishOnboarding() {
-    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'brave']) {
+    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'brave']) {
       const input = document.getElementById(`onboard-${p}`);
       if (input?.value.trim()) await window.avis.setApiKey(p, input.value.trim());
     }
@@ -1264,7 +1272,7 @@ const AVIS = {
       items: [
         'If Claude goes down, AVIS automatically switches to another AI',
         'New Direct Chat tab — talk to any AI provider directly',
-        'Pick from Claude, GPT-4, DeepSeek, Gemini, Grok, Mistral, or Perplexity',
+        'Pick from Claude, GPT-4, DeepSeek, Gemini,  Mistral, or Perplexity',
         'Copy responses or send them to the main chat'
       ]
     },

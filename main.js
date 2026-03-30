@@ -1553,7 +1553,7 @@ ipcMain.handle('api-call', async (_, { provider, model, messages, systemPrompt, 
       case 'deepseek': callFn = callDeepSeek(apiKey, model, messages, systemPrompt, options); break;
       case 'openai': callFn = callOpenAI(apiKey, model, messages, systemPrompt, options); break;
       case 'gemini': callFn = callGemini(apiKey, model, messages, systemPrompt, options); break;
-      case 'grok': callFn = callGrok(apiKey, model, messages, systemPrompt, options); break;
+
       case 'mistral': callFn = callMistral(apiKey, model, messages, systemPrompt, options); break;
       case 'perplexity': callFn = callPerplexity(apiKey, model, messages, systemPrompt, options); break;
       case 'dalle': callFn = callDalle(store.get('apiKeys.openai', ''), model, messages, options); break;
@@ -1651,23 +1651,6 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
         const m = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
         await m.generateContent('Hi');
         return { success: true };
-      }
-      case 'grok': {
-        const axios = require('axios');
-        const grokModels = ['grok-2-latest', 'grok-beta'];
-        for (const gm of grokModels) {
-          try {
-            await axios.post('https://api.x.ai/v1/chat/completions', {
-              model: gm, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 5
-            }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 15000 });
-            return { success: true };
-          } catch (e) {
-            if (e.response?.status === 401) return { success: false, error: 'Invalid API key' };
-            if (e.response?.status === 400 || e.response?.status === 404) continue;
-            continue;
-          }
-        }
-        return { success: false, error: 'No Grok model responded. Check your xAI API plan.' };
       }
       case 'mistral': {
         const axios = require('axios');
@@ -1899,52 +1882,6 @@ async function callGemini(apiKey, model, messages, systemPrompt) {
   const result = await genModel.generateContent(parts);
   const usage = result.response.usageMetadata || {};
   return { text: result.response.text(), inputTokens: usage.promptTokenCount || 0, outputTokens: usage.candidatesTokenCount || 0, model: modelId };
-}
-
-async function callGrok(apiKey, model, messages, systemPrompt) {
-  const axios = require('axios');
-  const oaiMessages = [];
-  // Grok supports system role
-  if (systemPrompt && typeof systemPrompt === 'string' && systemPrompt.trim()) {
-    oaiMessages.push({ role: 'system', content: systemPrompt.substring(0, 2000) });
-  }
-  for (const m of messages) {
-    // Extract plain text — Grok only accepts string content
-    let content = '';
-    if (typeof m.content === 'string') {
-      content = m.content;
-    } else if (Array.isArray(m.content)) {
-      // Extract text from multimodal content blocks
-      content = m.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
-    }
-    if (!content || !content.trim()) continue;
-    // Normalize role to user/assistant/system only
-    const role = m.role === 'assistant' ? 'assistant' : 'user';
-    oaiMessages.push({ role, content: content.trim() });
-  }
-
-  if (oaiMessages.length === 0 || !oaiMessages.some(m => m.role === 'user')) {
-    oaiMessages.push({ role: 'user', content: 'Hello' });
-  }
-
-  const models = [model || 'grok-2-latest', 'grok-beta'];
-  let lastErr = null;
-  for (const grokModel of models) {
-    try {
-      const response = await axios.post('https://api.x.ai/v1/chat/completions', {
-        model: grokModel, messages: oaiMessages, max_tokens: 4096
-      }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 30000 });
-
-      const d = response.data;
-      return { text: d.choices[0].message.content, inputTokens: d.usage?.prompt_tokens || 0, outputTokens: d.usage?.completion_tokens || 0, model: d.model || grokModel };
-    } catch (err) {
-      lastErr = err;
-      if (err.response?.status === 401) throw new Error('Invalid Grok API key');
-      if (err.response?.status === 400 || err.response?.status === 404) continue;
-      throw err;
-    }
-  }
-  throw lastErr || new Error('All Grok models failed');
 }
 
 async function callMistral(apiKey, model, messages, systemPrompt) {
