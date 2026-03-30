@@ -299,7 +299,7 @@ function initAutoUpdater() {
         clearInterval(updateCountdown);
         updateCountdown = null;
         log.info('Auto-installing update...');
-        autoUpdater.quitAndInstall(false, true);
+        autoUpdater.quitAndInstall(true, true);
       } else {
         sendUpdateStatus('ready', `v${info.version} ready — restarting in ${countdown}s...`, info.version);
       }
@@ -338,7 +338,7 @@ ipcMain.on('cancel-update', () => {
 // Allow renderer to trigger install + restart immediately
 ipcMain.on('install-update', () => {
   if (updateCountdown) { clearInterval(updateCountdown); updateCountdown = null; }
-  autoUpdater.quitAndInstall(false, true);
+  autoUpdater.quitAndInstall(true, true);
 });
 
 // Allow renderer to manually check for updates
