@@ -85,7 +85,12 @@ function initAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
-    sendUpdateStatus('error', `Update error: ${err.message}`);
+    // Suppress 404 (no release published yet) and network errors silently
+    if (err.message && (err.message.includes('404') || err.message.includes('net::') || err.message.includes('ENOTFOUND'))) {
+      log.info('Update check skipped:', err.message);
+      return; // silent — don't show to user
+    }
+    sendUpdateStatus('error', 'Update check failed — will retry later');
   });
 }
 
@@ -130,6 +135,7 @@ ipcMain.handle('store-delete', (_, key) => { store.delete(key); return true; });
 // API key management
 ipcMain.handle('get-api-key', (_, provider) => store.get(`apiKeys.${provider}`, ''));
 ipcMain.handle('set-api-key', (_, provider, key) => { store.set(`apiKeys.${provider}`, key); return true; });
+ipcMain.handle('get-all-keys', () => store.get('apiKeys', {}));
 
 // Config management
 ipcMain.handle('get-config', () => {
@@ -257,7 +263,17 @@ ipcMain.handle('import-config', async () => {
 });
 
 // Check first run
-ipcMain.handle('is-first-run', () => !store.get('onboardingComplete', false));
+// First run check — also considers if any API keys already exist in store
+ipcMain.handle('is-first-run', () => {
+  if (store.get('onboardingComplete', false)) return false;
+  // If any keys exist, user already set up — skip onboarding
+  const keys = store.get('apiKeys', {});
+  if (Object.values(keys).some(k => k && k.length > 0)) {
+    store.set('onboardingComplete', true);
+    return false;
+  }
+  return true;
+});
 ipcMain.handle('complete-onboarding', () => { store.set('onboardingComplete', true); return true; });
 
 // BUG 3: Hot-reload — reload renderer when AVIS edits its own source files
@@ -481,6 +497,113 @@ ipcMain.handle('searx-search', async (_, query) => {
 // ====================================================================
 // UPGRADE 3: Code Execution — JS via vm sandbox, Python via spawn
 // ====================================================================
+// ====================================================================
+// FIX 2: Claude Code integration — launch claude CLI as subprocess
+// ====================================================================
+ipcMain.handle('run-claude-code', async (_, { task, projectPath, flags }) => {
+  return new Promise((resolve) => {
+    const cliFlags = flags || '--dangerously-skip-permissions';
+    const escapedTask = task.replace(/"/g, '\\"');
+    const command = `claude ${cliFlags} -p "${escapedTask}"`;
+
+    const proc = spawn('claude', [cliFlags, '-p', task], {
+      cwd: projectPath || process.cwd(),
+      timeout: 1800000, // 30 min for full builds
+      shell: true,
+      env: { ...process.env }
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString();
+      // Stream chunks to renderer for live display
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('claude-code-chunk', data.toString());
+      }
+    });
+
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    proc.on('close', (exitCode) => {
+      resolve({
+        success: exitCode === 0,
+        output: stdout.trim(),
+        error: stderr.trim(),
+        exitCode
+      });
+    });
+
+    proc.on('error', (err) => {
+      if (err.message.includes('ENOENT')) {
+        resolve({ success: false, output: '', error: 'Claude Code CLI not found. Install it with: npm install -g @anthropic-ai/claude-code', exitCode: -1 });
+      } else {
+        resolve({ success: false, output: '', error: err.message, exitCode: -1 });
+      }
+    });
+  });
+});
+
+// ====================================================================
+// BUG 3: Smart Steam game launcher
+// ====================================================================
+ipcMain.handle('launch-steam-game', async (_, { gameName, appId }) => {
+  // Method 1: If appId provided, use steam:// protocol directly
+  if (appId) {
+    exec(`start steam://run/${appId}`, { shell: true });
+    return { success: true, method: 'steam_url', appId, message: `Launching via steam://run/${appId}` };
+  }
+
+  // Method 2: Search Steam library folders for the game
+  const steamPaths = [
+    'C:/Program Files (x86)/Steam/steamapps/common',
+    'C:/Program Files/Steam/steamapps/common',
+    'D:/Steam/steamapps/common',
+    'D:/SteamLibrary/steamapps/common',
+    'E:/SteamLibrary/steamapps/common'
+  ];
+
+  for (const steamPath of steamPaths) {
+    try {
+      const entries = fs.readdirSync(steamPath);
+      const match = entries.find(g => g.toLowerCase().includes(gameName.toLowerCase()));
+      if (match) {
+        const gamePath = path.join(steamPath, match);
+        // Find .exe files
+        const findExes = (dir, depth = 0) => {
+          if (depth > 2) return [];
+          const results = [];
+          try {
+            for (const f of fs.readdirSync(dir)) {
+              const full = path.join(dir, f);
+              const stat = fs.statSync(full);
+              if (stat.isFile() && f.endsWith('.exe') && !f.includes('unins') && !f.includes('crash') && !f.includes('redis')) {
+                results.push(full);
+              } else if (stat.isDirectory() && depth < 2) {
+                results.push(...findExes(full, depth + 1));
+              }
+            }
+          } catch (e) {}
+          return results;
+        };
+        const exes = findExes(gamePath);
+        if (exes.length > 0) {
+          // Prefer exe matching game name
+          const bestExe = exes.find(e => path.basename(e).toLowerCase().includes(gameName.toLowerCase().split(' ')[0])) || exes[0];
+          exec(`start "" "${bestExe}"`, { shell: true });
+          return { success: true, method: 'direct_exe', path: bestExe, message: `Launching ${path.basename(bestExe)}` };
+        }
+      }
+    } catch (e) { continue; }
+  }
+
+  // Method 3: Try steam:// with game name as-is (Steam handles fuzzy matching sometimes)
+  const sanitized = gameName.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+  exec(`start steam://store/0`, { shell: true }); // Opens Steam
+  return { success: false, method: 'fallback', message: `Could not find "${gameName}" in Steam libraries. Opened Steam — try searching there.` };
+});
+
 ipcMain.handle('run-code', async (_, { language, code }) => {
   if (language === 'javascript') {
     return runJavaScript(code);
@@ -750,7 +873,7 @@ public class MouseScroll {
 // ====================================================================
 // BUG 1 & 4: Timeout + abort infrastructure for all API calls
 // ====================================================================
-const API_TIMEOUT_MS = 30000;
+const API_TIMEOUT_MS = 60000; // 60s for regular API calls
 let activeAbortController = null;
 
 function withTimeout(promise, ms, label) {
@@ -844,7 +967,7 @@ ipcMain.handle('api-call-agentic', async (_, { model, messages, systemPrompt, to
     }
 
     const apiPromise = client.messages.create(params);
-    const response = await withTimeout(apiPromise, API_TIMEOUT_MS, 'Claude agentic call');
+    const response = await withTimeout(apiPromise, 120000, 'Claude agentic call'); // 2 min per agentic iteration
 
     if (signal.aborted) return { error: true, message: 'Request cancelled', code: 'ABORT' };
 

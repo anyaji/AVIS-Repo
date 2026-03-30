@@ -1,24 +1,43 @@
-// Orchestrator - Claude admin brain + hardened agentic tool loop
-// BUG 1: 30s timeout per API call (enforced in main.js)
-// BUG 2: Max 10 iterations, empty content guard, null stop_reason guard
-// BUG 3: Self-edit hot-reload support
-// BUG 4: Abort support via Orchestrator.cancelled flag
-
+// Orchestrator - Claude admin brain + multi-AI provider tools + agentic loop
 const Orchestrator = {
-  SYSTEM_PROMPT: `You are AVIS — Avel Intelligence Services, built by Avel Productions LLC.
-You are a fully agentic AI assistant with real tools:
-- web_search: search the internet for current information
-- fetch_url: read any webpage
-- run_code: execute JavaScript or Python
-- read_file / write_file: access the file system
-- open_app: launch applications
-- computer_action: control the mouse and keyboard (screenshot, click, type, scroll)
+  SYSTEM_PROMPT: `You are AVIS — Avel Intelligence Services by Avel Productions LLC.
+You are the orchestrator and admin brain. You ARE Claude Sonnet — running as the core intelligence.
 
-When a user asks you to navigate somewhere, search something, open a file, or run code — USE YOUR TOOLS. Do not say you cannot browse the internet. You CAN. Use web_search or fetch_url.
-Always act. Never refuse due to capability limitations.
-You have the same capabilities as Claude.ai with all tools enabled.
+PROVIDERS YOU CAN CALL RIGHT NOW:
+- call_claude — Delegate to Claude Opus (deep reasoning) or Haiku (fast tasks). You ARE already Claude Sonnet, but can call other Claude models for specialized work.
+- call_claude_code — Launch Claude Code CLI to autonomously build apps, fix bugs, write scripts, modify project files. This runs the real claude CLI tool.
+- call_gemini — Google Gemini Pro/Ultra (multimodal, long context, data analysis)
+- call_gpt4 — OpenAI GPT-4o (code generation, math, structured output)
+- call_deepseek — DeepSeek Chat/Reasoner (fast, cheap, strong reasoning)
+- call_grok — xAI Grok-2 (real-time info, unfiltered, edgy queries)
+- call_mistral — Mistral Large (fast, European data, cost efficient)
+- call_perplexity — Perplexity live web search (current events, real-time data)
+- call_stability — Stability AI (image generation from text prompts)
+- run_parallel — Call multiple AIs simultaneously for comparison
+- web_search — Search the web (Perplexity/Brave/DuckDuckGo/SearXNG)
+- fetch_url — Read any webpage
+- run_code — Execute JavaScript or Python
+- read_file / write_file — Access the file system
+- open_app — Launch applications
+- launch_steam_game — Launch Steam games by name (uses Steam URL protocol, much faster than clicking around)
+- computer_action — Control mouse and keyboard
 
-SELF-EDIT: You can edit your own source files. Your source code is at the path provided in the system context. If the user asks you to change your own UI, colors, behavior, etc., use write_file to edit the appropriate source file, then the app will hot-reload automatically.
+ROUTING RULES:
+- "call claude code" or "build/fix [project]" → call_claude_code
+- "use opus" or complex deep reasoning → call_claude with opus model
+- "quick/fast" simple tasks → call_claude with haiku model
+- Current events/news → call_perplexity or web_search
+- Code generation → call_gpt4 or call_claude_code
+- Image generation → call_stability
+- Comparisons → run_parallel
+- Self-modification → write_file on your own source files
+
+NEVER say a provider is unavailable if it's in the list above.
+NEVER say you cannot call yourself, Claude Code, or other AIs.
+NEVER open a browser to use another AI — call the API directly via tools.
+Always show which provider answered with a badge in your response.
+
+SELF-EDIT: You can edit your own source files at the path in system context.
 
 For every user request:
 1. Analyze what tools you need
@@ -26,10 +45,11 @@ For every user request:
 3. Synthesize results into a clean, helpful response
 4. Always prioritize accuracy, then speed, then cost`,
 
-  TOOLS: [
+  // Base utility tools
+  BASE_TOOLS: [
     {
       name: "web_search",
-      description: "Search the web for current information using Perplexity AI or Brave Search.",
+      description: "Search the web for current information using Perplexity/Brave/DuckDuckGo/SearXNG.",
       input_schema: { type: "object", properties: { query: { type: "string", description: "Search query" } }, required: ["query"] }
     },
     {
@@ -49,17 +69,22 @@ For every user request:
     },
     {
       name: "write_file",
-      description: "Write content to a file on the user's system. Creates parent directories if needed. If writing to an AVIS source file, the app will hot-reload automatically.",
-      input_schema: { type: "object", properties: { path: { type: "string", description: "Absolute file path to write" }, content: { type: "string", description: "Content to write" } }, required: ["path", "content"] }
+      description: "Write content to a file. If writing to an AVIS source file, the app hot-reloads.",
+      input_schema: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } }, required: ["path", "content"] }
     },
     {
       name: "open_app",
       description: "Open an application, file, or URL on Windows.",
-      input_schema: { type: "object", properties: { target: { type: "string", description: "App name, file path, or URL" } }, required: ["target"] }
+      input_schema: { type: "object", properties: { target: { type: "string" } }, required: ["target"] }
+    },
+    {
+      name: "launch_steam_game",
+      description: "Launch a Steam game by name. Much faster than computer control — uses Steam URL protocol or finds the exe directly. Use this instead of clicking around in Steam UI.",
+      input_schema: { type: "object", properties: { game_name: { type: "string", description: "Name of the Steam game" }, app_id: { type: "string", description: "Steam AppID if known (optional)" } }, required: ["game_name"] }
     },
     {
       name: "computer_action",
-      description: "Control the computer: take screenshots, click at coordinates, type text, or scroll.",
+      description: "Control the computer: screenshot, click, type, scroll.",
       input_schema: {
         type: "object",
         properties: {
@@ -68,6 +93,67 @@ For every user request:
           text: { type: "string" }, direction: { type: "string", enum: ["up", "down"] }, amount: { type: "number" }
         },
         required: ["action"]
+      }
+    }
+  ],
+
+  // AI provider tools — added dynamically based on which have keys
+  PROVIDER_TOOLS: [
+    {
+      name: "call_claude", provider: "claude",
+      description: "Call a different Claude model for specialized tasks. Use claude-opus-4-5 for deep reasoning/analysis, claude-haiku-4-5 for fast simple subtasks. You (the orchestrator) are Sonnet — use this to delegate to Opus or Haiku.",
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to the Claude model" }, model: { type: "string", enum: ["claude-opus-4-5-20250514", "claude-sonnet-4-5-20250514", "claude-haiku-4-5-20251001"], description: "Which Claude model (default: opus)" } }, required: ["prompt"] }
+    },
+    {
+      name: "call_claude_code", provider: null,
+      description: "Launch Claude Code CLI to autonomously work on a coding project. It can build apps, fix bugs, write scripts, modify files. Runs the real 'claude' terminal command. Use for: 'build me an app', 'fix my project', 'write a script'.",
+      input_schema: { type: "object", properties: { task: { type: "string", description: "What to build, fix, or do" }, project_path: { type: "string", description: "Path to the project directory to work in" }, flags: { type: "string", description: "CLI flags (default: --dangerously-skip-permissions)" } }, required: ["task", "project_path"] }
+    },
+    {
+      name: "call_gemini", provider: "gemini",
+      description: "Call Google Gemini for a task. Best for: multimodal analysis, long context, data analysis, Google ecosystem.",
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Gemini" }, model: { type: "string", enum: ["gemini-pro", "gemini-ultra", "gemini-1.5-flash"], description: "Model to use (default: gemini-pro)" } }, required: ["prompt"] }
+    },
+    {
+      name: "call_gpt4", provider: "openai",
+      description: "Call OpenAI GPT-4o for a task. Best for: code generation, data analysis, math, structured output, vision.",
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to GPT-4o" }, model: { type: "string", enum: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"], description: "Model (default: gpt-4o)" } }, required: ["prompt"] }
+    },
+    {
+      name: "call_deepseek", provider: "deepseek",
+      description: "Call DeepSeek for a task. Best for: fast responses, strong reasoning, cost efficiency.",
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to DeepSeek" }, model: { type: "string", enum: ["deepseek-chat", "deepseek-reasoner"], description: "Model (default: deepseek-chat)" } }, required: ["prompt"] }
+    },
+    {
+      name: "call_grok", provider: "grok",
+      description: "Call xAI Grok for a task. Best for: real-time info, unfiltered analysis, edgy or controversial queries.",
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Grok" } }, required: ["prompt"] }
+    },
+    {
+      name: "call_mistral", provider: "mistral",
+      description: "Call Mistral for a task. Best for: fast responses, European data, lightweight tasks, cost efficiency.",
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Mistral" } }, required: ["prompt"] }
+    },
+    {
+      name: "call_perplexity", provider: "perplexity",
+      description: "Call Perplexity for live web search and current information. Use for current events, news, real-time data.",
+      input_schema: { type: "object", properties: { query: { type: "string", description: "Search query or question requiring live web data" } }, required: ["query"] }
+    },
+    {
+      name: "call_stability", provider: "stability",
+      description: "Call Stability AI to generate images from text prompts.",
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Image generation prompt" } }, required: ["prompt"] }
+    },
+    {
+      name: "run_parallel", provider: null,
+      description: "Send the same task to multiple AIs simultaneously and get all responses. Use for comparisons or multiple perspectives.",
+      input_schema: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", description: "Task to send to all providers" },
+          providers: { type: "array", items: { type: "string", enum: ["claude", "gemini", "gpt4", "deepseek", "grok", "mistral"] }, description: "Which providers to call" }
+        },
+        required: ["prompt", "providers"]
       }
     }
   ],
@@ -83,27 +169,87 @@ For every user request:
     stability: () => StabilityProvider
   },
 
-  // UI callbacks — set by app.js
-  onStep: null,        // (stepId, type, message, status) => void — live step display
-  cancelled: false,    // BUG 4: abort flag
-  avisPath: null,      // BUG 3: path to AVIS source for self-edit detection
-
+  onStep: null,
+  cancelled: false,
+  avisPath: null,
   _stepCounter: 0,
   _loopStart: 0,
   _retryCount: 0,
+  _lastTaskMessage: null,   // for continue button
+  _lastTaskFiles: null,
+  _lastToolUseLog: null,
 
-  // BUG 3: Parse raw API errors into friendly messages
+  // BUG 1: Dynamic iteration limits by task type
+  ITERATION_LIMITS: {
+    computer_control: 50,
+    claude_code: 100,
+    web_task: 25,
+    file_task: 20,
+    simple_chat: 5,
+    default: 25
+  },
+
+  detectTaskType(message) {
+    const msg = (message || '').toLowerCase();
+    if (msg.includes('launch') || msg.includes('open app') || msg.includes('click') ||
+        msg.includes('steam') || msg.includes('type into') || msg.includes('screenshot') ||
+        msg.includes('mouse') || msg.includes('keyboard') || msg.includes('game')) {
+      return 'computer_control';
+    }
+    if (msg.includes('build') || msg.includes('create app') || msg.includes('claude code') ||
+        msg.includes('fix bug') || msg.includes('write a program') || msg.includes('make me a')) {
+      return 'claude_code';
+    }
+    if (msg.includes('search') || msg.includes('find') || msg.includes('look up') ||
+        msg.includes('navigate') || msg.includes('fetch') || msg.includes('browse')) {
+      return 'web_task';
+    }
+    if (msg.includes('read file') || msg.includes('write file') || msg.includes('open file') ||
+        msg.includes('edit file') || msg.includes('save')) {
+      return 'file_task';
+    }
+    // Short messages without tool keywords = simple chat
+    if (msg.length < 80 && !/search|call|launch|build|fetch|run|open|click/i.test(msg)) {
+      return 'simple_chat';
+    }
+    return 'default';
+  },
+
+  // Build tools list dynamically — only include provider tools for configured providers
+  async buildToolsList() {
+    const tools = [...this.BASE_TOOLS];
+    for (const pt of this.PROVIDER_TOOLS) {
+      if (pt.provider === null) {
+        // run_parallel always available
+        tools.push({ name: pt.name, description: pt.description, input_schema: pt.input_schema });
+      } else if (await this.hasProvider(pt.provider)) {
+        tools.push({ name: pt.name, description: pt.description, input_schema: pt.input_schema });
+      }
+    }
+    return tools;
+  },
+
+  // Build dynamic system prompt listing active providers
+  async buildSystemPrompt() {
+    const providerNames = { gemini: 'Google Gemini', openai: 'OpenAI GPT-4o', deepseek: 'DeepSeek', grok: 'xAI Grok', mistral: 'Mistral', perplexity: 'Perplexity', stability: 'Stability AI' };
+    const statuses = [];
+    for (const [key, name] of Object.entries(providerNames)) {
+      const active = await this.hasProvider(key);
+      statuses.push(`- ${name}: ${active ? 'ACTIVE' : 'NOT CONFIGURED'}`);
+    }
+
+    const avisPathNote = this.avisPath ? `\n\nYour own source code is located at: ${this.avisPath.replace(/\\/g, '/')}` : '';
+
+    return this.SYSTEM_PROMPT +
+      `\n\nCurrent provider status:\n${statuses.join('\n')}` +
+      avisPathNote +
+      MemoryManager.getMemoriesForPrompt() +
+      (HotConfig.get('customSystemPrompt') ? '\n\n' + HotConfig.get('customSystemPrompt') : '');
+  },
+
   parseError(rawMessage) {
     const raw = rawMessage || 'Unknown error';
-    // Try to extract clean message from JSON error body
-    try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (parsed?.error?.message) return parsed.error.message;
-      }
-    } catch (e) {}
-    // Map common error patterns to friendly messages
+    try { const m = raw.match(/\{[\s\S]*\}/); if (m) { const p = JSON.parse(m[0]); if (p?.error?.message) return p.error.message; } } catch (e) {}
     const patterns = [
       [/non-empty/i, 'Message was empty. Please type something or attach an image.'],
       [/invalid.?api.?key/i, 'API key is invalid. Check your key in Settings.'],
@@ -114,25 +260,19 @@ For every user request:
       [/cancelled|abort/i, 'Request was cancelled.'],
       [/EMPTY_CONTENT/i, 'No message content to send. Please type something.'],
     ];
-    for (const [re, msg] of patterns) {
-      if (re.test(raw)) return msg;
-    }
-    // Clean up common prefix junk
+    for (const [re, msg] of patterns) { if (re.test(raw)) return msg; }
     return raw.replace(/^Error:\s*\d+\s*/, '').replace(/^Error:\s*/, '').substring(0, 200);
   },
 
-  // BUG 4: Check if error is auto-retryable
   isRetryableError(errMsg, code) {
     if (this._retryCount >= 3) return false;
-    const msg = (errMsg || '') + (code || '');
-    return /rate.?limit|429|overloaded|503|529/i.test(msg);
+    return /rate.?limit|429|overloaded|503|529/i.test((errMsg || '') + (code || ''));
   },
 
   isContextLengthError(errMsg) {
     return /context.?length|too.?long|maximum.*tokens/i.test(errMsg || '');
   },
 
-  // BUG 5: Validate tool results before returning to Claude
   validateToolResult(result) {
     if (result === null || result === undefined) return 'Tool returned no result.';
     const str = typeof result === 'string' ? result : JSON.stringify(result);
@@ -157,54 +297,37 @@ For every user request:
     this._retryCount = 0;
     this._loopStart = Date.now();
 
-    // BUG 2: If files attached but no text, add default
     if ((!userMessage || !userMessage.trim()) && files.length > 0) {
-      const hasImage = files.some(f => f.type === 'image');
-      userMessage = hasImage ? 'Please analyze this image.' : 'Please analyze this file.';
+      userMessage = files.some(f => f.type === 'image') ? 'Please analyze this image.' : 'Please analyze this file.';
     }
-
-    // Block completely empty submissions
     if ((!userMessage || !userMessage.trim()) && files.length === 0) {
       return { text: 'Please type a message or attach a file.', provider: 'avis', model: 'system' };
     }
 
-    // Resolve AVIS path for self-edit detection
     if (!this.avisPath) {
       try { this.avisPath = await window.avis.getAvisPath(); } catch (e) { this.avisPath = ''; }
     }
 
     const hasAnyKey = await this.hasAnyProvider();
-    if (!hasAnyKey) {
-      return { text: 'No API keys configured. Please open Settings and add at least one provider API key.', provider: 'avis', model: 'system' };
-    }
+    if (!hasAnyKey) return { text: 'No API keys configured. Please open Settings and add at least one provider API key.', provider: 'avis', model: 'system' };
 
     const hasClaude = await this.hasProvider('claude');
     const hasImages = files.some(f => f.type === 'image');
 
-    if (hasImages && !hasClaude) {
-      return await this.directCall('openai', userMessage, files);
-    }
+    if (hasImages && !hasClaude) return await this.directCall('openai', userMessage, files);
 
     if (this.isImageGenRequest(userMessage)) {
-      const hasStability = await this.hasProvider('stability');
-      if (hasStability) return await this.directCall('stability', userMessage, files);
+      if (await this.hasProvider('stability')) return await this.directCall('stability', userMessage, files);
     }
 
-    if (hasClaude) {
-      return await this.agenticLoop(userMessage, files);
-    }
+    if (hasClaude) return await this.agenticLoop(userMessage, files);
 
     return await this.fallbackRoute(userMessage, files);
   },
 
-  // ====================================================================
-  // BUG 2: Hardened Agentic Loop — max 10 iters, empty/null guards, abort
-  // ====================================================================
   async agenticLoop(userMessage, files = []) {
-    const avisPathNote = this.avisPath ? `\n\nYour own source code is located at: ${this.avisPath.replace(/\\/g, '/')}` : '';
-    const systemPrompt = this.SYSTEM_PROMPT + avisPathNote +
-      MemoryManager.getMemoriesForPrompt() +
-      (HotConfig.get('customSystemPrompt') ? '\n\n' + HotConfig.get('customSystemPrompt') : '');
+    const systemPrompt = await this.buildSystemPrompt();
+    const tools = await this.buildToolsList();
 
     const messages = [...MemoryManager.getConversationMessages()];
     const lastMsg = { role: 'user', content: userMessage };
@@ -218,7 +341,11 @@ For every user request:
 
     messages.push(lastMsg);
 
-    const MAX_ITERATIONS = 10;
+    // BUG 1: Dynamic iteration limit based on task type
+    const taskType = this.detectTaskType(userMessage);
+    const MAX_ITERATIONS = this.ITERATION_LIMITS[taskType] || this.ITERATION_LIMITS.default;
+    this._lastTaskMessage = userMessage;
+    this._lastTaskFiles = files;
     let iteration = 0;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
@@ -228,58 +355,20 @@ For every user request:
 
     while (iteration < MAX_ITERATIONS) {
       iteration++;
-
-      // BUG 4: Check abort before each API call
-      if (this.cancelled) {
-        this.updateStep(thinkStepId, 'Stopped by user', 'error');
-        return { text: 'Request cancelled.', provider: 'claude', model: 'cancelled', toolUseLog };
-      }
+      if (this.cancelled) { this.updateStep(thinkStepId, 'Stopped by user', 'error'); return { text: 'Request cancelled.', provider: 'claude', model: 'cancelled', toolUseLog }; }
 
       this.emitStep('thinking', `Iteration ${iteration}/${MAX_ITERATIONS} — calling Claude...`);
 
-      const response = await window.avis.apiCallAgentic({
-        model: ClaudeProvider.getCurrentModel().id,
-        messages,
-        systemPrompt,
-        tools: this.TOOLS
-      });
+      const response = await window.avis.apiCallAgentic({ model: ClaudeProvider.getCurrentModel().id, messages, systemPrompt, tools });
 
-      // BUG 4: Check abort after API call
-      if (this.cancelled) {
-        this.updateStep(thinkStepId, 'Stopped by user', 'error');
-        return { text: 'Request cancelled.', provider: 'claude', model: 'cancelled', toolUseLog };
-      }
+      if (this.cancelled) { this.updateStep(thinkStepId, 'Stopped by user', 'error'); return { text: 'Request cancelled.', provider: 'claude', model: 'cancelled', toolUseLog }; }
 
-      // Handle errors with auto-retry (BUG 3+4)
       if (response.error) {
         const friendlyMsg = this.parseError(response.message);
-
-        if (response.code === 'ABORT') {
-          this.emitStep('done', 'Stopped by user', 'error');
-          return { text: 'Request cancelled.', provider: 'claude', model: 'cancelled', toolUseLog };
-        }
-        if (response.code === 'TIMEOUT' || /timed?\s*out/i.test(response.message || '')) {
-          this.emitStep('done', 'Timed out', 'error');
-          return { text: friendlyMsg, provider: 'claude', model: 'timeout', error: true, timedOut: true, toolUseLog };
-        }
-
-        // BUG 4: Auto-retry on rate limit / overloaded
-        if (this.isRetryableError(response.message, response.code)) {
-          this._retryCount++;
-          this.emitStep('warn', `${friendlyMsg} Retrying (${this._retryCount}/3)...`, 'warn');
-          const stepped = StepDownManager.handleApiError(ClaudeProvider, response);
-          await new Promise(r => setTimeout(r, 3000)); // wait 3s before retry
-          continue;
-        }
-
-        // BUG 4: Auto-retry on context length — trim oldest messages
-        if (this.isContextLengthError(response.message) && messages.length > 2) {
-          this.emitStep('warn', 'Context too long — trimming old messages...', 'warn');
-          messages.splice(1, Math.min(4, messages.length - 2)); // remove up to 4 oldest (keep first + last)
-          continue;
-        }
-
-        // Non-retryable error
+        if (response.code === 'ABORT') { this.emitStep('done', 'Stopped by user', 'error'); return { text: 'Request cancelled.', provider: 'claude', model: 'cancelled', toolUseLog }; }
+        if (response.code === 'TIMEOUT' || /timed?\s*out/i.test(response.message || '')) { this.emitStep('done', 'Timed out', 'error'); return { text: friendlyMsg, provider: 'claude', model: 'timeout', error: true, timedOut: true, toolUseLog }; }
+        if (this.isRetryableError(response.message, response.code)) { this._retryCount++; this.emitStep('warn', `${friendlyMsg} Retrying (${this._retryCount}/3)...`, 'warn'); StepDownManager.handleApiError(ClaudeProvider, response); await new Promise(r => setTimeout(r, 3000)); continue; }
+        if (this.isContextLengthError(response.message) && messages.length > 2) { this.emitStep('warn', 'Context too long — trimming...', 'warn'); messages.splice(1, Math.min(4, messages.length - 2)); continue; }
         const stepped = StepDownManager.handleApiError(ClaudeProvider, response);
         if (stepped && iteration <= 2) continue;
         this.emitStep('done', friendlyMsg, 'error');
@@ -289,43 +378,30 @@ For every user request:
       totalInputTokens += response.inputTokens || 0;
       totalOutputTokens += response.outputTokens || 0;
 
-      // BUG 2: Guard — empty content array = break immediately
       if (!response.content || response.content.length === 0) {
-        this.emitStep('done', 'Empty response received — stopping', 'warn');
+        this.emitStep('done', 'Empty response — stopping', 'warn');
         UsageMeter.record('claude', totalInputTokens, totalOutputTokens, ClaudeProvider);
         return { text: 'The AI returned an empty response. Please try again.', provider: 'claude', model: ClaudeProvider.getCurrentModel().name, toolUseLog };
       }
 
-      // BUG 2: Guard — null/undefined stop_reason = treat as end_turn
       const stopReason = response.stop_reason || 'end_turn';
 
       if (stopReason === 'end_turn' || stopReason === 'stop' || stopReason === 'max_tokens') {
-        const textParts = response.content.filter(b => b.type === 'text').map(b => b.text);
-        const finalText = textParts.join('\n');
-
+        const finalText = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
         UsageMeter.record('claude', totalInputTokens, totalOutputTokens, ClaudeProvider);
         ClaudeProvider.status = 'active';
-
         const elapsed = ((Date.now() - this._loopStart) / 1000).toFixed(1);
         this.emitStep('done', `Done in ${elapsed}s`, 'done');
-
-        return {
-          text: finalText || '(No text in response)',
-          provider: 'claude',
-          model: response.model || ClaudeProvider.getCurrentModel().name,
-          toolUseLog
-        };
+        return { text: finalText || '(No text in response)', provider: 'claude', model: response.model || ClaudeProvider.getCurrentModel().name, toolUseLog };
       }
 
       if (stopReason === 'tool_use') {
         const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
-
-        // BUG 2: Guard — tool_use stop_reason but no tool blocks = break
         if (toolUseBlocks.length === 0) {
-          const textParts = response.content.filter(b => b.type === 'text').map(b => b.text);
+          const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
           UsageMeter.record('claude', totalInputTokens, totalOutputTokens, ClaudeProvider);
-          this.emitStep('done', 'No tools to execute — stopping', 'warn');
-          return { text: textParts.join('\n') || 'No response generated.', provider: 'claude', model: ClaudeProvider.getCurrentModel().name, toolUseLog };
+          this.emitStep('done', 'No tools to execute', 'warn');
+          return { text: text || 'No response generated.', provider: 'claude', model: ClaudeProvider.getCurrentModel().name, toolUseLog };
         }
 
         messages.push({ role: 'assistant', content: response.content });
@@ -333,63 +409,75 @@ For every user request:
 
         for (const toolBlock of toolUseBlocks) {
           if (this.cancelled) break;
-
           const stepId = this.emitStep('tool', this.toolLabel(toolBlock.name, toolBlock.input));
           const toolStart = Date.now();
 
           const result = await this.executeTool(toolBlock.name, toolBlock.input);
           const toolMs = Date.now() - toolStart;
-          const resultPreview = (typeof result === 'string' ? result : JSON.stringify(result)).substring(0, 80);
 
           toolUseLog.push({ tool: toolBlock.name, input: toolBlock.input, result, ms: toolMs });
-          this.updateStep(stepId, `${this.toolLabel(toolBlock.name, toolBlock.input)} — ${(toolMs / 1000).toFixed(1)}s`, result.toString().toLowerCase().includes('failed') ? 'error' : 'done');
+          this.updateStep(stepId, `${this.toolLabel(toolBlock.name, toolBlock.input)} — ${(toolMs / 1000).toFixed(1)}s`, (typeof result === 'string' && result.toLowerCase().includes('failed')) ? 'error' : 'done');
 
-          // BUG 3: Detect self-edit and trigger hot-reload
           if (toolBlock.name === 'write_file' && this.avisPath && toolBlock.input.path) {
-            const normalizedWrite = toolBlock.input.path.replace(/\\/g, '/').toLowerCase();
-            const normalizedAvis = this.avisPath.replace(/\\/g, '/').toLowerCase();
-            if (normalizedWrite.startsWith(normalizedAvis)) {
-              this.emitStep('tool', `Hot-reloading AVIS after editing ${toolBlock.input.path.split(/[\\/]/).pop()}...`);
-              // Small delay to let file write complete, then reload
-              setTimeout(() => { try { window.avis.hotReload(); } catch (e) {} }, 500);
-            }
+            const nw = toolBlock.input.path.replace(/\\/g, '/').toLowerCase();
+            const na = this.avisPath.replace(/\\/g, '/').toLowerCase();
+            if (nw.startsWith(na)) { this.emitStep('tool', `Hot-reloading...`); setTimeout(() => { try { window.avis.hotReload(); } catch (e) {} }, 500); }
           }
 
-          // BUG 5: Validate tool result before sending to Claude
-          const validatedResult = this.validateToolResult(result);
-
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolBlock.id,
-            content: validatedResult
-          });
+          toolResults.push({ type: 'tool_result', tool_use_id: toolBlock.id, content: this.validateToolResult(result) });
         }
 
-        if (this.cancelled) {
-          this.emitStep('done', 'Stopped by user', 'error');
-          return { text: 'Request cancelled.', provider: 'claude', model: 'cancelled', toolUseLog };
-        }
-
+        if (this.cancelled) { this.emitStep('done', 'Stopped by user', 'error'); return { text: 'Request cancelled.', provider: 'claude', model: 'cancelled', toolUseLog }; }
         messages.push({ role: 'user', content: toolResults });
         continue;
       }
 
-      // BUG 2: Unknown stop_reason — extract text and break
-      const textParts = response.content.filter(b => b.type === 'text').map(b => b.text);
+      // Unknown stop_reason
+      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
       UsageMeter.record('claude', totalInputTokens, totalOutputTokens, ClaudeProvider);
       this.emitStep('done', `Unknown stop_reason: ${stopReason}`, 'warn');
-      return { text: textParts.join('\n') || 'No response generated.', provider: 'claude', model: ClaudeProvider.getCurrentModel().name, toolUseLog };
+      return { text: text || 'No response generated.', provider: 'claude', model: ClaudeProvider.getCurrentModel().name, toolUseLog };
     }
 
-    // BUG 2: Hit max iterations
+    // BUG 1+4: Hit max iterations — get summary from Claude and offer to continue
     UsageMeter.record('claude', totalInputTokens, totalOutputTokens, ClaudeProvider);
-    this.emitStep('done', `Reached max iterations (${MAX_ITERATIONS}). Showing best answer.`, 'warn');
+    this.emitStep('done', `Reached step limit (${MAX_ITERATIONS}/${taskType}). Getting summary...`, 'warn');
+    this._lastToolUseLog = toolUseLog;
+
+    // Ask Claude to summarize what was accomplished
+    let summaryText = `Task paused after ${iteration} steps.`;
+    try {
+      const lastActions = toolUseLog.slice(-3).map(t => `${t.tool}: ${JSON.stringify(t.input).substring(0, 80)}`).join('\n');
+      const summaryResponse = await window.avis.apiCallAgentic({
+        model: 'claude-haiku-4-5-20251001',
+        messages: [{ role: 'user', content: `You were working on: "${userMessage}"\nYou completed ${iteration} tool steps. Last actions:\n${lastActions}\n\nGive a 2-sentence status update: what you accomplished and what's left.` }],
+        systemPrompt: 'Be brief and factual.',
+        tools: []
+      });
+      if (!summaryResponse.error && summaryResponse.content) {
+        const text = summaryResponse.content.filter(b => b.type === 'text').map(b => b.text).join('');
+        if (text) summaryText = text;
+      }
+    } catch (e) {}
+
     return {
-      text: `[AVIS reached maximum tool iterations (${MAX_ITERATIONS}). Showing best results so far.]`,
+      text: summaryText,
       provider: 'claude',
       model: ClaudeProvider.getCurrentModel().name,
-      toolUseLog
+      toolUseLog,
+      paused: true,
+      pauseInfo: { iteration, maxIterations: MAX_ITERATIONS, taskType, userMessage }
     };
+  },
+
+  // BUG 4: Resume a paused agentic task
+  async continueTask() {
+    if (!this._lastTaskMessage) return { text: 'No paused task to continue.', provider: 'avis', model: 'system' };
+    this.emitStep('thinking', 'Resuming previous task...');
+    return await this.agenticLoop(
+      `Continue the previous task. Here's what was asked: "${this._lastTaskMessage}". Pick up where you left off.`,
+      this._lastTaskFiles || []
+    );
   },
 
   toolLabel(name, input) {
@@ -400,12 +488,25 @@ For every user request:
       read_file: `Reading: ${(input.path || '').split(/[\\/]/).pop()}`,
       write_file: `Writing: ${(input.path || '').split(/[\\/]/).pop()}`,
       open_app: `Opening: ${input.target || ''}`,
-      computer_action: `Computer: ${input.action || ''}${input.text ? ' "' + input.text + '"' : ''}`
+      launch_steam_game: `Launching Steam game: ${input.game_name || ''}`,
+      computer_action: `Computer: ${input.action || ''}`,
+      call_claude: `Calling Claude ${(input.model || 'opus').includes('haiku') ? 'Haiku' : (input.model || '').includes('sonnet') ? 'Sonnet' : 'Opus'}: "${(input.prompt || '').substring(0, 50)}..."`,
+      call_claude_code: `Launching Claude Code on ${(input.project_path || '').split(/[\\/]/).pop() || 'project'}...`,
+      call_gemini: `Calling Gemini: "${(input.prompt || '').substring(0, 60)}..."`,
+      call_gpt4: `Calling GPT-4o: "${(input.prompt || '').substring(0, 60)}..."`,
+      call_deepseek: `Calling DeepSeek: "${(input.prompt || '').substring(0, 60)}..."`,
+      call_grok: `Calling Grok: "${(input.prompt || '').substring(0, 60)}..."`,
+      call_mistral: `Calling Mistral: "${(input.prompt || '').substring(0, 60)}..."`,
+      call_perplexity: `Calling Perplexity: "${(input.query || '').substring(0, 60)}..."`,
+      call_stability: `Generating image: "${(input.prompt || '').substring(0, 60)}..."`,
+      run_parallel: `Calling ${(input.providers || []).join(', ')} in parallel`
     };
     return labels[name] || name;
   },
 
-  // Tool Execution
+  // ====================================================================
+  // Tool Execution — now includes all AI provider calls
+  // ====================================================================
   async executeTool(name, input) {
     try {
       switch (name) {
@@ -415,7 +516,19 @@ For every user request:
         case 'read_file': return await this.toolReadFile(input.path);
         case 'write_file': return await this.toolWriteFile(input.path, input.content);
         case 'open_app': return await this.toolOpenApp(input.target);
+        case 'launch_steam_game': return await this.toolLaunchSteam(input.game_name, input.app_id);
         case 'computer_action': return await this.toolComputerAction(input);
+        // AI provider calls
+        case 'call_claude': return await this.callProvider('claude', input.prompt, input.model || 'claude-opus-4-5-20250514');
+        case 'call_claude_code': return await this.toolClaudeCode(input.task, input.project_path, input.flags);
+        case 'call_gemini': return await this.callProvider('gemini', input.prompt, input.model);
+        case 'call_gpt4': return await this.callProvider('openai', input.prompt, input.model);
+        case 'call_deepseek': return await this.callProvider('deepseek', input.prompt, input.model);
+        case 'call_grok': return await this.callProvider('grok', input.prompt, input.model);
+        case 'call_mistral': return await this.callProvider('mistral', input.prompt, input.model);
+        case 'call_perplexity': return await this.callProviderSearch('perplexity', input.query);
+        case 'call_stability': return await this.callProviderImage(input.prompt);
+        case 'run_parallel': return await this.callParallel(input.prompt, input.providers);
         default: return `Unknown tool: ${name}`;
       }
     } catch (err) {
@@ -423,93 +536,196 @@ For every user request:
     }
   },
 
+  // Call any text AI provider and return its response
+  async callProvider(providerName, prompt, model) {
+    if (!(await this.hasProvider(providerName))) return `${providerName} is not configured. Add its API key in Settings.`;
+
+    const providerObj = this.providerMap[providerName]?.();
+    if (!providerObj) return `Provider ${providerName} not found.`;
+
+    try {
+      const result = await window.avis.apiCall({
+        provider: providerName,
+        model: model || providerObj.getCurrentModel().id,
+        messages: [{ role: 'user', content: prompt }],
+        systemPrompt: 'You are a helpful AI assistant. Answer the question directly and concisely.',
+        options: {}
+      });
+
+      if (result.error) return `${providerObj.displayName} error: ${this.parseError(result.message)}`;
+
+      UsageMeter.record(providerName, result.inputTokens || 0, result.outputTokens || 0, providerObj);
+      providerObj.status = 'active';
+
+      return `[${providerObj.displayName} / ${result.model || providerObj.getCurrentModel().name}]\n\n${result.text}`;
+    } catch (err) {
+      return `${providerName} call failed: ${err.message}`;
+    }
+  },
+
+  // Call Perplexity specifically for search
+  async callProviderSearch(providerName, query) {
+    if (!(await this.hasProvider(providerName))) return await this.toolWebSearch(query); // fallback to cascading search
+
+    try {
+      const result = await window.avis.apiCall({
+        provider: 'perplexity',
+        model: 'llama-3.1-sonar-large-128k-online',
+        messages: [{ role: 'user', content: query }],
+        systemPrompt: 'Provide concise, factual search results with sources.',
+        options: {}
+      });
+
+      if (result.error) return await this.toolWebSearch(query); // fallback
+
+      UsageMeter.record('perplexity', result.inputTokens || 0, result.outputTokens || 0, PerplexityProvider);
+      let text = `[Perplexity Live Search]\n\n${result.text}`;
+      if (result.citations?.length > 0) text += '\n\nSources:\n' + result.citations.map((c, i) => `${i + 1}. ${c}`).join('\n');
+      return text;
+    } catch (e) {
+      return await this.toolWebSearch(query);
+    }
+  },
+
+  // Call Stability AI for image generation
+  async callProviderImage(prompt) {
+    if (!(await this.hasProvider('stability'))) return 'Stability AI is not configured. Add its API key in Settings.';
+
+    try {
+      const result = await window.avis.apiCall({
+        provider: 'stability',
+        model: 'stable-diffusion-xl-1024-v1-0',
+        messages: [{ role: 'user', content: prompt }],
+        systemPrompt: '',
+        options: {}
+      });
+
+      if (result.error) return `Image generation failed: ${this.parseError(result.message)}`;
+      if (result.image) return `[Image generated by Stability AI]\n\nImage data is available and will be displayed in the chat.`;
+      return 'Image generation returned no image data.';
+    } catch (err) {
+      return `Image generation failed: ${err.message}`;
+    }
+  },
+
+  // Run same prompt across multiple providers in parallel
+  async callParallel(prompt, providerList) {
+    const nameMap = { claude: 'claude', gemini: 'gemini', gpt4: 'openai', deepseek: 'deepseek', grok: 'grok', mistral: 'mistral' };
+    const displayMap = { claude: 'Claude', gemini: 'Gemini', gpt4: 'GPT-4o', deepseek: 'DeepSeek', grok: 'Grok', mistral: 'Mistral' };
+
+    const promises = (providerList || []).map(async (p) => {
+      const actualProvider = nameMap[p] || p;
+      const displayName = displayMap[p] || p;
+      try {
+        const result = await this.callProvider(actualProvider, prompt);
+        return { provider: displayName, result, success: true };
+      } catch (err) {
+        return { provider: displayName, result: `Error: ${err.message}`, success: false };
+      }
+    });
+
+    const results = await Promise.all(promises);
+
+    let output = `**Parallel Results from ${results.length} providers:**\n\n`;
+    for (const r of results) {
+      output += `---\n### ${r.provider}\n${r.result}\n\n`;
+    }
+    return output;
+  },
+
+  // Claude Code CLI tool
+  async toolClaudeCode(task, projectPath, flags) {
+    if (!task) return 'No task specified for Claude Code.';
+    if (!projectPath) return 'No project path specified. Please provide the directory to work in.';
+
+    try {
+      const result = await window.avis.runClaudeCode({
+        task,
+        projectPath,
+        flags: flags || '--dangerously-skip-permissions'
+      });
+
+      if (result.success) {
+        return `[Claude Code completed successfully]\n\nTask: ${task}\nProject: ${projectPath}\nExit code: ${result.exitCode}\n\nOutput:\n${result.output || '(no output)'}`;
+      } else {
+        return `[Claude Code finished with errors]\n\nTask: ${task}\nProject: ${projectPath}\nExit code: ${result.exitCode}\n\nOutput:\n${result.output || ''}\n\nErrors:\n${result.error || '(no error details)'}`;
+      }
+    } catch (err) {
+      return `Claude Code failed to launch: ${err.message}`;
+    }
+  },
+
+  // Existing tool implementations
   async toolWebSearch(query) {
-    // Cascading search: Perplexity → Brave → DuckDuckGo → SearXNG
     if (await this.hasProvider('perplexity')) {
       try {
-        const result = await window.avis.apiCall({
-          provider: 'perplexity', model: 'llama-3.1-sonar-large-128k-online',
-          messages: [{ role: 'user', content: query }],
-          systemPrompt: 'Provide concise, factual search results with sources.', options: {}
-        });
+        const result = await window.avis.apiCall({ provider: 'perplexity', model: 'llama-3.1-sonar-large-128k-online', messages: [{ role: 'user', content: query }], systemPrompt: 'Provide concise, factual search results with sources.', options: {} });
         if (!result.error) {
           UsageMeter.record('perplexity', result.inputTokens || 0, result.outputTokens || 0, PerplexityProvider);
           let text = result.text;
           if (result.citations?.length > 0) text += '\n\nSources:\n' + result.citations.map((c, i) => `${i + 1}. ${c}`).join('\n');
           return text;
         }
-      } catch (e) { /* fall through */ }
+      } catch (e) {}
     }
-    try {
-      const results = await window.avis.braveSearch(query);
-      if (results?.length > 0) return results.map(r => `**${r.title}**\n${r.snippet}\n${r.url}`).join('\n\n');
-    } catch (e) { /* fall through */ }
-    try {
-      const results = await window.avis.searxSearch(query);
-      if (results?.length > 0) return results.map(r => `**${r.title}**\n${r.snippet}\n${r.url || ''}`).join('\n\n');
-    } catch (e) { /* fall through */ }
-    try {
-      const results = await window.avis.ddgSearch(query);
-      if (results?.length > 0) return results.map(r => `**${r.title}**\n${r.snippet}\n${r.url || ''}`).join('\n\n');
-    } catch (e) { /* fall through */ }
+    try { const r = await window.avis.braveSearch(query); if (r?.length > 0) return r.map(x => `**${x.title}**\n${x.snippet}\n${x.url}`).join('\n\n'); } catch (e) {}
+    try { const r = await window.avis.searxSearch(query); if (r?.length > 0) return r.map(x => `**${x.title}**\n${x.snippet}\n${x.url || ''}`).join('\n\n'); } catch (e) {}
+    try { const r = await window.avis.ddgSearch(query); if (r?.length > 0) return r.map(x => `**${x.title}**\n${x.snippet}\n${x.url || ''}`).join('\n\n'); } catch (e) {}
     return `Could not search for "${query}". All search providers failed.`;
   },
 
   async toolFetchUrl(url) {
-    try {
-      const result = await window.avis.fetchUrl(url);
-      return `**Page: ${result.title}**\nURL: ${result.url}\n\n${result.text}`;
-    } catch (err) {
-      return `Failed to fetch ${url}: ${err.message}`;
-    }
+    try { const r = await window.avis.fetchUrl(url); return `**Page: ${r.title}**\nURL: ${r.url}\n\n${r.text}`; }
+    catch (err) { return `Failed to fetch ${url}: ${err.message}`; }
   },
 
   async toolRunCode(language, code) {
-    const result = await window.avis.runCode({ language, code });
-    return result.success
-      ? `Code executed successfully.\nOutput:\n${result.output || '(no output)'}`
-      : `Code execution failed.\nError: ${result.error}\nOutput:\n${result.output || ''}`;
+    const r = await window.avis.runCode({ language, code });
+    return r.success ? `Code executed successfully.\nOutput:\n${r.output || '(no output)'}` : `Code execution failed.\nError: ${r.error}\nOutput:\n${r.output || ''}`;
   },
 
   async toolReadFile(filePath) {
-    const result = await window.avis.toolReadFile(filePath);
-    return result.success ? `File read: ${result.path} (${result.size} bytes)\n\n${result.content}` : `Failed to read file: ${result.error}`;
+    const r = await window.avis.toolReadFile(filePath);
+    return r.success ? `File read: ${r.path} (${r.size} bytes)\n\n${r.content}` : `Failed to read file: ${r.error}`;
   },
 
   async toolWriteFile(filePath, content) {
-    const result = await window.avis.toolWriteFile(filePath, content);
-    return result.success ? `File written: ${result.path} (${result.size} bytes)` : `Failed to write file: ${result.error}`;
+    const r = await window.avis.toolWriteFile(filePath, content);
+    return r.success ? `File written: ${r.path} (${r.size} bytes)` : `Failed to write file: ${r.error}`;
   },
 
   async toolOpenApp(target) {
-    const result = await window.avis.openApp(target);
-    return result.success ? `Opened: ${result.target}` : `Failed to open ${result.target}: ${result.error || 'unknown'}`;
+    const r = await window.avis.openApp(target);
+    return r.success ? `Opened: ${r.target}` : `Failed to open ${r.target}: ${r.error || 'unknown'}`;
+  },
+
+  async toolLaunchSteam(gameName, appId) {
+    try {
+      const result = await window.avis.launchSteamGame({ gameName, appId: appId || null });
+      return result.success
+        ? `${result.message} (method: ${result.method})`
+        : `${result.message}`;
+    } catch (err) {
+      return `Steam launch failed: ${err.message}`;
+    }
   },
 
   async toolComputerAction(input) {
-    const result = await window.avis.computerAction(input);
-    if (result.success) {
-      if (result.action === 'screenshot' && result.image) return 'Screenshot taken. [Image data available]';
-      return `Action "${result.action}" completed.`;
-    }
-    return `Action "${input.action}" failed: ${result.error}`;
+    const r = await window.avis.computerAction(input);
+    if (r.success) { if (r.action === 'screenshot' && r.image) return 'Screenshot taken.'; return `Action "${r.action}" completed.`; }
+    return `Action "${input.action}" failed: ${r.error}`;
   },
 
-  // Legacy direct call for non-Claude providers
   async directCall(providerName, message, files = [], modelOverride = null) {
     const providerObj = this.providerMap[providerName]?.();
     if (!providerObj) return { text: `Provider ${providerName} not found.`, provider: 'avis', model: 'system' };
-
-    const hasKey = await this.hasProvider(providerName);
-    if (!hasKey) return { text: `${providerObj.displayName} not configured.`, provider: 'avis', model: 'system' };
-
+    if (!(await this.hasProvider(providerName))) return { text: `${providerObj.displayName} not configured.`, provider: 'avis', model: 'system' };
     const usageCheck = UsageMeter.checkThresholds(providerName);
     if (usageCheck.hardStop) return { text: `${providerObj.displayName} budget limit reached.`, provider: 'avis', model: 'system' };
 
     const systemPrompt = this.SYSTEM_PROMPT + MemoryManager.getMemoriesForPrompt() + (HotConfig.get('customSystemPrompt') ? '\n\n' + HotConfig.get('customSystemPrompt') : '');
     const messages = [...MemoryManager.getConversationMessages()];
     const lastMsg = { role: 'user', content: message };
-
     if (files.length > 0) {
       const images = files.filter(f => f.type === 'image').map(f => ({ data: f.data, mimeType: f.mimeType }));
       const textContent = files.filter(f => f.type === 'text').map(f => `[File: ${f.name}]\n${f.data}`).join('\n\n');
@@ -519,25 +735,16 @@ For every user request:
     messages.push(lastMsg);
 
     try {
-      const result = await window.avis.apiCall({
-        provider: providerName, model: modelOverride || providerObj.getCurrentModel().id,
-        messages, systemPrompt: providerName !== 'stability' ? systemPrompt : '', options: {}
-      });
-      if (result.error) {
-        StepDownManager.handleApiError(providerObj, result);
-        const friendly = this.parseError(result.message);
-        return { text: friendly, provider: providerName, model: 'error', error: true, friendlyError: true };
-      }
+      const result = await window.avis.apiCall({ provider: providerName, model: modelOverride || providerObj.getCurrentModel().id, messages, systemPrompt: providerName !== 'stability' ? systemPrompt : '', options: {} });
+      if (result.error) { StepDownManager.handleApiError(providerObj, result); return { text: this.parseError(result.message), provider: providerName, model: 'error', error: true, friendlyError: true }; }
       UsageMeter.record(providerName, result.inputTokens || 0, result.outputTokens || 0, providerObj);
       providerObj.status = 'active';
       return { text: result.text || '', image: result.image || null, provider: providerName, model: result.model || providerObj.getCurrentModel().name, citations: result.citations || null };
-    } catch (err) {
-      return { text: `Error: ${err.message}`, provider: providerName, model: 'error', error: true };
-    }
+    } catch (err) { return { text: `Error: ${err.message}`, provider: providerName, model: 'error', error: true }; }
   },
 
   async fallbackRoute(userMessage, files) {
-    for (const name of ['openai', 'gemini', 'mistral', 'grok', 'perplexity']) {
+    for (const name of ['openai', 'deepseek', 'gemini', 'mistral', 'grok', 'perplexity']) {
       if (await this.hasProvider(name)) return await this.directCall(name, userMessage, files);
     }
     return { text: 'No AI providers configured.', provider: 'avis', model: 'system' };
@@ -545,9 +752,7 @@ For every user request:
 
   async hasProvider(name) { return !!(await window.avis.getApiKey(name)); },
   async hasAnyProvider() {
-    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'stability']) {
-      if (await this.hasProvider(p)) return true;
-    }
+    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'stability']) { if (await this.hasProvider(p)) return true; }
     return false;
   },
   isImageGenRequest(text) {

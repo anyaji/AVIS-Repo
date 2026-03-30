@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('avis', {
   // API keys
   getApiKey: (provider) => ipcRenderer.invoke('get-api-key', provider),
   setApiKey: (provider, key) => ipcRenderer.invoke('set-api-key', provider, key),
+  getAllKeys: () => ipcRenderer.invoke('get-all-keys'),
 
   // Config
   getConfig: () => ipcRenderer.invoke('get-config'),
@@ -52,14 +53,21 @@ contextBridge.exposeInMainWorld('avis', {
   browserGetContent: () => ipcRenderer.invoke('browser-get-content'),
   browserScreenshot: () => ipcRenderer.invoke('browser-screenshot'),
 
-  // UPGRADE 3: Code execution
+  // Code execution
   runCode: (params) => ipcRenderer.invoke('run-code', params),
+
+  // Claude Code CLI integration
+  runClaudeCode: (params) => ipcRenderer.invoke('run-claude-code', params),
+  onClaudeCodeChunk: (callback) => ipcRenderer.on('claude-code-chunk', (_, chunk) => callback(chunk)),
 
   // UPGRADE 4: File system tools
   toolReadFile: (path) => ipcRenderer.invoke('tool-read-file', path),
   toolWriteFile: (path, content) => ipcRenderer.invoke('tool-write-file', path, content),
 
-  // UPGRADE 5: App launch & computer control
+  // Steam game launcher
+  launchSteamGame: (params) => ipcRenderer.invoke('launch-steam-game', params),
+
+  // App launch & computer control
   openApp: (target) => ipcRenderer.invoke('open-app', target),
   computerAction: (params) => ipcRenderer.invoke('computer-action', params),
 

@@ -329,6 +329,10 @@ const AVIS = {
 
       if (result.timedOut) {
         this.addRetryMessage('Response timed out. Click to retry.');
+      } else if (result.paused) {
+        // BUG 4: Show continue card for paused tasks
+        this.addMessageToChat('ai', result.text, result.provider, result.model);
+        this.addContinueCard(result.pauseInfo);
       } else if (result.error && result.friendlyError) {
         this.addErrorCard(result.text, result.provider);
       } else if (result.text) {
@@ -368,6 +372,53 @@ const AVIS = {
     if (this.lastUserMessage) {
       this.sendMessage(this.lastUserMessage);
     }
+  },
+
+  // BUG 4: Continue card for paused tasks
+  addContinueCard(pauseInfo) {
+    const chatArea = document.getElementById('chat-area');
+    const div = document.createElement('div');
+    div.className = 'message ai';
+    div.innerHTML = `<div class="continue-card">
+      <div class="continue-card-header">\u26A0\uFE0F Task paused — reached step limit (${pauseInfo.iteration}/${pauseInfo.maxIterations} steps, type: ${pauseInfo.taskType})</div>
+      <div class="continue-card-actions">
+        <button class="continue-btn" onclick="AVIS.continueTask()">&#9654; Continue</button>
+        <button class="retry-btn" style="background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);" onclick="AVIS.newConversation()">&#10005; Cancel</button>
+      </div>
+    </div>`;
+    chatArea.appendChild(div);
+    chatArea.scrollTop = chatArea.scrollHeight;
+  },
+
+  async continueTask() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+    this.showStopButton(true);
+
+    const typingEl = this.showTyping();
+    try {
+      const result = await Orchestrator.continueTask();
+      typingEl.remove();
+      if (this.activeStepPanel) this.finalizeStepPanel('Done');
+
+      if (result.paused) {
+        this.addMessageToChat('ai', result.text, result.provider, result.model);
+        this.addContinueCard(result.pauseInfo);
+      } else if (result.text) {
+        this.addMessageToChat('ai', result.text, result.provider, result.model);
+      }
+
+      MemoryManager.addMessage('assistant', result.text || '', result.provider, result.model);
+      await MemoryManager.saveCurrentConversation();
+    } catch (err) {
+      typingEl.remove();
+      this.addMessageToChat('ai', `Error: ${err.message}`, 'avis', 'system');
+    }
+
+    this.isProcessing = false;
+    this.showStopButton(false);
+    this.updateProviderStatus();
+    this.renderMeters();
   },
 
   // BUG 3: Clean error card display
@@ -591,17 +642,22 @@ const AVIS = {
   updateProviderStatus() {
     const list = document.getElementById('provider-status-list');
     const providers = [
-      { obj: ClaudeProvider, key: 'claude' }, { obj: OpenAIProvider, key: 'openai' },
-      { obj: GeminiProvider, key: 'gemini' }, { obj: GrokProvider, key: 'grok' },
-      { obj: MistralProvider, key: 'mistral' }, { obj: PerplexityProvider, key: 'perplexity' },
-      { obj: StabilityProvider, key: 'stability' }
+      { obj: ClaudeProvider, key: 'claude' }, { obj: DeepSeekProvider, key: 'deepseek' },
+      { obj: OpenAIProvider, key: 'openai' }, { obj: GeminiProvider, key: 'gemini' },
+      { obj: GrokProvider, key: 'grok' }, { obj: MistralProvider, key: 'mistral' },
+      { obj: PerplexityProvider, key: 'perplexity' }, { obj: StabilityProvider, key: 'stability' }
     ];
-    list.innerHTML = providers.map(p => `
-      <div class="provider-item">
+    list.innerHTML = providers.map(p => {
+      const isClaude = p.key === 'claude';
+      const statusLabel = isClaude && p.obj.status === 'active' ? '\uD83D\uDC51 ORCHESTRATOR' : '';
+      return `
+      <div class="provider-item${isClaude ? ' provider-orchestrator' : ''}">
         <div class="provider-dot ${p.obj.status}"></div>
         <span class="provider-name">${p.obj.displayName}</span>
         <span class="provider-model">${p.obj.getCurrentModel().name}</span>
-      </div>`).join('');
+        ${statusLabel ? `<span class="orchestrator-badge">${statusLabel}</span>` : ''}
+      </div>`;
+    }).join('');
     const globalDot = document.getElementById('global-status');
     const hasActive = providers.some(p => p.obj.status === 'active');
     globalDot.style.background = hasActive ? 'var(--accent-green)' : 'var(--accent-red)';

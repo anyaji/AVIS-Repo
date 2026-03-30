@@ -184,6 +184,16 @@ body {
 .provider-dot.offline { background: var(--accent-red); }
 .provider-dot.unconfigured { background: #555; }
 
+.provider-orchestrator { border-color: rgba(255, 215, 0, 0.3) !important; background: rgba(255, 215, 0, 0.03) !important; }
+.orchestrator-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  color: #ffd700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
 .provider-name {
   font-size: 12px;
   font-weight: 500;
@@ -1430,6 +1440,36 @@ body {
   display: flex;
   gap: 8px;
 }
+
+/* Continue card for paused tasks */
+.continue-card {
+  background: var(--bg-card);
+  border: 1px solid var(--accent-amber);
+  border-left: 3px solid var(--accent-amber);
+  border-radius: 8px;
+  padding: 14px 16px;
+  max-width: 500px;
+  animation: fadeIn 0.2s ease;
+}
+.continue-card-header {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--accent-amber);
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.continue-card-actions { display: flex; gap: 8px; }
+.continue-btn {
+  padding: 6px 18px;
+  background: var(--accent-blue);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.continue-btn:hover { background: #33baff; }
 
 /* Auto-update bar */
 .update-bar {
