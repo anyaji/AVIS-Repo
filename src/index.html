@@ -208,6 +208,30 @@
     </div>
   </div>
 
+  <!-- License Gate -->
+  <div id="license-gate" class="license-gate" style="display:none;">
+    <div class="license-card">
+      <div class="license-logo">AVIS</div>
+      <div class="license-subtitle">Avel Intelligence Services</div>
+      <div class="license-divider"></div>
+      <div style="margin-bottom:16px;font-size:13px;color:var(--text-secondary);">Enter your license key to continue</div>
+      <input type="text" id="license-key-input" class="license-input" placeholder="AVIS-XXXX-XXXX-XXXX" spellcheck="false">
+      <div id="license-error" style="font-size:11px;color:var(--accent-red);margin-top:6px;min-height:16px;"></div>
+      <button id="license-activate-btn" class="license-btn" onclick="AVIS.activateLicense()">Activate</button>
+    </div>
+  </div>
+
+  <!-- License Revoked Overlay -->
+  <div id="license-revoked" class="license-gate" style="display:none;">
+    <div class="license-card">
+      <div class="license-logo" style="color:var(--accent-red);">LOCKED</div>
+      <div id="revoked-reason" style="font-size:13px;color:var(--text-secondary);margin:16px 0;">Your license has been deactivated.</div>
+      <input type="text" id="reactivate-key-input" class="license-input" placeholder="Enter a new license key...">
+      <div id="reactivate-error" style="font-size:11px;color:var(--accent-red);margin-top:6px;min-height:16px;"></div>
+      <button class="license-btn" onclick="AVIS.reactivateLicense()">Reactivate</button>
+    </div>
+  </div>
+
   <!-- Drop Overlay -->
   <div class="drop-overlay" id="drop-overlay">Drop files here</div>
 

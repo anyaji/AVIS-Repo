@@ -38,7 +38,108 @@ function backupKeys() {
 }
 
 let mainWindow;
-let browserViewWindow = null; // Hidden browser for fetch_url
+let browserViewWindow = null;
+
+// ====================================================================
+// License System — master key always works, others validated via GitHub
+// ====================================================================
+const MASTER_KEY_HASH = '7cff1ad44b9eec3b8917276d874c7776'; // MD5 of master key
+const LICENSE_URL = 'https://raw.githubusercontent.com/anyaji/AVIS-Repo/main/licenses.json';
+let licenseValid = false;
+let licenseTier = 'standard';
+let licenseOwner = '';
+
+function hashKey(key) {
+  return require('crypto').createHash('md5').update(key.trim()).digest('hex');
+}
+
+function isMasterKey(key) {
+  return hashKey(key) === MASTER_KEY_HASH;
+}
+
+async function validateLicense(key) {
+  if (!key || !key.trim()) return { valid: false, reason: 'No license key entered' };
+
+  // Master key always works — no network needed
+  if (isMasterKey(key)) {
+    return { valid: true, tier: 'master', owner: 'Avel (Master)', message: '' };
+  }
+
+  // Check remote license file
+  try {
+    const axios = require('axios');
+    const response = await axios.get(LICENSE_URL, { timeout: 10000 });
+    const data = response.data;
+    const license = data.licenses?.[key.trim()];
+
+    if (!license) return { valid: false, reason: 'License key not found' };
+    if (license.status === 'revoked') return { valid: false, reason: data.message || 'License has been revoked' };
+    if (license.status !== 'active') return { valid: false, reason: `License status: ${license.status}` };
+
+    return { valid: true, tier: license.tier || 'standard', owner: license.owner || 'User', message: data.message || '' };
+  } catch (err) {
+    // Network error — allow 24h grace period if previously validated
+    const lastValidation = store.get('license.lastValidated', 0);
+    const hoursSince = (Date.now() - lastValidation) / (1000 * 60 * 60);
+    if (hoursSince < 24 && store.get('license.wasValid', false)) {
+      return { valid: true, tier: store.get('license.tier', 'standard'), owner: store.get('license.owner', 'User'), message: 'Offline mode (24h grace)' };
+    }
+    return { valid: false, reason: 'Could not verify license (no internet). Try again later.' };
+  }
+}
+
+// Periodic license check — every 5 minutes
+function startLicenseChecks() {
+  setInterval(async () => {
+    const key = store.get('license.key', '');
+    if (!key) return;
+    if (isMasterKey(key)) return; // master never needs rechecking
+
+    const result = await validateLicense(key);
+    if (!result.valid) {
+      licenseValid = false;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('license-revoked', { reason: result.reason });
+      }
+      log.warn('License revoked:', result.reason);
+    }
+  }, 5 * 60 * 1000);
+}
+
+// IPC handlers
+ipcMain.handle('license:validate', async (_, key) => {
+  const result = await validateLicense(key);
+  if (result.valid) {
+    licenseValid = true;
+    licenseTier = result.tier;
+    licenseOwner = result.owner;
+    store.set('license.key', key.trim());
+    store.set('license.tier', result.tier);
+    store.set('license.owner', result.owner);
+    store.set('license.wasValid', true);
+    store.set('license.lastValidated', Date.now());
+    log.info(`License activated: ${result.owner} (${result.tier})`);
+  }
+  return result;
+});
+
+ipcMain.handle('license:check', () => {
+  return {
+    valid: licenseValid,
+    key: store.get('license.key', ''),
+    tier: licenseTier,
+    owner: licenseOwner
+  };
+});
+
+ipcMain.handle('license:clear', () => {
+  store.delete('license.key');
+  store.delete('license.tier');
+  store.delete('license.owner');
+  store.set('license.wasValid', false);
+  licenseValid = false;
+  return true;
+});
 
 const APPDATA_DIR = path.join(app.getPath('appData'), 'AVIS');
 const HISTORY_DIR = path.join(APPDATA_DIR, 'history');
@@ -286,9 +387,23 @@ app.whenReady().then(() => {
       }
     }, 6000);
   } else {
-    // No splash — show main window immediately
     createWindow();
   }
+
+  // Validate stored license on startup
+  const storedKey = store.get('license.key', '');
+  if (storedKey) {
+    validateLicense(storedKey).then(result => {
+      licenseValid = result.valid;
+      licenseTier = result.tier || 'standard';
+      licenseOwner = result.owner || '';
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('license-status', result);
+      }
+    });
+  }
+
+  startLicenseChecks();
 
   initAutoUpdater();
 });

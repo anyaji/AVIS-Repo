@@ -43,6 +43,13 @@ contextBridge.exposeInMainWorld('avis', {
   offStreamChunk: () => ipcRenderer.removeAllListeners('stream-chunk'),
   testProvider: (provider, apiKey) => ipcRenderer.invoke('test-provider', provider, apiKey),
 
+  // License
+  validateLicense: (key) => ipcRenderer.invoke('license:validate', key),
+  checkLicense: () => ipcRenderer.invoke('license:check'),
+  clearLicense: () => ipcRenderer.invoke('license:clear'),
+  onLicenseRevoked: (cb) => ipcRenderer.on('license-revoked', (_, data) => cb(data)),
+  onLicenseStatus: (cb) => ipcRenderer.on('license-status', (_, data) => cb(data)),
+
   // First run
   isFirstRun: () => ipcRenderer.invoke('is-first-run'),
   completeOnboarding: () => ipcRenderer.invoke('complete-onboarding'),

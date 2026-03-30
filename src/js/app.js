@@ -8,6 +8,12 @@ const AVIS = {
   lastUserFiles: null,
 
   async init() {
+    // License check FIRST — block everything until valid
+    if (!this._licenseVerified) {
+      const licenseOk = await this.checkLicense();
+      if (!licenseOk) return;
+    }
+
     UsageMeter.init();
     await MemoryManager.init();
     await HotConfig.init();
@@ -48,6 +54,20 @@ const AVIS = {
     // Render changelog + init dev console
     this.renderChangelog();
     this.initDevConsole();
+
+    // Listen for license revocation while app is running
+    window.avis.onLicenseRevoked((data) => {
+      document.getElementById('license-revoked').style.display = 'flex';
+      document.getElementById('revoked-reason').textContent = data.reason || 'Your license has been deactivated.';
+    });
+
+    // Show license tier in titlebar
+    window.avis.onLicenseStatus((data) => {
+      if (data.valid && data.tier === 'master') {
+        const ver = document.getElementById('app-version');
+        if (ver) ver.innerHTML += ' <span class="master-badge">MASTER</span>';
+      }
+    });
 
     // Ctrl+Shift+D toggles Dev tab visibility
     document.addEventListener('keydown', (e) => {
@@ -91,6 +111,64 @@ const AVIS = {
     // Hide after 5s if up to date
     if (data.status === 'current') {
       setTimeout(() => { bar.style.display = 'none'; }, 5000);
+    }
+  },
+
+  // ====================================================================
+  // License System
+  // ====================================================================
+  async checkLicense() {
+    const stored = await window.avis.checkLicense();
+    if (stored.valid && stored.key) {
+      // Re-validate to make sure it's still active
+      const result = await window.avis.validateLicense(stored.key);
+      if (result.valid) return true;
+    }
+    // No valid license — show gate
+    document.getElementById('license-gate').style.display = 'flex';
+    document.getElementById('license-key-input')?.focus();
+    // Enter key to activate
+    document.getElementById('license-key-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.activateLicense();
+    });
+    return false;
+  },
+
+  async activateLicense() {
+    const input = document.getElementById('license-key-input');
+    const errorEl = document.getElementById('license-error');
+    const btn = document.getElementById('license-activate-btn');
+    const key = input?.value?.trim();
+
+    if (!key) { if (errorEl) errorEl.textContent = 'Please enter a license key'; return; }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Validating...'; }
+    if (errorEl) errorEl.textContent = '';
+
+    const result = await window.avis.validateLicense(key);
+
+    if (result.valid) {
+      document.getElementById('license-gate').style.display = 'none';
+      this._licenseVerified = true;
+      this.init();
+    } else {
+      if (errorEl) errorEl.textContent = result.reason;
+      if (btn) { btn.disabled = false; btn.textContent = 'Activate'; }
+    }
+  },
+
+  async reactivateLicense() {
+    const input = document.getElementById('reactivate-key-input');
+    const errorEl = document.getElementById('reactivate-error');
+    const key = input?.value?.trim();
+
+    if (!key) { if (errorEl) errorEl.textContent = 'Please enter a license key'; return; }
+
+    const result = await window.avis.validateLicense(key);
+    if (result.valid) {
+      document.getElementById('license-revoked').style.display = 'none';
+    } else {
+      if (errorEl) errorEl.textContent = result.reason;
     }
   },
 
