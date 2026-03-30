@@ -57,13 +57,23 @@ function isMasterKey(key) {
   return hashKey(key) === MASTER_KEY_HASH;
 }
 
+// Generate a unique device fingerprint — stable across restarts, unique per machine
+function getDeviceId() {
+  const crypto = require('crypto');
+  const os = require('os');
+  const raw = `${os.hostname()}-${os.userInfo().username}-${os.cpus()[0]?.model || ''}-${os.totalmem()}`;
+  return crypto.createHash('sha256').update(raw).digest('hex').substring(0, 16);
+}
+
 async function validateLicense(key) {
   if (!key || !key.trim()) return { valid: false, reason: 'No license key entered' };
 
-  // Master key always works — no network needed
+  // Master key always works — no network needed, no device lock
   if (isMasterKey(key)) {
     return { valid: true, tier: 'master', owner: 'Avel (Master)', message: '' };
   }
+
+  const deviceId = getDeviceId();
 
   // Check remote license file
   try {
@@ -76,6 +86,16 @@ async function validateLicense(key) {
     if (license.status === 'revoked') return { valid: false, reason: data.message || 'License has been revoked' };
     if (license.status !== 'active') return { valid: false, reason: `License status: ${license.status}` };
 
+    // Device binding check
+    if (license.deviceId && license.deviceId !== deviceId) {
+      return { valid: false, reason: 'This key is already activated on another device' };
+    }
+
+    // First activation — bind key to this device via GitHub API
+    if (!license.deviceId) {
+      await bindLicenseToDevice(key.trim(), deviceId, data);
+    }
+
     return { valid: true, tier: license.tier || 'standard', owner: license.owner || 'User', message: data.message || '' };
   } catch (err) {
     // Network error — allow 24h grace period if previously validated
@@ -85,6 +105,42 @@ async function validateLicense(key) {
       return { valid: true, tier: store.get('license.tier', 'standard'), owner: store.get('license.owner', 'User'), message: 'Offline mode (24h grace)' };
     }
     return { valid: false, reason: 'Could not verify license (no internet). Try again later.' };
+  }
+}
+
+// Bind a license key to this device by updating licenses.json on GitHub
+async function bindLicenseToDevice(key, deviceId, currentData) {
+  try {
+    const axios = require('axios');
+    const GH_TOKEN = store.get('github.token', '');
+
+    // Get current file SHA (needed for GitHub API update)
+    const fileInfo = await axios.get('https://api.github.com/repos/anyaji/AVIS-Repo/contents/licenses.json', {
+      headers: { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' },
+      timeout: 10000
+    });
+    const sha = fileInfo.data.sha;
+
+    // Update the license entry with device ID
+    currentData.licenses[key].deviceId = deviceId;
+    currentData.licenses[key].activatedAt = new Date().toISOString();
+    currentData.updated = new Date().toISOString().slice(0, 10);
+
+    // Push update
+    const content = Buffer.from(JSON.stringify(currentData, null, 2) + '\n').toString('base64');
+    await axios.put('https://api.github.com/repos/anyaji/AVIS-Repo/contents/licenses.json', {
+      message: `License ${key} activated on device ${deviceId}`,
+      content,
+      sha
+    }, {
+      headers: { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' },
+      timeout: 10000
+    });
+
+    log.info(`License ${key} bound to device ${deviceId}`);
+  } catch (err) {
+    log.warn('Could not bind license to device:', err.message);
+    // Don't block activation if binding fails — it'll try again next check
   }
 }
 
@@ -131,6 +187,9 @@ ipcMain.handle('license:check', () => {
     owner: licenseOwner
   };
 });
+
+ipcMain.handle('license:device-id', () => getDeviceId());
+ipcMain.handle('license:set-gh-token', (_, token) => { store.set('github.token', token); return true; });
 
 ipcMain.handle('license:clear', () => {
   store.delete('license.key');

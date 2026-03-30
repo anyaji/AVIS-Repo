@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('avis', {
   validateLicense: (key) => ipcRenderer.invoke('license:validate', key),
   checkLicense: () => ipcRenderer.invoke('license:check'),
   clearLicense: () => ipcRenderer.invoke('license:clear'),
+  getDeviceId: () => ipcRenderer.invoke('license:device-id'),
   onLicenseRevoked: (cb) => ipcRenderer.on('license-revoked', (_, data) => cb(data)),
   onLicenseStatus: (cb) => ipcRenderer.on('license-status', (_, data) => cb(data)),
 
