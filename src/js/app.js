@@ -32,9 +32,6 @@ const AVIS = {
     // Re-check every 15 minutes
     setInterval(() => this.healthCheckAll(), 15 * 60 * 1000);
 
-    // Setup browser webview once DOM is stable
-    setTimeout(() => this.setupBrowser(), 500);
-
     // Auto-updater status listener
     window.avis.onUpdateStatus((data) => this.handleUpdateStatus(data));
 
@@ -97,9 +94,13 @@ const AVIS = {
     for (const p of providers) {
       const key = await window.avis.getApiKey(p.key);
       p.obj.status = key ? 'active' : 'unconfigured';
-      if (!key) this.providerHealth[p.key] = { status: 'unconfigured', reason: 'NOT SET' };
+      this.providerHealth[p.key] = key
+        ? { status: 'active', reason: 'ACTIVE' }
+        : { status: 'unconfigured', reason: 'NOT SET' };
     }
+    // Update BOTH panels
     this.updateProviderStatus();
+    this.renderMeters();
   },
 
   // FIX 3: Ping all configured providers to check health
@@ -133,6 +134,7 @@ const AVIS = {
 
     await Promise.allSettled(checks);
     this.updateProviderStatus();
+    this.renderMeters();
   },
 
   classifyProviderError(errMsg) {
@@ -654,123 +656,77 @@ const AVIS = {
   escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; },
 
   // ====================================================================
-  // Browser tab — real webview
+  // Browser tab — headless fetch (no embedded webview, uses main process)
   // ====================================================================
-  _webviewReady: false,
-
-  getWebview() {
-    return document.getElementById('browser-webview');
-  },
-
-  setupBrowser() {
-    const wv = this.getWebview();
-    if (!wv) return;
-
-    wv.addEventListener('did-navigate', (e) => {
-      const urlBar = document.getElementById('browser-url-input');
-      if (urlBar) urlBar.value = e.url;
-    });
-    wv.addEventListener('did-navigate-in-page', (e) => {
-      const urlBar = document.getElementById('browser-url-input');
-      if (urlBar && e.isMainFrame) urlBar.value = e.url;
-    });
-    wv.addEventListener('page-title-updated', (e) => {
-      const el = document.getElementById('browser-page-title');
-      if (el) el.textContent = e.title;
-    });
-    wv.addEventListener('did-start-loading', () => {
-      const el = document.getElementById('browser-load-status');
-      if (el) el.textContent = '\u21BB Loading...';
-    });
-    wv.addEventListener('did-stop-loading', () => {
-      const el = document.getElementById('browser-load-status');
-      if (el) el.textContent = '\u2713 Loaded';
-    });
-    wv.addEventListener('did-fail-load', (e) => {
-      if (e.errorCode === -3) return; // aborted, ignore
-      const el = document.getElementById('browser-load-status');
-      if (el) el.textContent = '\u2717 ' + (e.errorDescription || 'Failed');
-    });
-
-    this._webviewReady = true;
-  },
+  _lastBrowserUrl: null,
 
   isURL(input) {
     if (!input) return false;
     if (input.startsWith('http://') || input.startsWith('https://')) return true;
-    // Has a dot and no spaces = likely a URL
     return input.includes('.') && !input.includes(' ');
   },
 
-  navigateBrowser(urlOverride) {
+  async navigateBrowser(urlOverride) {
     const input = document.getElementById('browser-url-input');
     let url = urlOverride || (input ? input.value.trim() : '');
     if (!url) return;
 
-    if (!this._webviewReady) this.setupBrowser();
-
-    if (this.isURL(url)) {
-      if (!url.startsWith('http')) url = 'https://' + url;
-      const wv = this.getWebview();
-      if (wv) {
-        wv.src = url;
-        if (input) input.value = url;
-      }
-    } else {
-      // Not a URL — treat as search query
-      if (input) input.value = url;
+    if (!this.isURL(url)) {
       this.doSearch(url);
+      return;
+    }
+
+    if (!url.startsWith('http')) url = 'https://' + url;
+    if (input) input.value = url;
+    this._lastBrowserUrl = url;
+
+    const statusEl = document.getElementById('browser-status');
+    const contentEl = document.getElementById('browser-content');
+    if (statusEl) statusEl.textContent = 'Fetching...';
+    if (contentEl) contentEl.textContent = '';
+
+    try {
+      // Try Firecrawl first for clean markdown
+      const fc = await window.avis.firecrawlScrape(url);
+      if (fc.success) {
+        if (statusEl) statusEl.textContent = `\u2713 ${fc.metadata?.title || url} (via Firecrawl)`;
+        if (contentEl) contentEl.textContent = fc.content.substring(0, 10000);
+        return;
+      }
+    } catch (e) {}
+
+    // Fallback: headless browser fetch
+    try {
+      const result = await window.avis.fetchUrl(url);
+      if (statusEl) statusEl.textContent = `\u2713 ${result.title || url}`;
+      if (contentEl) contentEl.textContent = result.text.substring(0, 10000);
+    } catch (err) {
+      if (statusEl) statusEl.textContent = `\u2717 ${err.message}`;
     }
   },
-
-  browserBack() { const wv = this.getWebview(); if (wv) wv.goBack(); },
-  browserForward() { const wv = this.getWebview(); if (wv) wv.goForward(); },
-  browserRefresh() { const wv = this.getWebview(); if (wv) wv.reload(); },
 
   async readPageWithAI() {
-    const wv = this.getWebview();
-    if (!wv || wv.src === 'about:blank') return;
-    try {
-      const pageText = await wv.executeJavaScript('document.body.innerText.substring(0, 15000)');
-      const pageTitle = await wv.executeJavaScript('document.title');
-      const pageUrl = wv.getURL();
-      // Switch to chat and send
-      this.switchToTab('providers');
-      const chatInput = document.getElementById('chat-input');
-      chatInput.value = `I'm looking at: ${pageTitle} (${pageUrl})\n\nContent:\n${pageText.substring(0, 3000)}\n\nPlease summarize this page.`;
-      chatInput.focus();
-      this.sendMessage();
-    } catch (err) {
-      alert('Could not read page: ' + err.message);
-    }
-  },
+    const contentEl = document.getElementById('browser-content');
+    const statusEl = document.getElementById('browser-status');
+    const url = this._lastBrowserUrl || document.getElementById('browser-url-input')?.value?.trim();
+    const pageText = contentEl?.textContent || '';
 
-  async screenshotPage() {
-    const wv = this.getWebview();
-    if (!wv || wv.src === 'about:blank') return;
-    try {
-      // capturePage is not available on webview directly from renderer
-      // Use the headless browser approach from main process instead
-      const pageUrl = wv.getURL();
-      const result = await window.avis.browserNavigate(pageUrl);
-      const screenshot = await window.avis.browserScreenshot();
-      if (screenshot) {
-        this.switchToTab('providers');
-        this.addMessageToChat('ai', `Screenshot of ${pageUrl}:`, 'avis', 'browser');
-        const chatArea = document.getElementById('chat-area');
-        const imgDiv = document.createElement('div');
-        imgDiv.className = 'message ai';
-        imgDiv.innerHTML = `<div class="message-bubble"><img src="${screenshot}" style="max-width:100%;border-radius:8px;"></div>`;
-        chatArea.appendChild(imgDiv);
-        chatArea.scrollTop = chatArea.scrollHeight;
-      }
-    } catch (err) {
-      alert('Screenshot failed: ' + err.message);
-    }
+    if (!pageText && !url) { this.showToast('Nothing to read — fetch a URL first'); return; }
+
+    // If no content fetched yet, fetch it
+    if (!pageText && url) { await this.navigateBrowser(url); }
+
+    const text = contentEl?.textContent || '';
+    const title = statusEl?.textContent?.replace(/^\u2713\s*/, '') || url || 'Unknown page';
+
+    this.switchToTab('providers');
+    const chatInput = document.getElementById('chat-input');
+    chatInput.value = `Summarize this page: ${title}\nURL: ${url || 'unknown'}\n\nContent:\n${text.substring(0, 4000)}`;
+    chatInput.focus();
+    this.sendMessage();
   },
 
   openInBrowser(url) {
-    // Switch to browser tab and navigate
     this.switchToTab('browser');
     const input = document.getElementById('browser-url-input');
     if (input) input.value = url;

@@ -354,36 +354,9 @@ body {
   flex-shrink: 0;
 }
 
-/* Browser toolbar */
-.browser-toolbar {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.browser-nav-btn {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.browser-nav-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
-
-.browser-action-bar {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 6px;
-}
+/* Browser action button (Read with AI) */
 .browser-action-btn {
-  padding: 4px 10px;
+  padding: 6px 10px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -393,33 +366,6 @@ body {
   font-family: 'Inter', sans-serif;
 }
 .browser-action-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
-
-#browser-webview-wrap {
-  flex: 1;
-  min-height: 300px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-  background: #fff;
-}
-
-.browser-status-bar {
-  display: flex;
-  justify-content: space-between;
-  padding: 4px 0;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  color: var(--text-secondary);
-}
-
-/* Make browser section flex column so webview fills space */
-#browser-section {
-  display: flex;
-  flex-direction: column;
-}
-#browser-section.active {
-  display: flex !important;
-}
 
 /* Center Panel — strict flex column, chat scrolls, input pinned */
 .center-panel {

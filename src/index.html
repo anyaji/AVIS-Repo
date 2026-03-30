@@ -67,26 +67,17 @@
           <div class="search-results" id="search-results"></div>
         </div>
 
-        <!-- Browser Section — real embedded webview -->
+        <!-- Browser Section — lightweight URL fetch (no embedded webview) -->
         <div class="panel-section" id="browser-section">
-          <div class="browser-toolbar">
-            <button onclick="AVIS.browserBack()" title="Back" class="browser-nav-btn">&#9664;</button>
-            <button onclick="AVIS.browserForward()" title="Forward" class="browser-nav-btn">&#9654;</button>
-            <button onclick="AVIS.browserRefresh()" title="Refresh" class="browser-nav-btn">&#8635;</button>
-            <input type="text" id="browser-url-input" placeholder="Enter URL or search..." class="search-box" style="flex:1;">
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <input type="text" id="browser-url-input" placeholder="Enter URL..." class="search-box" style="flex:1;">
             <button onclick="AVIS.navigateBrowser()" class="panel-go-btn">Go</button>
           </div>
-          <div class="browser-action-bar">
-            <button onclick="AVIS.readPageWithAI()" class="browser-action-btn" title="Send page content to Claude">&#129504; Read with AI</button>
-            <button onclick="AVIS.screenshotPage()" class="browser-action-btn" title="Capture screenshot">&#128248; Screenshot</button>
+          <div style="display:flex;gap:6px;margin-bottom:8px;">
+            <button onclick="AVIS.readPageWithAI()" class="browser-action-btn" style="flex:1;">&#129504; Read with AI</button>
           </div>
-          <div id="browser-webview-wrap">
-            <webview id="browser-webview" src="about:blank" style="width:100%;height:100%;border:none;" partition="persist:avis-browser"></webview>
-          </div>
-          <div class="browser-status-bar">
-            <span id="browser-page-title">New Tab</span>
-            <span id="browser-load-status"></span>
-          </div>
+          <div id="browser-status" style="font-size:10px;color:var(--text-secondary);padding:4px 0;font-family:'JetBrains Mono',monospace;"></div>
+          <pre id="browser-content" style="font-size:11px;color:var(--text-secondary);white-space:pre-wrap;word-break:break-word;max-height:500px;overflow-y:auto;background:var(--bg-primary);padding:8px;border-radius:6px;border:1px solid var(--border);margin:0;"></pre>
         </div>
 
         <!-- Terminal Section -->
