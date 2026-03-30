@@ -7,7 +7,35 @@ const Store = require('electron-store');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 
-const store = new Store({ name: 'avis-config', encryptionKey: 'avis-avel-productions-2026' });
+// Key store — NO encryption (encryption causes key loss across rebuilds)
+// Keys are stored in %APPDATA%/AVIS/avis-keys.json (survives reinstalls)
+const store = new Store({ name: 'avis-keys', cwd: path.join(app.getPath('appData'), 'AVIS') });
+
+// Migrate: if old encrypted store exists, try to read keys from plain backup
+function migrateKeys() {
+  const backupPath = path.join(app.getPath('appData'), 'AVIS', 'keys-backup.json');
+  // If store has no keys, try to restore from backup
+  const currentKeys = store.get('apiKeys', {});
+  const hasAnyKey = Object.values(currentKeys).some(k => k && k.length > 0);
+  if (!hasAnyKey && fs.existsSync(backupPath)) {
+    try {
+      const backup = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
+      if (backup.apiKeys) {
+        store.set('apiKeys', backup.apiKeys);
+        log.info('Restored API keys from backup');
+      }
+    } catch (e) { log.warn('Could not restore keys from backup:', e.message); }
+  }
+}
+
+// Save a plain JSON backup every time keys change
+function backupKeys() {
+  const backupPath = path.join(app.getPath('appData'), 'AVIS', 'keys-backup.json');
+  const keys = store.get('apiKeys', {});
+  try {
+    fs.writeFileSync(backupPath, JSON.stringify({ apiKeys: keys, timestamp: new Date().toISOString() }), 'utf-8');
+  } catch (e) { log.warn('Could not backup keys:', e.message); }
+}
 
 let mainWindow;
 let browserViewWindow = null; // Hidden browser for fetch_url
@@ -202,8 +230,15 @@ function cleanOldBuilds() {
 
 app.whenReady().then(() => {
   ensureDirs();
+  migrateKeys();
   createWindow();
   initAutoUpdater();
+
+  // Log which keys are loaded on startup
+  const keys = store.get('apiKeys', {});
+  Object.entries(keys).forEach(([provider, key]) => {
+    if (key && key.length > 0) log.info(`Key loaded: ${provider} = ${key.substring(0, 8)}...`);
+  });
 });
 
 app.on('window-all-closed', () => { app.quit(); });
@@ -224,7 +259,11 @@ ipcMain.handle('store-delete', (_, key) => { store.delete(key); return true; });
 
 // API key management
 ipcMain.handle('get-api-key', (_, provider) => store.get(`apiKeys.${provider}`, ''));
-ipcMain.handle('set-api-key', (_, provider, key) => { store.set(`apiKeys.${provider}`, key); return true; });
+ipcMain.handle('set-api-key', (_, provider, key) => {
+  store.set(`apiKeys.${provider}`, key);
+  backupKeys(); // always backup after key change
+  return true;
+});
 ipcMain.handle('get-all-keys', () => store.get('apiKeys', {}));
 
 // Config management
@@ -1250,7 +1289,7 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       }
       case 'grok': {
         const axios = require('axios');
-        await axios.post('https://api.x.ai/v1/chat/completions', { model: 'grok-2', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
+        await axios.post('https://api.x.ai/v1/chat/completions', { model: 'grok-2-latest', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
         return { success: true };
       }
       case 'mistral': {
@@ -1412,7 +1451,7 @@ async function callGrok(apiKey, model, messages, systemPrompt) {
   for (const m of messages) oaiMessages.push({ role: m.role, content: m.content });
 
   const response = await axios.post('https://api.x.ai/v1/chat/completions', {
-    model: model || 'grok-2', messages: oaiMessages, max_tokens: 4096
+    model: model || 'grok-2-latest', messages: oaiMessages, max_tokens: 4096
   }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
 
   const d = response.data;

@@ -2,11 +2,11 @@ const GrokProvider = {
   name: 'grok',
   displayName: 'Grok',
   models: [
-    { id: 'grok-2', name: 'Grok-2', tier: 0 },
+    { id: 'grok-2-latest', name: 'Grok-2', tier: 0 },
     { id: 'grok-1', name: 'Grok-1', tier: 1 }
   ],
   costs: {
-    'grok-2': { input: 5, output: 15 },
+    'grok-2-latest': { input: 5, output: 15 },
     'grok-1': { input: 2, output: 6 }
   },
   currentModelIndex: 0,
