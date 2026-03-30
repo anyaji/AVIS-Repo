@@ -1543,8 +1543,10 @@ ipcMain.on('abort-request', () => {
 // Provider API calls — now with 30s timeout on every call
 // ====================================================================
 ipcMain.handle('api-call', async (_, { provider, model, messages, systemPrompt, options }) => {
-  const apiKey = store.get(`apiKeys.${provider}`, '');
-  if (!apiKey) throw new Error(`No API key configured for ${provider}`);
+  // DALL-E uses the OpenAI key
+  const keyName = provider === 'dalle' ? 'openai' : provider;
+  const apiKey = store.get(`apiKeys.${keyName}`, '');
+  if (!apiKey) throw new Error(`No API key configured for ${keyName}`);
 
   try {
     let callFn;
