@@ -267,7 +267,7 @@ function initAutoUpdater() {
   // Re-check every 1 minute
   setInterval(() => {
     autoUpdater.checkForUpdates().catch(() => {});
-  }, 5 * 60 * 1000); // check every 5 minutes
+  }, 60 * 1000); // check every 1 minute
 
   autoUpdater.on('checking-for-update', () => {
     log.info('=== UPDATE CHECK STARTED ===');
@@ -1595,17 +1595,20 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       }
       case 'grok': {
         const axios = require('axios');
-        const grokModels = ['grok-2-latest', 'grok-beta', 'grok-2'];
+        const grokModels = ['grok-2-latest', 'grok-beta'];
         for (const gm of grokModels) {
           try {
-            await axios.post('https://api.x.ai/v1/chat/completions', { model: gm, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 15000 });
+            await axios.post('https://api.x.ai/v1/chat/completions', {
+              model: gm, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 5
+            }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, timeout: 15000 });
             return { success: true };
           } catch (e) {
-            if (e.response?.status === 401) throw e; // bad key, stop
-            continue; // try next model
+            if (e.response?.status === 401) return { success: false, error: 'Invalid API key' };
+            if (e.response?.status === 400 || e.response?.status === 404) continue;
+            continue;
           }
         }
-        throw new Error('No Grok model available');
+        return { success: false, error: 'No Grok model responded. Check your xAI API plan.' };
       }
       case 'mistral': {
         const axios = require('axios');
@@ -1847,14 +1850,30 @@ async function callGemini(apiKey, model, messages, systemPrompt) {
 async function callGrok(apiKey, model, messages, systemPrompt) {
   const axios = require('axios');
   const oaiMessages = [];
-  if (systemPrompt) oaiMessages.push({ role: 'system', content: systemPrompt });
+  // Grok supports system role
+  if (systemPrompt && typeof systemPrompt === 'string' && systemPrompt.trim()) {
+    oaiMessages.push({ role: 'system', content: systemPrompt.substring(0, 2000) });
+  }
   for (const m of messages) {
-    const content = (typeof m.content === 'string') ? m.content : JSON.stringify(m.content);
-    if (content && content.trim()) oaiMessages.push({ role: m.role, content });
+    // Extract plain text — Grok only accepts string content
+    let content = '';
+    if (typeof m.content === 'string') {
+      content = m.content;
+    } else if (Array.isArray(m.content)) {
+      // Extract text from multimodal content blocks
+      content = m.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    }
+    if (!content || !content.trim()) continue;
+    // Normalize role to user/assistant/system only
+    const role = m.role === 'assistant' ? 'assistant' : 'user';
+    oaiMessages.push({ role, content: content.trim() });
   }
 
-  // Try grok-2-latest first, fall back to grok-beta if it fails
-  const models = [model || 'grok-2-latest', 'grok-beta', 'grok-2'];
+  if (oaiMessages.length === 0 || !oaiMessages.some(m => m.role === 'user')) {
+    oaiMessages.push({ role: 'user', content: 'Hello' });
+  }
+
+  const models = [model || 'grok-2-latest', 'grok-beta'];
   let lastErr = null;
   for (const grokModel of models) {
     try {
@@ -1866,10 +1885,8 @@ async function callGrok(apiKey, model, messages, systemPrompt) {
       return { text: d.choices[0].message.content, inputTokens: d.usage?.prompt_tokens || 0, outputTokens: d.usage?.completion_tokens || 0, model: d.model || grokModel };
     } catch (err) {
       lastErr = err;
-      // If 401 (bad key), don't try other models
-      if (err.response?.status === 401) throw err;
-      // If model not found (404), try next
-      if (err.response?.status === 404) continue;
+      if (err.response?.status === 401) throw new Error('Invalid Grok API key');
+      if (err.response?.status === 400 || err.response?.status === 404) continue;
       throw err;
     }
   }
