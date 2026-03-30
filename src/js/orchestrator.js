@@ -188,9 +188,49 @@ For every user request:
   _stepCounter: 0,
   _loopStart: 0,
   _retryCount: 0,
-  _lastTaskMessage: null,   // for continue button
+  _lastTaskMessage: null,
   _lastTaskFiles: null,
   _lastToolUseLog: null,
+
+  // FIX 2: Rate limit cooldown tracker and disabled providers
+  rateLimitCooldowns: {},
+  disabledProviders: {},  // { providerName: 'reason' }
+
+  isProviderAvailable(name) {
+    if (this.disabledProviders[name]) return false;
+    if (this.rateLimitCooldowns[name] && this.rateLimitCooldowns[name] > Date.now()) return false;
+    return true;
+  },
+
+  setRateLimitCooldown(name, ms = 60000) {
+    this.rateLimitCooldowns[name] = Date.now() + ms;
+  },
+
+  disableProvider(name, reason) {
+    this.disabledProviders[name] = reason;
+    const obj = this.providerMap[name]?.();
+    if (obj) obj.status = 'payment';
+  },
+
+  classifyAndHandleError(providerName, errMsg, errCode) {
+    const msg = (errMsg || '').toLowerCase();
+    const code = String(errCode || '');
+    // Payment/billing
+    if (msg.includes('payment') || msg.includes('billing') || code === '402' || msg.includes('insufficient_quota')) {
+      this.disableProvider(providerName, 'Payment required');
+      return { action: 'disable', reason: `${providerName} disabled — payment required` };
+    }
+    // Rate limit
+    if (msg.includes('rate') || code === '429' || msg.includes('quota')) {
+      this.setRateLimitCooldown(providerName, 60000);
+      return { action: 'cooldown', reason: `${providerName} rate limited — 60s cooldown` };
+    }
+    // Overloaded / connection
+    if (msg.includes('overloaded') || code === '529' || code === '503' || msg.includes('connection')) {
+      return { action: 'retry', reason: `${providerName} temporarily unavailable` };
+    }
+    return { action: 'error', reason: errMsg };
+  },
 
   // BUG 1: Dynamic iteration limits by task type
   ITERATION_LIMITS: {
@@ -229,32 +269,40 @@ For every user request:
   },
 
   // Build tools list dynamically — only include provider tools for configured providers
+  // FIX 4: Only include tools for available providers
   async buildToolsList() {
     const tools = [...this.BASE_TOOLS];
     for (const pt of this.PROVIDER_TOOLS) {
       if (pt.provider === null) {
-        // run_parallel always available
         tools.push({ name: pt.name, description: pt.description, input_schema: pt.input_schema });
-      } else if (await this.hasProvider(pt.provider)) {
+      } else if ((await this.hasProvider(pt.provider)) && this.isProviderAvailable(pt.provider)) {
         tools.push({ name: pt.name, description: pt.description, input_schema: pt.input_schema });
       }
     }
     return tools;
   },
 
-  // Build dynamic system prompt listing active providers
+  // FIX 4: Build prompt with only truly available providers
   async buildSystemPrompt() {
-    const providerNames = { gemini: 'Google Gemini', openai: 'OpenAI GPT-4o', deepseek: 'DeepSeek', grok: 'xAI Grok', mistral: 'Mistral', perplexity: 'Perplexity', stability: 'Stability AI' };
+    const providerNames = { claude: 'Claude (You)', gemini: 'Google Gemini', openai: 'OpenAI GPT-4o', deepseek: 'DeepSeek', grok: 'xAI Grok', mistral: 'Mistral', perplexity: 'Perplexity', stability: 'Stability AI' };
     const statuses = [];
     for (const [key, name] of Object.entries(providerNames)) {
-      const active = await this.hasProvider(key);
-      statuses.push(`- ${name}: ${active ? 'ACTIVE' : 'NOT CONFIGURED'}`);
+      const hasKey = await this.hasProvider(key);
+      if (!hasKey) {
+        statuses.push(`- ${name}: NOT CONFIGURED`);
+      } else if (this.disabledProviders[key]) {
+        statuses.push(`- ${name}: DISABLED (${this.disabledProviders[key]})`);
+      } else if (this.rateLimitCooldowns[key] > Date.now()) {
+        statuses.push(`- ${name}: RATE LIMITED (cooldown)`);
+      } else {
+        statuses.push(`- ${name}: ACTIVE`);
+      }
     }
 
     const avisPathNote = this.avisPath ? `\n\nYour own source code is located at: ${this.avisPath.replace(/\\/g, '/')}` : '';
 
     return this.SYSTEM_PROMPT +
-      `\n\nCurrent provider status:\n${statuses.join('\n')}` +
+      `\n\nCurrent provider status:\n${statuses.join('\n')}\n\nDO NOT attempt to call providers marked DISABLED or NOT CONFIGURED. Route only to ACTIVE providers.` +
       avisPathNote +
       MemoryManager.getMemoriesForPrompt() +
       (HotConfig.get('customSystemPrompt') ? '\n\n' + HotConfig.get('customSystemPrompt') : '');
@@ -555,6 +603,12 @@ For every user request:
   async callProvider(providerName, prompt, model) {
     if (!(await this.hasProvider(providerName))) return `${providerName} is not configured. Add its API key in Settings.`;
 
+    // FIX 2: Check if provider is available (not disabled/cooldown)
+    if (!this.isProviderAvailable(providerName)) {
+      const reason = this.disabledProviders[providerName] || 'rate limited';
+      return `${providerName} is currently unavailable (${reason}). Try another provider.`;
+    }
+
     const providerObj = this.providerMap[providerName]?.();
     if (!providerObj) return `Provider ${providerName} not found.`;
 
@@ -567,14 +621,36 @@ For every user request:
         options: {}
       });
 
-      if (result.error) return `${providerObj.displayName} error: ${this.parseError(result.message)}`;
+      if (result.error) {
+        const handling = this.classifyAndHandleError(providerName, result.message, result.code);
+
+        // Auto-fallback: step down model on rate limit
+        if (handling.action === 'cooldown' && providerObj.models?.length > 1) {
+          const stepped = providerObj.stepDown();
+          if (stepped.stepped) {
+            this.emitStep('warn', `${providerObj.displayName} rate limited — stepping to ${stepped.to}`, 'warn');
+            return await this.callProvider(providerName, prompt, providerObj.getCurrentModel().id);
+          }
+        }
+
+        // Auto-fallback: connection issue on Opus → try Sonnet
+        if (handling.action === 'retry' && providerName === 'claude' && model && model.includes('opus')) {
+          this.emitStep('warn', 'Claude Opus unavailable — using Sonnet', 'warn');
+          return await this.callProvider('claude', prompt, 'claude-sonnet-4-20250514');
+        }
+
+        return `${providerObj.displayName}: ${this.parseError(result.message)}`;
+      }
 
       UsageMeter.record(providerName, result.inputTokens || 0, result.outputTokens || 0, providerObj);
       providerObj.status = 'active';
+      // Clear any cooldown on success
+      delete this.rateLimitCooldowns[providerName];
 
       return `[${providerObj.displayName} / ${result.model || providerObj.getCurrentModel().name}]\n\n${result.text}`;
     } catch (err) {
-      return `${providerName} call failed: ${err.message}`;
+      this.classifyAndHandleError(providerName, err.message, err.status);
+      return `${providerName} call failed: ${this.parseError(err.message)}`;
     }
   },
 

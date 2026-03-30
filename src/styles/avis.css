@@ -1934,3 +1934,88 @@ body {
   font-size: 9px;
   padding: 8px 3px;
 }
+
+/* Terminal toolbar */
+.terminal-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.terminal-title {
+  font-size: 11px;
+  color: var(--accent-green);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+.terminal-actions {
+  display: flex;
+  gap: 2px;
+}
+.terminal-actions button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.terminal-actions button:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+.terminal-output {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 600px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Toast notifications */
+.avis-toast {
+  position: fixed;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent-green);
+  color: #080c10;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 9999;
+  pointer-events: none;
+  animation: toastFade 2.5s ease forwards;
+}
+
+@keyframes toastFade {
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  12% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-5px); }
+}
+
+/* Provider health states */
+.provider-dot.payment { background: var(--accent-amber); }
+.provider-dot.error { background: var(--accent-red); }
+.provider-dot.cooldown { background: var(--accent-amber); animation: none; }
+.provider-status-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  color: var(--accent-amber);
+  white-space: nowrap;
+}

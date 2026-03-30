@@ -83,10 +83,18 @@
           </div>
         </div>
 
-        <!-- Terminal Section (UPGRADE 7) -->
+        <!-- Terminal Section -->
         <div class="panel-section" id="terminal-section">
-          <div style="font-size:11px;color:var(--accent-green);font-family:'JetBrains Mono',monospace;margin-bottom:8px;">AVIS Tool Execution Log</div>
-          <pre id="terminal-output" style="font-size:10px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;white-space:pre-wrap;word-break:break-word;max-height:600px;overflow-y:auto;background:var(--bg-primary);padding:8px;border-radius:6px;border:1px solid var(--border);line-height:1.6;"></pre>
+          <div class="terminal-toolbar">
+            <span class="terminal-title">&#9889; Tool Execution Log</span>
+            <div class="terminal-actions">
+              <button onclick="AVIS.copyTerminal()" title="Copy all">&#128203;</button>
+              <button onclick="AVIS.copyLastTask()" title="Copy last task">&#128196;</button>
+              <button onclick="AVIS.clearTerminal()" title="Clear">&#128465;</button>
+              <button onclick="AVIS.exportTerminal()" title="Export to file">&#128190;</button>
+            </div>
+          </div>
+          <pre id="terminal-output" class="terminal-output"></pre>
         </div>
         <!-- Developer Section -->
         <div class="panel-section" id="developer-section">
@@ -216,6 +224,8 @@
       <button class="onboarding-finish" onclick="AVIS.finishOnboarding()">Launch AVIS</button>
     </div>
   </div>
+
+  <div id="toast-container"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.0/marked.min.js"></script>

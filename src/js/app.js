@@ -27,6 +27,11 @@ const AVIS = {
 
     await this.detectProviders();
 
+    // FIX 3: Health check providers on startup (non-blocking)
+    setTimeout(() => this.healthCheckAll(), 2000);
+    // Re-check every 15 minutes
+    setInterval(() => this.healthCheckAll(), 15 * 60 * 1000);
+
     // Setup browser webview once DOM is stable
     setTimeout(() => this.setupBrowser(), 500);
 
@@ -70,6 +75,9 @@ const AVIS = {
     }
   },
 
+  // Provider health state: { status, reason } per provider
+  providerHealth: {},
+
   async detectProviders() {
     const providers = [
       { key: 'claude', obj: ClaudeProvider }, { key: 'deepseek', obj: DeepSeekProvider }, { key: 'openai', obj: OpenAIProvider },
@@ -78,9 +86,61 @@ const AVIS = {
       { key: 'stability', obj: StabilityProvider }
     ];
     for (const p of providers) {
-      p.obj.status = (await window.avis.getApiKey(p.key)) ? 'active' : 'unconfigured';
+      const key = await window.avis.getApiKey(p.key);
+      p.obj.status = key ? 'active' : 'unconfigured';
+      if (!key) this.providerHealth[p.key] = { status: 'unconfigured', reason: 'NOT SET' };
     }
     this.updateProviderStatus();
+  },
+
+  // FIX 3: Ping all configured providers to check health
+  async healthCheckAll() {
+    const providers = ['claude', 'openai', 'gemini', 'grok', 'mistral', 'deepseek', 'perplexity'];
+    const checks = providers.map(async (p) => {
+      const key = await window.avis.getApiKey(p);
+      if (!key) { this.providerHealth[p] = { status: 'unconfigured', reason: 'NOT SET' }; return; }
+
+      // Check cooldown
+      if (Orchestrator.rateLimitCooldowns?.[p] > Date.now()) {
+        this.providerHealth[p] = { status: 'cooldown', reason: 'RATE LIMITED' }; return;
+      }
+
+      try {
+        const result = await window.avis.testProvider(p, key);
+        if (result.success) {
+          this.providerHealth[p] = { status: 'active', reason: 'ACTIVE' };
+          const obj = Orchestrator.providerMap[p]?.();
+          if (obj) obj.status = 'active';
+        } else {
+          const reason = this.classifyProviderError(result.error || '');
+          this.providerHealth[p] = { status: reason.status, reason: reason.label };
+          const obj = Orchestrator.providerMap[p]?.();
+          if (obj) obj.status = reason.status;
+        }
+      } catch (e) {
+        this.providerHealth[p] = { status: 'error', reason: 'ERROR' };
+      }
+    });
+
+    await Promise.allSettled(checks);
+    this.updateProviderStatus();
+  },
+
+  classifyProviderError(errMsg) {
+    const msg = (errMsg || '').toLowerCase();
+    if (msg.includes('payment') || msg.includes('billing') || msg.includes('402') || msg.includes('insufficient')) {
+      return { status: 'payment', label: 'PAYMENT REQUIRED' };
+    }
+    if (msg.includes('rate') || msg.includes('429') || msg.includes('quota')) {
+      return { status: 'cooldown', label: 'RATE LIMITED' };
+    }
+    if (msg.includes('invalid') || msg.includes('401') || msg.includes('auth')) {
+      return { status: 'error', label: 'INVALID KEY' };
+    }
+    if (msg.includes('timeout') || msg.includes('econnrefused') || msg.includes('enotfound')) {
+      return { status: 'error', label: 'UNREACHABLE' };
+    }
+    return { status: 'error', label: 'ERROR' };
   },
 
   // FIX 1: Robust tab switching — force display style as fallback
@@ -294,6 +354,54 @@ const AVIS = {
       terminalEl.textContent = this.terminalLog.join('\n');
       terminalEl.scrollTop = terminalEl.scrollHeight;
     }
+  },
+
+  // FIX 1: Terminal copy/clear/export
+  copyTerminal() {
+    const text = this.terminalLog.join('\n');
+    navigator.clipboard.writeText(text);
+    this.showToast('Terminal copied to clipboard');
+  },
+
+  copyLastTask() {
+    // Find last "Analyzing your request" entry and copy everything from there
+    let startIdx = this.terminalLog.length;
+    for (let i = this.terminalLog.length - 1; i >= 0; i--) {
+      if (this.terminalLog[i].includes('Analyzing your request') || this.terminalLog[i].includes('RUNNING')) {
+        startIdx = i;
+        break;
+      }
+    }
+    const text = this.terminalLog.slice(startIdx).join('\n');
+    navigator.clipboard.writeText(text);
+    this.showToast('Last task copied');
+  },
+
+  clearTerminal() {
+    this.terminalLog = [];
+    const el = document.getElementById('terminal-output');
+    if (el) el.textContent = '';
+    this.addTerminalEntry('Terminal cleared');
+  },
+
+  async exportTerminal() {
+    const text = this.terminalLog.join('\n');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const filePath = `C:/Users/anyaj/Desktop/AVIS-Log-${timestamp}.txt`;
+    try {
+      await window.avis.toolWriteFile(filePath, text);
+      this.showToast(`Exported: AVIS-Log-${timestamp}.txt`);
+    } catch (e) {
+      this.showToast('Export failed: ' + e.message);
+    }
+  },
+
+  showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'avis-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2600);
   },
 
   // ====================================================================
@@ -664,13 +772,17 @@ const AVIS = {
     ];
     list.innerHTML = providers.map(p => {
       const isClaude = p.key === 'claude';
+      const health = this.providerHealth[p.key];
+      const healthLabel = health?.reason && health.reason !== 'ACTIVE' && health.reason !== 'NOT SET' ? health.reason : '';
+      const dotClass = health?.status || p.obj.status;
       const statusLabel = isClaude && p.obj.status === 'active' ? '\uD83D\uDC51 ORCHESTRATOR' : '';
       return `
       <div class="provider-item${isClaude ? ' provider-orchestrator' : ''}">
-        <div class="provider-dot ${p.obj.status}"></div>
+        <div class="provider-dot ${dotClass}"></div>
         <span class="provider-name">${p.obj.displayName}</span>
         <span class="provider-model">${p.obj.getCurrentModel().name}</span>
         ${statusLabel ? `<span class="orchestrator-badge">${statusLabel}</span>` : ''}
+        ${healthLabel ? `<span class="provider-status-label">${healthLabel}</span>` : ''}
       </div>`;
     }).join('');
     const globalDot = document.getElementById('global-status');
