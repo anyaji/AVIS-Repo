@@ -1,7 +1,11 @@
 {
   "licenses": {
     "AVIS-MASTER-AVEL-2026": { "owner": "Avel (Master)", "status": "active", "tier": "master" },
-    "AVIS-NAJI-2026-X7K9": { "owner": "Naji", "status": "active", "tier": "standard" }
+    "AVIS-NAJI-2026-X7K9": { "owner": "Naji", "status": "active", "tier": "standard" },
+    "AVIS-TONE-2026-QR4M": { "owner": "Tone", "status": "active", "tier": "standard" },
+    "AVIS-AMBER-2026-VN8J": { "owner": "Amber", "status": "active", "tier": "standard" },
+    "AVIS-ELIJAH-2026-KP3W": { "owner": "Elijah", "status": "active", "tier": "standard" },
+    "AVIS-DAD-2026-HT6F": { "owner": "Dad", "status": "active", "tier": "standard" }
   },
   "message": "",
   "updated": "2026-03-30"
