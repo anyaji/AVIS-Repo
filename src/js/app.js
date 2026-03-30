@@ -1251,11 +1251,32 @@ const AVIS = {
   // ====================================================================
   CHANGELOG: [
     {
-      version: '2.2.5', date: '2026-03-30', label: 'latest',
+      version: '2.6.0', date: '2026-03-30', label: 'latest',
       items: [
-        'Fixed Gemini and Grok connections',
-        'Updates now restart AVIS silently instead of just closing',
-        'Update checks every 1 minute'
+        'AVIS now knows the real date and time (injected every message)',
+        'Live clock in the titlebar',
+        'Removed Grok (was unreliable)',
+        'All file paths now work on any computer (not just yours)',
+        '6 providers: Claude, GPT-4, Gemini, DeepSeek, Mistral, Perplexity'
+      ]
+    },
+    {
+      version: '2.5.0', date: '2026-03-30', label: 'major',
+      items: [
+        'Image generation now uses DALL-E 3 (higher quality)',
+        'Removed Stability AI — DALL-E handles all images',
+        'Resolution picker: Square, Wide, or Tall',
+        'Copy any prompt by hovering over your message',
+        'Copy Chat History button in right panel'
+      ]
+    },
+    {
+      version: '2.3.0', date: '2026-03-30',
+      items: [
+        'Generated images display directly in chat',
+        'Save, Set as Wallpaper, and Copy buttons on images',
+        'Wallpaper requests auto-optimize for desktop size',
+        'Image requests from any provider route to DALL-E automatically'
       ]
     },
     {
