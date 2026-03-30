@@ -23,7 +23,7 @@
       <div class="tab-separator"></div>
       <button class="nav-tab" data-tab="search">Search</button>
       <div class="tab-separator"></div>
-      <button class="nav-tab" data-tab="browser">Browser</button>
+      <button class="nav-tab" data-tab="browser">Direct</button>
       <div class="tab-separator"></div>
       <button class="nav-tab" data-tab="terminal">Terminal</button>
       <div class="tab-separator"></div>
@@ -66,17 +66,31 @@
           <div class="search-results" id="search-results"></div>
         </div>
 
-        <!-- Browser Section — lightweight URL fetch (no embedded webview) -->
+        <!-- Direct Chat — talk to any provider directly -->
         <div class="panel-section" id="browser-section">
-          <div style="display:flex;gap:6px;margin-bottom:8px;">
-            <input type="text" id="browser-url-input" placeholder="Enter URL..." class="search-box" style="flex:1;">
-            <button onclick="AVIS.navigateBrowser()" class="panel-go-btn">Go</button>
+          <div style="margin-bottom:8px;">
+            <select id="direct-chat-provider" class="search-box" style="width:100%;margin-bottom:6px;">
+              <option value="claude">Claude Sonnet</option>
+              <option value="claude-opus">Claude Opus</option>
+              <option value="claude-haiku">Claude Haiku</option>
+              <option value="openai">GPT-4o</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="gemini">Gemini</option>
+              <option value="grok">Grok</option>
+              <option value="mistral">Mistral</option>
+              <option value="perplexity">Perplexity</option>
+            </select>
+            <div style="display:flex;gap:6px;">
+              <input type="text" id="direct-chat-input" placeholder="Ask this provider directly..." class="search-box" style="flex:1;">
+              <button onclick="AVIS.directChatSend()" class="panel-go-btn">Ask</button>
+            </div>
           </div>
-          <div style="display:flex;gap:6px;margin-bottom:8px;">
-            <button onclick="AVIS.readPageWithAI()" class="browser-action-btn" style="flex:1;">&#129504; Read with AI</button>
+          <div id="direct-chat-status" style="font-size:10px;color:var(--text-secondary);padding:2px 0;font-family:'JetBrains Mono',monospace;"></div>
+          <div id="direct-chat-response" style="font-size:12px;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;max-height:500px;overflow-y:auto;background:var(--bg-primary);padding:10px;border-radius:6px;border:1px solid var(--border);line-height:1.5;"></div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button onclick="AVIS.directChatCopy()" class="browser-action-btn" style="flex:1;">&#128203; Copy</button>
+            <button onclick="AVIS.directChatToMain()" class="browser-action-btn" style="flex:1;">&#8594; Send to Chat</button>
           </div>
-          <div id="browser-status" style="font-size:10px;color:var(--text-secondary);padding:4px 0;font-family:'JetBrains Mono',monospace;"></div>
-          <pre id="browser-content" style="font-size:11px;color:var(--text-secondary);white-space:pre-wrap;word-break:break-word;max-height:500px;overflow-y:auto;background:var(--bg-primary);padding:8px;border-radius:6px;border:1px solid var(--border);margin:0;"></pre>
         </div>
 
         <!-- Terminal Section -->

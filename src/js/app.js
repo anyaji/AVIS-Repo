@@ -216,6 +216,9 @@ const AVIS = {
     document.getElementById('search-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.doSearch();
     });
+    document.getElementById('direct-chat-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.directChatSend();
+    });
     document.getElementById('browser-url-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -491,8 +494,10 @@ const AVIS = {
       } else if (result.error && result.friendlyError) {
         this.addErrorCard(result.text, result.provider);
       } else if (result.streamed) {
-        // Already rendered live via streaming — just finalize the bubble
         this.finalizeStreamBubble(result.provider, result.model);
+      } else if (result.failover) {
+        // Show failover notice then the response
+        this.addMessageToChat('ai', `\u26A0\uFE0F *Claude unavailable — response from ${result.activeOrchestrator}:*\n\n${result.text}`, result.provider, result.model);
       } else if (result.text) {
         this.addMessageToChat('ai', result.text, result.provider, result.model);
       } else if (!result.image && !result.error && !result.paused) {
@@ -727,81 +732,90 @@ const AVIS = {
   escapeHtml(text) { const d = document.createElement('div'); d.textContent = text; return d.innerHTML; },
 
   // ====================================================================
-  // Browser tab — headless fetch (no embedded webview, uses main process)
+  // Direct Chat — talk to any provider directly, bypassing orchestrator
   // ====================================================================
-  _lastBrowserUrl: null,
+  _directChatResponse: '',
 
-  isURL(input) {
-    if (!input) return false;
-    if (input.startsWith('http://') || input.startsWith('https://')) return true;
-    return input.includes('.') && !input.includes(' ');
-  },
+  async directChatSend() {
+    const providerSelect = document.getElementById('direct-chat-provider');
+    const input = document.getElementById('direct-chat-input');
+    const statusEl = document.getElementById('direct-chat-status');
+    const responseEl = document.getElementById('direct-chat-response');
 
-  async navigateBrowser(urlOverride) {
-    const input = document.getElementById('browser-url-input');
-    let url = urlOverride || (input ? input.value.trim() : '');
-    if (!url) return;
+    const prompt = input?.value?.trim();
+    if (!prompt) return;
 
-    if (!this.isURL(url)) {
-      this.doSearch(url);
-      return;
-    }
+    const selected = providerSelect?.value || 'claude';
+    if (statusEl) statusEl.textContent = `Asking ${selected}...`;
+    if (responseEl) responseEl.innerHTML = '<span style="color:var(--text-secondary);">Thinking...</span>';
 
-    if (!url.startsWith('http')) url = 'https://' + url;
-    if (input) input.value = url;
-    this._lastBrowserUrl = url;
+    // Map selection to provider name and model
+    const map = {
+      'claude': { provider: 'claude', model: 'claude-sonnet-4-20250514' },
+      'claude-opus': { provider: 'claude', model: 'claude-opus-4-5-20250514' },
+      'claude-haiku': { provider: 'claude', model: 'claude-haiku-4-5-20251001' },
+      'openai': { provider: 'openai', model: 'gpt-4o' },
+      'deepseek': { provider: 'deepseek', model: 'deepseek-chat' },
+      'gemini': { provider: 'gemini', model: 'gemini-1.5-pro' },
+      'grok': { provider: 'grok', model: 'grok-2-latest' },
+      'mistral': { provider: 'mistral', model: 'mistral-large-latest' },
+      'perplexity': { provider: 'perplexity', model: 'sonar-pro' }
+    };
 
-    const statusEl = document.getElementById('browser-status');
-    const contentEl = document.getElementById('browser-content');
-    if (statusEl) statusEl.textContent = 'Fetching...';
-    if (contentEl) contentEl.textContent = '';
+    const target = map[selected] || map['claude'];
+    const start = Date.now();
 
     try {
-      // Try Firecrawl first for clean markdown
-      const fc = await window.avis.firecrawlScrape(url);
-      if (fc.success) {
-        if (statusEl) statusEl.textContent = `\u2713 ${fc.metadata?.title || url} (via Firecrawl)`;
-        if (contentEl) contentEl.textContent = fc.content.substring(0, 10000);
-        return;
+      const result = await window.avis.apiCall({
+        provider: target.provider,
+        model: target.model,
+        messages: [{ role: 'user', content: prompt }],
+        systemPrompt: 'You are a helpful AI assistant. Answer directly and concisely.',
+        options: {}
+      });
+
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+      if (result.error) {
+        if (statusEl) statusEl.textContent = `\u2717 ${selected} error (${elapsed}s)`;
+        if (responseEl) responseEl.textContent = Orchestrator.parseError(result.message);
+      } else {
+        this._directChatResponse = result.text;
+        if (statusEl) statusEl.textContent = `\u2713 ${selected} / ${result.model || target.model} (${elapsed}s)`;
+        if (responseEl) responseEl.innerHTML = this.renderMarkdown(result.text);
+        if (result.inputTokens) {
+          UsageMeter.record(target.provider, result.inputTokens, result.outputTokens || 0,
+            Orchestrator.providerMap[target.provider]?.());
+          this.renderMeters();
+        }
       }
-    } catch (e) {}
-
-    // Fallback: headless browser fetch
-    try {
-      const result = await window.avis.fetchUrl(url);
-      if (statusEl) statusEl.textContent = `\u2713 ${result.title || url}`;
-      if (contentEl) contentEl.textContent = result.text.substring(0, 10000);
     } catch (err) {
       if (statusEl) statusEl.textContent = `\u2717 ${err.message}`;
+      if (responseEl) responseEl.textContent = err.message;
     }
   },
 
-  async readPageWithAI() {
-    const contentEl = document.getElementById('browser-content');
-    const statusEl = document.getElementById('browser-status');
-    const url = this._lastBrowserUrl || document.getElementById('browser-url-input')?.value?.trim();
-    const pageText = contentEl?.textContent || '';
+  directChatCopy() {
+    if (this._directChatResponse) {
+      navigator.clipboard.writeText(this._directChatResponse);
+      this.showToast('Copied to clipboard');
+    }
+  },
 
-    if (!pageText && !url) { this.showToast('Nothing to read — fetch a URL first'); return; }
-
-    // If no content fetched yet, fetch it
-    if (!pageText && url) { await this.navigateBrowser(url); }
-
-    const text = contentEl?.textContent || '';
-    const title = statusEl?.textContent?.replace(/^\u2713\s*/, '') || url || 'Unknown page';
-
-    this.switchToTab('providers');
-    const chatInput = document.getElementById('chat-input');
-    chatInput.value = `Summarize this page: ${title}\nURL: ${url || 'unknown'}\n\nContent:\n${text.substring(0, 4000)}`;
-    chatInput.focus();
-    this.sendMessage();
+  directChatToMain() {
+    if (this._directChatResponse) {
+      const chatInput = document.getElementById('chat-input');
+      chatInput.value = `Analyze this response from another AI:\n\n${this._directChatResponse.substring(0, 2000)}`;
+      chatInput.focus();
+      this.switchToTab('providers');
+    }
   },
 
   openInBrowser(url) {
-    this.switchToTab('browser');
-    const input = document.getElementById('browser-url-input');
-    if (input) input.value = url;
-    this.navigateBrowser(url);
+    // Legacy — redirect to search
+    this.switchToTab('search');
+    const input = document.getElementById('search-input');
+    if (input) { input.value = url; this.doSearch(url); }
   },
 
   switchToTab(tabName) {

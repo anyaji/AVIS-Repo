@@ -364,6 +364,11 @@ For every user request:
     if (this.onStep) this.onStep(id, null, message, status);
   },
 
+  // Orchestrator failover chain: Claude → GPT-4o → DeepSeek → Gemini
+  ORCHESTRATOR_CHAIN: ['claude', 'openai', 'deepseek', 'gemini', 'mistral'],
+  _activeOrchestrator: null, // tracks which provider is currently acting as orchestrator
+  _claudeFailCount: 0,
+
   async process(userMessage, files = []) {
     this.cancelled = false;
     this._stepCounter = 0;
@@ -384,25 +389,54 @@ For every user request:
     const hasAnyKey = await this.hasAnyProvider();
     if (!hasAnyKey) return { text: 'No API keys configured. Please open Settings and add at least one provider API key.', provider: 'avis', model: 'system' };
 
-    const hasClaude = await this.hasProvider('claude');
-    const hasImages = files.some(f => f.type === 'image');
-
-    if (hasImages && !hasClaude) return await this.directCall('openai', userMessage, files);
-
     if (this.isImageGenRequest(userMessage)) {
       if (await this.hasProvider('stability')) return await this.directCall('stability', userMessage, files);
     }
 
-    if (hasClaude) {
-      // For simple chat with no files, stream directly (faster, real-time text)
-      const taskType = this.detectTaskType(userMessage);
-      if (taskType === 'simple_chat' && files.length === 0 && this.onStreamChunk) {
-        return await this.streamDirect(userMessage);
+    // Try Claude first (primary orchestrator with tool use)
+    const hasClaude = await this.hasProvider('claude');
+    if (hasClaude && this.isProviderAvailable('claude') && this._claudeFailCount < 3) {
+      try {
+        const taskType = this.detectTaskType(userMessage);
+        if (taskType === 'simple_chat' && files.length === 0 && this.onStreamChunk) {
+          const result = await this.streamDirect(userMessage);
+          if (result && !result.error) { this._claudeFailCount = 0; this._activeOrchestrator = 'claude'; return result; }
+        } else {
+          const result = await this.agenticLoop(userMessage, files);
+          if (result && !result.error) { this._claudeFailCount = 0; this._activeOrchestrator = 'claude'; return result; }
+        }
+      } catch (e) {
+        this._claudeFailCount++;
+        this.emitStep('warn', `Claude failed (${this._claudeFailCount}/3) — trying backup orchestrator...`, 'warn');
       }
-      return await this.agenticLoop(userMessage, files);
     }
 
-    return await this.fallbackRoute(userMessage, files);
+    // Claude unavailable — failover to next available provider
+    return await this.failoverOrchestrate(userMessage, files);
+  },
+
+  // Failover orchestrator — sends to the best available non-Claude provider
+  async failoverOrchestrate(userMessage, files) {
+    for (const provider of this.ORCHESTRATOR_CHAIN) {
+      if (provider === 'claude') continue; // already failed
+      if (!(await this.hasProvider(provider))) continue;
+      if (!this.isProviderAvailable(provider)) continue;
+
+      this._activeOrchestrator = provider;
+      const providerObj = this.providerMap[provider]?.();
+      const displayName = providerObj?.displayName || provider;
+      this.emitStep('route', `Failover: ${displayName} is now orchestrator`, 'warn');
+
+      const result = await this.directCall(provider, userMessage, files);
+      if (result && !result.error) {
+        result.failover = true;
+        result.originalOrchestrator = 'claude';
+        result.activeOrchestrator = provider;
+        return result;
+      }
+    }
+
+    return { text: 'All AI providers are currently unavailable. Please check your API keys and try again.', provider: 'avis', model: 'system' };
   },
 
   // Stream a simple Claude response directly (no tools, real-time text)
