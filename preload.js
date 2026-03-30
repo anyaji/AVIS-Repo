@@ -111,6 +111,9 @@ contextBridge.exposeInMainWorld('avis', {
   devReadFile: (relPath) => ipcRenderer.invoke('dev-read-file', relPath),
   devWriteFile: (relPath, content) => ipcRenderer.invoke('dev-write-file', relPath, content),
 
+  // Dynamic paths
+  getPaths: () => ipcRenderer.invoke('get-paths'),
+
   // Hot-reload (AVIS edits itself then reloads)
   hotReload: () => ipcRenderer.send('hot-reload'),
 

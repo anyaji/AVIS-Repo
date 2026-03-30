@@ -691,6 +691,17 @@ ipcMain.handle('copy-image-clipboard', async (_, base64) => {
   }
 });
 
+// Dynamic paths — work for ANY user on ANY machine
+ipcMain.handle('get-paths', () => ({
+  home: app.getPath('home'),
+  desktop: app.getPath('desktop'),
+  documents: app.getPath('documents'),
+  downloads: app.getPath('downloads'),
+  appData: app.getPath('userData'),
+  temp: app.getPath('temp'),
+  avisSource: __dirname
+}));
+
 // Expose AVIS install path so Claude knows where its own source files are
 ipcMain.handle('get-avis-path', () => __dirname);
 

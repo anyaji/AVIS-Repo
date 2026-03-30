@@ -14,6 +14,9 @@ const AVIS = {
       if (!licenseOk) return;
     }
 
+    // Load dynamic paths for this user/machine
+    this._paths = await window.avis.getPaths();
+
     UsageMeter.init();
     await MemoryManager.init();
     await HotConfig.init();
@@ -483,7 +486,7 @@ const AVIS = {
   async exportTerminal() {
     const text = this.terminalLog.join('\n');
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-    const filePath = `C:/Users/anyaj/Desktop/AVIS-Log-${timestamp}.txt`;
+    const filePath = `${this._paths?.desktop || ''}/AVIS-Log-${timestamp}.txt`;
     try {
       await window.avis.toolWriteFile(filePath, text);
       this.showToast(`Exported: AVIS-Log-${timestamp}.txt`);
@@ -791,7 +794,7 @@ const AVIS = {
     const imgEl = document.getElementById(imgId);
     if (!imgEl?.dataset.base64) return;
     const filename = `AVIS_Image_${Date.now()}.png`;
-    const savePath = `C:/Users/anyaj/Desktop/${filename}`;
+    const savePath = `${this._paths?.desktop || ''}/${filename}`;
     const result = await window.avis.saveImage({ base64: imgEl.dataset.base64, savePath });
     this.showToast(result.success ? `Saved: ${filename}` : `Save failed: ${result.error}`);
   },
@@ -799,7 +802,7 @@ const AVIS = {
   async setGeneratedWallpaper(imgId) {
     const imgEl = document.getElementById(imgId);
     if (!imgEl?.dataset.base64) return;
-    const tmpPath = 'C:/Users/anyaj/AppData/Local/Temp/avis_wallpaper.png';
+    const tmpPath = `${this._paths?.temp || ''}/avis_wallpaper.png`;
     await window.avis.saveImage({ base64: imgEl.dataset.base64, savePath: tmpPath });
     const result = await window.avis.setWallpaper(tmpPath);
     this.showToast(result.success ? 'Wallpaper set!' : `Failed: ${result.error}`);
