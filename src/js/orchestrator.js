@@ -31,7 +31,7 @@ ROUTING RULES:
 - "quick/fast" simple tasks → call_claude with haiku model
 - Current events/news → call_perplexity or web_search
 - Code generation → call_gpt4 or call_claude_code
-- Image generation → call_stability
+- Image generation → call_stability (ANY image request auto-routes to Stability AI, even if user asks GPT-4 or Gemini to "create an image")
 - Comparisons → run_parallel
 - Self-modification → write_file on your own source files
 
@@ -715,8 +715,19 @@ For every user request:
     }
   },
 
-  // Call any text AI provider and return its response
+  // Detect if a prompt is asking for image generation
+  isImagePrompt(prompt) {
+    return /\b(generate|create|make|draw|paint|design|render|produce)\b.{0,20}\b(image|picture|photo|illustration|artwork|wallpaper|icon|logo|portrait|scene|graphic)\b/i.test(prompt) ||
+           /\b(image|picture|photo|illustration|wallpaper)\b.{0,20}\b(of|showing|depicting|with|featuring)\b/i.test(prompt);
+  },
+
+  // Call any text AI provider — auto-reroutes image requests to Stability
   async callProvider(providerName, prompt, model) {
+    // If this is an image generation request, reroute to Stability AI regardless of target provider
+    if (this.isImagePrompt(prompt) && await this.hasProvider('stability')) {
+      this.emitStep('route', `Image request detected — routing to Stability AI (requested by ${providerName})`, 'done');
+      return await this.callProviderImage(prompt);
+    }
     if (!(await this.hasProvider(providerName))) return `${providerName} is not configured. Add its API key in Settings.`;
 
     if (!this.isProviderAvailable(providerName)) {
