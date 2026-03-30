@@ -449,6 +449,11 @@ app.whenReady().then(() => {
     createWindow();
   }
 
+  // Set GitHub token for license binding (master only, stored locally)
+  if (!store.get('github.token', '')) {
+    store.set('github.token', process.env.GH_TOKEN || '');
+  }
+
   // Validate stored license on startup
   const storedKey = store.get('license.key', '');
   if (storedKey) {
