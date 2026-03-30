@@ -62,7 +62,7 @@ function initAutoUpdater() {
   // Re-check every 4 hours
   setInterval(() => {
     autoUpdater.checkForUpdates().catch(() => {});
-  }, 4 * 60 * 60 * 1000);
+  }, 60 * 1000); // check every 1 minute
 
   autoUpdater.on('checking-for-update', () => {
     sendUpdateStatus('checking', 'Checking for updates...');
