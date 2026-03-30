@@ -616,10 +616,24 @@ For every user request:
   async callProvider(providerName, prompt, model) {
     if (!(await this.hasProvider(providerName))) return `${providerName} is not configured. Add its API key in Settings.`;
 
-    // FIX 2: Check if provider is available (not disabled/cooldown)
     if (!this.isProviderAvailable(providerName)) {
       const reason = this.disabledProviders[providerName] || 'rate limited';
       return `${providerName} is currently unavailable (${reason}). Try another provider.`;
+    }
+
+    // Cache check — return instantly if we have a recent answer
+    if (typeof ResponseCache !== 'undefined') {
+      const cached = ResponseCache.get(providerName, prompt);
+      if (cached) {
+        this.emitStep('tool', `Cache hit for ${providerName} (saved tokens)`, 'done');
+        return cached;
+      }
+    }
+
+    // Budget check — block if over budget
+    const usage = UsageMeter.providers[providerName];
+    if (usage && usage.budgetLimit > 0 && usage.monthCost >= usage.budgetLimit) {
+      return `${providerName} monthly budget ($${usage.budgetLimit}) exceeded. Adjust in Settings or use another provider.`;
     }
 
     const providerObj = this.providerMap[providerName]?.();
@@ -637,7 +651,6 @@ For every user request:
       if (result.error) {
         const handling = this.classifyAndHandleError(providerName, result.message, result.code);
 
-        // Auto-fallback: step down model on rate limit
         if (handling.action === 'cooldown' && providerObj.models?.length > 1) {
           const stepped = providerObj.stepDown();
           if (stepped.stepped) {
@@ -646,7 +659,6 @@ For every user request:
           }
         }
 
-        // Auto-fallback: connection issue on Opus → try Sonnet
         if (handling.action === 'retry' && providerName === 'claude' && model && model.includes('opus')) {
           this.emitStep('warn', 'Claude Opus unavailable — using Sonnet', 'warn');
           return await this.callProvider('claude', prompt, 'claude-sonnet-4-20250514');
@@ -657,10 +669,16 @@ For every user request:
 
       UsageMeter.record(providerName, result.inputTokens || 0, result.outputTokens || 0, providerObj);
       providerObj.status = 'active';
-      // Clear any cooldown on success
       delete this.rateLimitCooldowns[providerName];
 
-      return `[${providerObj.displayName} / ${result.model || providerObj.getCurrentModel().name}]\n\n${result.text}`;
+      const responseText = `[${providerObj.displayName} / ${result.model || providerObj.getCurrentModel().name}]\n\n${result.text}`;
+
+      // Cache the successful response
+      if (typeof ResponseCache !== 'undefined') {
+        ResponseCache.set(providerName, prompt, responseText);
+      }
+
+      return responseText;
     } catch (err) {
       this.classifyAndHandleError(providerName, err.message, err.status);
       return `${providerName} call failed: ${this.parseError(err.message)}`;
