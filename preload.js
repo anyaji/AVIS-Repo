@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('avis', {
   toolReadFile: (path) => ipcRenderer.invoke('tool-read-file', path),
   toolWriteFile: (path, content) => ipcRenderer.invoke('tool-write-file', path, content),
 
+  // Weather API
+  getWeather: (location) => ipcRenderer.invoke('get-weather', location),
+
   // Steam game launcher
   launchSteamGame: (params) => ipcRenderer.invoke('launch-steam-game', params),
 

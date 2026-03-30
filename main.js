@@ -546,6 +546,38 @@ ipcMain.handle('run-claude-code', async (_, { task, projectPath, flags }) => {
 });
 
 // ====================================================================
+// BUG 3: Weather API — free, no key via wttr.in
+// ====================================================================
+ipcMain.handle('get-weather', async (_, location) => {
+  const axios = require('axios');
+  try {
+    const loc = encodeURIComponent(location || 'auto');
+    const response = await axios.get(`https://wttr.in/${loc}?format=j1`, { timeout: 8000, headers: { 'Accept': 'application/json' } });
+    const d = response.data;
+    const current = d.current_condition?.[0] || {};
+    const area = d.nearest_area?.[0] || {};
+    return {
+      success: true,
+      location: `${area.areaName?.[0]?.value || location}, ${area.region?.[0]?.value || ''}, ${area.country?.[0]?.value || ''}`.replace(/, ,/g, ','),
+      temp_f: current.temp_F,
+      temp_c: current.temp_C,
+      condition: current.weatherDesc?.[0]?.value || '',
+      humidity: current.humidity,
+      wind_mph: current.windspeedMiles,
+      feels_like_f: current.FeelsLikeF,
+      forecast: (d.weather || []).slice(0, 3).map(day => ({
+        date: day.date,
+        max_f: day.maxtempF,
+        min_f: day.mintempF,
+        condition: day.hourly?.[4]?.weatherDesc?.[0]?.value || ''
+      }))
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// ====================================================================
 // BUG 3: Smart Steam game launcher
 // ====================================================================
 ipcMain.handle('launch-steam-game', async (_, { gameName, appId }) => {
@@ -665,14 +697,53 @@ function runJavaScript(code) {
   });
 }
 
-function runPython(code) {
+// BUG 2: Find working Python command on startup, cache it
+let cachedPythonCmd = null;
+
+function findPythonCmd() {
   return new Promise((resolve) => {
-    // Write to temp file and execute
+    if (cachedPythonCmd) { resolve(cachedPythonCmd); return; }
+    // Check stored preference first
+    const stored = store.get('pythonCmd', null);
+    if (stored) {
+      exec(`${stored} --version`, { timeout: 5000 }, (err) => {
+        if (!err) { cachedPythonCmd = stored; resolve(stored); return; }
+        // Stored one is stale, try all
+        tryPythonCmds(resolve);
+      });
+    } else {
+      tryPythonCmds(resolve);
+    }
+  });
+}
+
+function tryPythonCmds(resolve) {
+  const cmds = ['python', 'python3', 'py'];
+  let i = 0;
+  function tryNext() {
+    if (i >= cmds.length) { resolve(null); return; }
+    const cmd = cmds[i++];
+    exec(`${cmd} --version`, { timeout: 5000 }, (err) => {
+      if (!err) { cachedPythonCmd = cmd; store.set('pythonCmd', cmd); resolve(cmd); }
+      else tryNext();
+    });
+  }
+  tryNext();
+}
+
+function runPython(code) {
+  return new Promise(async (resolve) => {
+    const pythonCmd = await findPythonCmd();
+    if (!pythonCmd) {
+      resolve({ success: false, output: 'Python not found. Install Python and ensure it is in your PATH.', error: 'Python not found' });
+      return;
+    }
+
     const tempFile = path.join(APPDATA_DIR, '_avis_temp.py');
     fs.writeFileSync(tempFile, code, 'utf-8');
 
-    const proc = spawn('python', [tempFile], {
-      timeout: 30000,
+    const proc = spawn(pythonCmd, [tempFile], {
+      timeout: 60000,
       env: { ...process.env }
     });
 
@@ -693,11 +764,7 @@ function runPython(code) {
 
     proc.on('error', (err) => {
       try { fs.unlinkSync(tempFile); } catch (e) {}
-      if (err.message.includes('ENOENT')) {
-        resolve({ success: false, output: 'Python not found. Please install Python and ensure it is in your PATH.', error: 'Python not found' });
-      } else {
-        resolve({ success: false, output: err.message, error: err.message });
-      }
+      resolve({ success: false, output: err.message, error: err.message });
     });
   });
 }

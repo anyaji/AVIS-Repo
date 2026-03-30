@@ -318,11 +318,14 @@ const AVIS = {
     try {
       const result = await Orchestrator.process(text, files);
 
+      // BUG 4: Clean up ALL typing indicators
       typingEl.remove();
+      document.querySelectorAll('.typing-msg').forEach(el => el.remove());
 
       // Finalize step panel if not already done
       if (this.activeStepPanel) {
-        this.finalizeStepPanel(`Done`);
+        const elapsed = ((Date.now() - (Orchestrator._loopStart || Date.now())) / 1000).toFixed(1);
+        this.finalizeStepPanel(`Done in ${elapsed}s`);
       }
 
       if (result.image) this.addImageToChat(result.image, result.provider, result.model);
@@ -330,13 +333,15 @@ const AVIS = {
       if (result.timedOut) {
         this.addRetryMessage('Response timed out. Click to retry.');
       } else if (result.paused) {
-        // BUG 4: Show continue card for paused tasks
         this.addMessageToChat('ai', result.text, result.provider, result.model);
         this.addContinueCard(result.pauseInfo);
       } else if (result.error && result.friendlyError) {
         this.addErrorCard(result.text, result.provider);
       } else if (result.text) {
         this.addMessageToChat('ai', result.text, result.provider, result.model);
+      } else if (!result.image && !result.error && !result.paused) {
+        // Fallback — always show something
+        this.addMessageToChat('ai', '(No response generated)', 'avis', 'system');
       }
 
       if (result.citations?.length > 0) this.addCitationsToChat(result.citations);
