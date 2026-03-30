@@ -1,0 +1,8 @@
+node_modules/
+dist/
+Installer/
+C:/Users/anyaj/Desktop/AVIS-Installer*/
+*.exe
+*.blockmap
+builder-debug.yml
+.env

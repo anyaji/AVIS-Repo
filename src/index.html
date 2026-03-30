@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AVIS - Avel Intelligence Services</title>
+  <link rel="stylesheet" href="styles/avis.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css">
+</head>
+<body>
+
+  <!-- Title Bar -->
+  <div class="titlebar">
+    <div class="titlebar-brand">
+      <div class="status-dot" id="global-status"></div>
+      <span class="logo" id="app-title">AVIS</span>
+      <span class="subtitle" id="app-subtitle">Avel Intelligence Services</span>
+    </div>
+    <div class="titlebar-controls">
+      <button onclick="avis.minimize()" title="Minimize">&#x2500;</button>
+      <button onclick="avis.maximize()" title="Maximize">&#x25A1;</button>
+      <button class="close-btn" onclick="avis.close()" title="Close">&#x2715;</button>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="main-layout">
+
+    <!-- Left Panel -->
+    <div class="left-panel">
+      <div class="panel-tabs">
+        <button class="panel-tab active" data-tab="providers">Status</button>
+        <button class="panel-tab" data-tab="history">History</button>
+        <button class="panel-tab" data-tab="search">Search</button>
+        <button class="panel-tab" data-tab="browser">Browser</button>
+        <button class="panel-tab" data-tab="terminal">Terminal</button>
+      </div>
+      <div class="panel-content">
+        <!-- Providers Section -->
+        <div class="panel-section active" id="providers-section" style="display:block;">
+          <div class="provider-status" id="provider-status-list"></div>
+        </div>
+
+        <!-- History Section -->
+        <div class="panel-section" id="history-section">
+          <div class="search-input-wrap">
+            <input type="text" id="history-search" placeholder="Search history..." class="search-box">
+          </div>
+          <div class="history-list" id="history-list"></div>
+        </div>
+
+        <!-- Search Section -->
+        <div class="panel-section" id="search-section">
+          <div class="search-input-wrap" style="display:flex;gap:6px;">
+            <input type="text" id="search-input" placeholder="Search the web..." class="search-box" style="flex:1;">
+            <button onclick="AVIS.doSearch()" class="panel-go-btn">Go</button>
+          </div>
+          <div id="search-status" style="font-size:10px;color:var(--text-secondary);padding:2px 0;font-family:'JetBrains Mono',monospace;"></div>
+          <div class="search-results" id="search-results"></div>
+        </div>
+
+        <!-- Browser Section — real embedded webview -->
+        <div class="panel-section" id="browser-section">
+          <div class="browser-toolbar">
+            <button onclick="AVIS.browserBack()" title="Back" class="browser-nav-btn">&#9664;</button>
+            <button onclick="AVIS.browserForward()" title="Forward" class="browser-nav-btn">&#9654;</button>
+            <button onclick="AVIS.browserRefresh()" title="Refresh" class="browser-nav-btn">&#8635;</button>
+            <input type="text" id="browser-url-input" placeholder="Enter URL or search..." class="search-box" style="flex:1;">
+            <button onclick="AVIS.navigateBrowser()" class="panel-go-btn">Go</button>
+          </div>
+          <div class="browser-action-bar">
+            <button onclick="AVIS.readPageWithAI()" class="browser-action-btn" title="Send page content to Claude">&#129504; Read with AI</button>
+            <button onclick="AVIS.screenshotPage()" class="browser-action-btn" title="Capture screenshot">&#128248; Screenshot</button>
+          </div>
+          <div id="browser-webview-wrap">
+            <webview id="browser-webview" src="about:blank" style="width:100%;height:100%;border:none;" partition="persist:avis-browser"></webview>
+          </div>
+          <div class="browser-status-bar">
+            <span id="browser-page-title">New Tab</span>
+            <span id="browser-load-status"></span>
+          </div>
+        </div>
+
+        <!-- Terminal Section (UPGRADE 7) -->
+        <div class="panel-section" id="terminal-section">
+          <div style="font-size:11px;color:var(--accent-green);font-family:'JetBrains Mono',monospace;margin-bottom:8px;">AVIS Tool Execution Log</div>
+          <pre id="terminal-output" style="font-size:10px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;white-space:pre-wrap;word-break:break-word;max-height:600px;overflow-y:auto;background:var(--bg-primary);padding:8px;border-radius:6px;border:1px solid var(--border);line-height:1.6;"></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Panel -->
+    <div class="center-panel">
+      <div class="chat-area" id="chat-area">
+        <div class="welcome-msg" id="welcome-msg">
+          <div class="big-logo">AVIS</div>
+          <p>Multi-AI Orchestration Platform</p>
+          <p style="font-size:12px;margin-top:8px;opacity:0.5;">Fully agentic: web search, code execution, file access, browser control</p>
+          <p style="font-size:12px;margin-top:16px;opacity:0.5;">Type a message to begin. Claude orchestrates everything.</p>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div id="file-preview-area" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
+        <div class="input-wrap">
+          <div class="input-actions">
+            <button id="attach-btn" title="Attach file" onclick="FileHandler.setupAttachButton && FileHandler.handleAttachClick()">&#128206;</button>
+            <button id="paste-img-btn" title="Paste image (Ctrl+V)" onclick="FileHandler.triggerPasteHint()">&#128444;</button>
+          </div>
+          <textarea id="chat-input" rows="1" placeholder="Type your message... (search, navigate, run code, open files)"></textarea>
+          <button class="send-btn" id="send-btn" onclick="AVIS.sendMessage()">SEND</button>
+          <button class="stop-btn" id="stop-btn" style="display:none;">&#9632; STOP</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="right-panel">
+      <div class="right-panel-header">Usage Meters</div>
+      <div class="meters-container" id="meters-container"></div>
+      <div class="right-panel-actions">
+        <button class="panel-action-btn" onclick="AVIS.openSettings()">&#9881; Settings</button>
+        <button class="panel-action-btn" onclick="AVIS.newConversation()">&#43; New Chat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Update Bar -->
+  <div id="update-bar" class="update-bar" style="display:none;">
+    <span id="update-icon" class="update-icon">&#8635;</span>
+    <span id="update-message" class="update-message"></span>
+    <button id="update-restart-btn" class="update-restart-btn" style="display:none;" onclick="window.avis.installUpdate()">Restart to Update</button>
+  </div>
+
+  <!-- Drop Overlay -->
+  <div class="drop-overlay" id="drop-overlay">Drop files here</div>
+
+  <!-- Settings Panel -->
+  <div class="settings-overlay" id="settings-overlay">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button class="settings-close" onclick="AVIS.closeSettings()">&#x2715;</button>
+    </div>
+    <div class="settings-body" id="settings-body"></div>
+    <div class="settings-footer">
+      <button onclick="AVIS.resetSettings()">Reset Defaults</button>
+      <button onclick="AVIS.exportConfig()">Export</button>
+      <button onclick="AVIS.importConfig()">Import</button>
+    </div>
+  </div>
+
+  <!-- Onboarding Overlay -->
+  <div class="onboarding-overlay" id="onboarding-overlay" style="display:none;">
+    <div class="onboarding-card">
+      <div class="onboarding-logo">AVIS</div>
+      <div class="onboarding-subtitle">Avel Intelligence Services</div>
+      <div class="onboarding-company">by Avel Productions LLC</div>
+      <div class="onboarding-steps" id="onboarding-steps"></div>
+      <button class="onboarding-finish" onclick="AVIS.finishOnboarding()">Launch AVIS</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.0/marked.min.js"></script>
+  <script src="js/providers/claude.js"></script>
+  <script src="js/providers/deepseek.js"></script>
+  <script src="js/providers/openai.js"></script>
+  <script src="js/providers/gemini.js"></script>
+  <script src="js/providers/grok.js"></script>
+  <script src="js/providers/mistral.js"></script>
+  <script src="js/providers/perplexity.js"></script>
+  <script src="js/providers/stability.js"></script>
+  <script src="js/usageMeter.js"></script>
+  <script src="js/stepDown.js"></script>
+  <script src="js/memory.js"></script>
+  <script src="js/fileHandler.js"></script>
+  <script src="js/hotConfig.js"></script>
+  <script src="js/orchestrator.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

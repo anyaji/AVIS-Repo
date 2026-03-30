@@ -1,0 +1,76 @@
+{
+  "name": "avis",
+  "version": "1.0.0",
+  "description": "AVIS - Avel Intelligence Services: Multi-AI Orchestration Platform",
+  "main": "main.js",
+  "author": "Avel Productions LLC",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "pack": "electron-builder --win --dir",
+    "release": "electron-builder --win --publish always"
+  },
+  "build": {
+    "appId": "com.avelproductions.avis",
+    "productName": "AVIS - Avel Intelligence Services",
+    "copyright": "Copyright © 2026 Avel Productions LLC",
+    "directories": {
+      "output": "C:/Users/anyaj/Desktop/AVIS-Installer"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "anyaji",
+      "repo": "AVIS",
+      "private": true
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "AVIS",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
+    }
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@google/generative-ai": "^0.21.0",
+    "axios": "^1.7.0",
+    "dayjs": "^1.11.0",
+    "electron-log": "^5.4.3",
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.3.0",
+    "highlight.js": "^11.10.0",
+    "mammoth": "^1.8.0",
+    "marked": "^15.0.0",
+    "openai": "^4.73.0",
+    "pdf-parse": "^1.1.1",
+    "uuid": "^11.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0"
+  }
+}
