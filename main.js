@@ -1990,7 +1990,8 @@ async function callDalle(apiKey, model, messages, options) {
   const lastMsg = messages[messages.length - 1];
   const prompt = (typeof lastMsg.content === 'string') ? lastMsg.content : 'A beautiful image';
 
-  const size = options?.wallpaper ? '1792x1024' : '1024x1024';
+  // DALL-E 3 supports: 1024x1024, 1024x1792, 1792x1024
+  const size = options?.size || (options?.wallpaper ? '1792x1024' : '1024x1024');
 
   const response = await axios.post('https://api.openai.com/v1/images/generations', {
     model: 'dall-e-3',

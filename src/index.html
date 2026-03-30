@@ -188,6 +188,11 @@
           <div class="input-actions">
             <button id="attach-btn" title="Attach file" onclick="FileHandler.setupAttachButton && FileHandler.handleAttachClick()">&#128206;</button>
             <button id="paste-img-btn" title="Paste image (Ctrl+V)" onclick="FileHandler.triggerPasteHint()">&#128444;</button>
+            <select id="image-resolution" title="Image resolution for DALL-E" class="res-dropdown" onchange="Orchestrator.imageResolution = this.value">
+              <option value="1024x1024">1:1</option>
+              <option value="1792x1024">Wide</option>
+              <option value="1024x1792">Tall</option>
+            </select>
           </div>
           <textarea id="chat-input" rows="1" placeholder="Type your message... (search, navigate, run code, open files)"></textarea>
           <button class="send-btn" id="send-btn" onclick="AVIS.sendMessage()">SEND</button>
@@ -203,6 +208,7 @@
       <div class="right-panel-actions">
         <button class="panel-action-btn" onclick="AVIS.openSettings()">&#9881; Settings</button>
         <button class="panel-action-btn" onclick="AVIS.newConversation()">&#43; New Chat</button>
+        <button class="panel-action-btn" onclick="AVIS.copyChatHistory()">&#128203; Copy Chat</button>
         <button class="panel-action-btn" id="btn-check-update" onclick="AVIS.manualUpdateCheck()">&#8635; Check for Updates</button>
       </div>
     </div>

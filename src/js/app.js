@@ -504,6 +504,37 @@ const AVIS = {
     return errMsg.substring(0, 60) || 'Unknown error';
   },
 
+  // Copy text from any element
+  copyText(el) {
+    if (!el) return;
+    // Get the text content, excluding the copy button itself
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('.copy-prompt-btn, .provider-badge').forEach(b => b.remove());
+    const text = clone.textContent.trim();
+    navigator.clipboard.writeText(text);
+    this.showToast('Copied to clipboard');
+  },
+
+  // Copy entire chat history as text
+  copyChatHistory() {
+    const messages = document.querySelectorAll('#chat-area .message');
+    if (!messages.length) { this.showToast('No messages to copy'); return; }
+
+    let text = '';
+    messages.forEach(msg => {
+      const isUser = msg.classList.contains('user');
+      const bubble = msg.querySelector('.message-bubble');
+      if (!bubble) return;
+      const clone = bubble.cloneNode(true);
+      clone.querySelectorAll('.copy-prompt-btn, .provider-badge, .code-copy-btn').forEach(b => b.remove());
+      const content = clone.textContent.trim();
+      if (content) text += `${isUser ? 'YOU' : 'AVIS'}: ${content}\n\n`;
+    });
+
+    navigator.clipboard.writeText(text.trim());
+    this.showToast(`Chat copied (${messages.length} messages)`);
+  },
+
   manualUpdateCheck() {
     const btn = document.getElementById('btn-check-update');
     if (btn) btn.textContent = '\u21BB Checking...';
@@ -695,8 +726,10 @@ const AVIS = {
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${role}`;
 
-    let html = '<div class="message-bubble">';
+    let html = '<div class="message-bubble" style="position:relative;">';
     if (role === 'ai' && provider) html += `<div class="provider-badge ${provider}">${provider}${model ? ' / ' + model : ''}</div>`;
+    // Copy prompt button on user messages
+    if (role === 'user') html += `<button class="copy-prompt-btn" onclick="AVIS.copyText(this.parentElement)" title="Copy prompt">&#128203;</button>`;
     if (files.length > 0) {
       html += '<div style="margin-bottom:8px;">';
       files.forEach(f => {

@@ -1701,6 +1701,39 @@ body {
   font-family: 'Inter', sans-serif;
 }
 .img-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+/* Resolution dropdown in input bar */
+.res-dropdown {
+  padding: 4px 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  outline: none;
+}
+.res-dropdown:hover { border-color: var(--accent-blue); }
+.res-dropdown:focus { border-color: var(--accent-blue); }
+
+/* Copy prompt button on user messages */
+.copy-prompt-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px 6px;
+  background: rgba(0,0,0,0.3);
+  border: none;
+  border-radius: 3px;
+  color: rgba(255,255,255,0.5);
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.message.user:hover .copy-prompt-btn { opacity: 1; }
+.copy-prompt-btn:hover { color: #fff; background: rgba(0,0,0,0.5); }
+
 .image-prompt-label {
   padding: 5px 10px 8px;
   font-size: 10px;
