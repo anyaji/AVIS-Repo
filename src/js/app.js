@@ -564,6 +564,12 @@ const AVIS = {
 
       if (result.image) this.addImageToChat(result.image, result.provider, result.model);
 
+      // Check if orchestrator generated an image via tool call
+      if (Orchestrator._lastGeneratedImage) {
+        this.addImageToChat(Orchestrator._lastGeneratedImage, 'stability', 'SDXL');
+        Orchestrator._lastGeneratedImage = null;
+      }
+
       if (result.timedOut) {
         this.addRetryMessage('Response timed out. Click to retry.');
       } else if (result.paused) {
@@ -721,10 +727,57 @@ const AVIS = {
   addImageToChat(image, provider, model) {
     const chatArea = document.getElementById('chat-area');
     const msgDiv = document.createElement('div');
+    const imgId = `img-${Date.now()}`;
+    const b64 = image.data;
+    const mime = image.mimeType || 'image/png';
+    const prompt = image.prompt || '';
+    const isWallpaper = image.isWallpaper || false;
+
     msgDiv.className = 'message ai';
-    msgDiv.innerHTML = `<div class="message-bubble"><div class="provider-badge ${provider}">${provider} / ${model}</div><img src="data:${image.mimeType};base64,${image.data}" style="max-width:100%;border-radius:8px;"></div>`;
+    msgDiv.innerHTML = `
+      <div class="image-message">
+        <div class="provider-badge stability">${provider || 'stability'} / ${model || 'image'}</div>
+        <div class="image-container">
+          <img id="${imgId}" src="data:${mime};base64,${b64}" alt="${this.escapeHtml(prompt)}" class="generated-image">
+          <div class="image-actions">
+            <button class="img-btn" onclick="AVIS.saveGeneratedImage('${imgId}')">&#128190; Save</button>
+            ${isWallpaper ? `<button class="img-btn" onclick="AVIS.setGeneratedWallpaper('${imgId}')">&#128444; Set Wallpaper</button>` : ''}
+            <button class="img-btn" onclick="AVIS.copyGeneratedImage('${imgId}')">&#128203; Copy</button>
+          </div>
+          ${prompt ? `<div class="image-prompt-label">${this.escapeHtml(prompt)}</div>` : ''}
+        </div>
+      </div>`;
     chatArea.appendChild(msgDiv);
     chatArea.scrollTop = chatArea.scrollHeight;
+
+    // Store base64 on the img element for later retrieval
+    const imgEl = document.getElementById(imgId);
+    if (imgEl) imgEl.dataset.base64 = b64;
+  },
+
+  async saveGeneratedImage(imgId) {
+    const imgEl = document.getElementById(imgId);
+    if (!imgEl?.dataset.base64) return;
+    const filename = `AVIS_Image_${Date.now()}.png`;
+    const savePath = `C:/Users/anyaj/Desktop/${filename}`;
+    const result = await window.avis.saveImage({ base64: imgEl.dataset.base64, savePath });
+    this.showToast(result.success ? `Saved: ${filename}` : `Save failed: ${result.error}`);
+  },
+
+  async setGeneratedWallpaper(imgId) {
+    const imgEl = document.getElementById(imgId);
+    if (!imgEl?.dataset.base64) return;
+    const tmpPath = 'C:/Users/anyaj/AppData/Local/Temp/avis_wallpaper.png';
+    await window.avis.saveImage({ base64: imgEl.dataset.base64, savePath: tmpPath });
+    const result = await window.avis.setWallpaper(tmpPath);
+    this.showToast(result.success ? 'Wallpaper set!' : `Failed: ${result.error}`);
+  },
+
+  async copyGeneratedImage(imgId) {
+    const imgEl = document.getElementById(imgId);
+    if (!imgEl?.dataset.base64) return;
+    const result = await window.avis.copyImageClipboard(imgEl.dataset.base64);
+    this.showToast(result.success ? 'Image copied to clipboard' : `Copy failed: ${result.error}`);
   },
 
   addCitationsToChat(citations) {

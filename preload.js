@@ -83,6 +83,11 @@ contextBridge.exposeInMainWorld('avis', {
   // Weather API
   getWeather: (location) => ipcRenderer.invoke('get-weather', location),
 
+  // Image handling
+  saveImage: (params) => ipcRenderer.invoke('save-image', params),
+  setWallpaper: (path) => ipcRenderer.invoke('set-wallpaper', path),
+  copyImageClipboard: (base64) => ipcRenderer.invoke('copy-image-clipboard', base64),
+
   // Steam game launcher
   launchSteamGame: (params) => ipcRenderer.invoke('launch-steam-game', params),
 

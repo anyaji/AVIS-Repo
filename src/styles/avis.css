@@ -1667,6 +1667,49 @@ body {
 
 .stream-content { min-height: 16px; }
 
+/* Generated image display */
+.image-message { max-width: 550px; }
+.image-container {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.generated-image {
+  width: 100%;
+  display: block;
+  border-radius: 8px 8px 0 0;
+}
+.generated-image:hover { opacity: 0.95; cursor: zoom-in; }
+.image-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+}
+.img-btn {
+  padding: 5px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.img-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.image-prompt-label {
+  padding: 5px 10px 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  font-style: italic;
+  font-family: 'JetBrains Mono', monospace;
+}
+
 /* License Gate */
 .license-gate {
   position: fixed;

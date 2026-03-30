@@ -643,6 +643,54 @@ ipcMain.on('hot-reload', () => {
   }
 });
 
+// ====================================================================
+// Image handling — save, wallpaper, clipboard
+// ====================================================================
+ipcMain.handle('save-image', async (_, { base64, savePath }) => {
+  try {
+    const buffer = Buffer.from(base64, 'base64');
+    const dir = path.dirname(savePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(savePath, buffer);
+    return { success: true, path: savePath };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('set-wallpaper', async (_, imagePath) => {
+  const absPath = path.resolve(imagePath).replace(/\//g, '\\');
+  const psFile = path.join(APPDATA_DIR, '_wp.ps1');
+  fs.writeFileSync(psFile, `
+Add-Type -TypeDefinition @"
+using System.Runtime.InteropServices;
+public class WP {
+  [DllImport("user32.dll", CharSet=CharSet.Auto)]
+  public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+}
+"@
+[WP]::SystemParametersInfo(20, 0, "${absPath}", 3)
+`, 'utf-8');
+  return new Promise((resolve) => {
+    exec(`powershell -ExecutionPolicy Bypass -File "${psFile}"`, (err) => {
+      try { fs.unlinkSync(psFile); } catch (e) {}
+      resolve({ success: !err, error: err?.message });
+    });
+  });
+});
+
+ipcMain.handle('copy-image-clipboard', async (_, base64) => {
+  try {
+    const buffer = Buffer.from(base64, 'base64');
+    const image = nativeImage.createFromBuffer(buffer);
+    const { clipboard } = require('electron');
+    clipboard.writeImage(image);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // Expose AVIS install path so Claude knows where its own source files are
 ipcMain.handle('get-avis-path', () => __dirname);
 
