@@ -1521,6 +1521,23 @@ body {
 }
 .update-restart-btn:hover { background: #33ffaa; }
 
+.update-cancel-btn {
+  padding: 3px 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+.update-cancel-btn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+
+.update-bar.downloading {
+  background: rgba(0, 168, 255, 0.06);
+  border-top-color: var(--accent-blue);
+}
+
 /* ====================================================================
    VISUAL POLISH — Animations, Welcome Screen, Changelog, Glow FX
    ==================================================================== */

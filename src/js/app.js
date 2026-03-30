@@ -44,21 +44,24 @@ const AVIS = {
   handleUpdateStatus(data) {
     const bar = document.getElementById('update-bar');
     const msg = document.getElementById('update-message');
-    const btn = document.getElementById('update-restart-btn');
+    const restartBtn = document.getElementById('update-restart-btn');
+    const cancelBtn = document.getElementById('update-cancel-btn');
     const icon = document.getElementById('update-icon');
     if (!bar || !msg) return;
 
     bar.style.display = 'flex';
-    bar.className = 'update-bar' + (data.status === 'ready' ? ' ready' : '');
+    bar.className = 'update-bar' + (data.status === 'ready' ? ' ready' : data.status === 'downloading' ? ' downloading' : '');
 
     const icons = { checking: '\u21BB', available: '\u2B07', downloading: '\u2B07', ready: '\u2713', current: '\u2713', error: '\u26A0\uFE0F' };
     if (icon) icon.textContent = icons[data.status] || '\u21BB';
     msg.textContent = data.message || '';
 
-    if (data.status === 'ready' && btn) {
-      btn.style.display = 'inline';
-    } else if (btn) {
-      btn.style.display = 'none';
+    if (data.status === 'ready') {
+      if (restartBtn) restartBtn.style.display = 'inline';
+      if (cancelBtn) cancelBtn.style.display = 'inline';
+    } else {
+      if (restartBtn) restartBtn.style.display = 'none';
+      if (cancelBtn) cancelBtn.style.display = 'none';
     }
 
     // Hide after 5s if up to date

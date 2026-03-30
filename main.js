@@ -46,23 +46,28 @@ function createWindow() {
 }
 
 // ====================================================================
-// Auto-Updater — checks GitHub Releases for new versions
+// Auto-Updater — checks GitHub Releases, auto-installs while open
 // ====================================================================
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
+let updateCountdown = null;
+
 function initAutoUpdater() {
+  // Clean old build artifacts on startup
+  cleanOldBuilds();
+
   // Check 3s after launch
   setTimeout(() => {
     autoUpdater.checkForUpdates().catch(e => log.warn('Update check failed:', e.message));
   }, 3000);
 
-  // Re-check every 4 hours
+  // Re-check every 1 minute
   setInterval(() => {
     autoUpdater.checkForUpdates().catch(() => {});
-  }, 60 * 1000); // check every 1 minute
+  }, 60 * 1000);
 
   autoUpdater.on('checking-for-update', () => {
     sendUpdateStatus('checking', 'Checking for updates...');
@@ -77,18 +82,31 @@ function initAutoUpdater() {
   });
 
   autoUpdater.on('download-progress', (progress) => {
-    sendUpdateStatus('downloading', `Downloading: ${Math.round(progress.percent)}%`, null, progress.percent);
+    sendUpdateStatus('downloading', `Downloading update: ${Math.round(progress.percent)}%`, null, progress.percent);
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    sendUpdateStatus('ready', `v${info.version} ready — restart to install`, info.version);
+    log.info('Update downloaded:', info.version);
+    // Start 10-second countdown to auto-restart
+    sendUpdateStatus('ready', `v${info.version} ready — restarting in 10s...`, info.version);
+    let countdown = 10;
+    updateCountdown = setInterval(() => {
+      countdown--;
+      if (countdown <= 0) {
+        clearInterval(updateCountdown);
+        updateCountdown = null;
+        log.info('Auto-installing update...');
+        autoUpdater.quitAndInstall(false, true); // silent=false, forceRunAfter=true
+      } else {
+        sendUpdateStatus('ready', `v${info.version} ready — restarting in ${countdown}s...`, info.version);
+      }
+    }, 1000);
   });
 
   autoUpdater.on('error', (err) => {
-    // Suppress 404 (no release published yet) and network errors silently
     if (err.message && (err.message.includes('404') || err.message.includes('net::') || err.message.includes('ENOTFOUND'))) {
       log.info('Update check skipped:', err.message);
-      return; // silent — don't show to user
+      return;
     }
     sendUpdateStatus('error', 'Update check failed — will retry later');
   });
@@ -100,15 +118,68 @@ function sendUpdateStatus(status, message, version, percent) {
   }
 }
 
-// Allow renderer to trigger install + restart
+// Cancel the auto-restart countdown
+ipcMain.on('cancel-update', () => {
+  if (updateCountdown) {
+    clearInterval(updateCountdown);
+    updateCountdown = null;
+    sendUpdateStatus('ready', 'Update ready — click Restart when ready', null);
+    log.info('Auto-restart cancelled by user');
+  }
+});
+
+// Allow renderer to trigger install + restart immediately
 ipcMain.on('install-update', () => {
-  autoUpdater.quitAndInstall();
+  if (updateCountdown) { clearInterval(updateCountdown); updateCountdown = null; }
+  autoUpdater.quitAndInstall(false, true);
 });
 
 // Allow renderer to manually check for updates
 ipcMain.on('check-for-updates', () => {
   autoUpdater.checkForUpdates().catch(() => {});
 });
+
+// ====================================================================
+// Clean old build artifacts on startup
+// ====================================================================
+function cleanOldBuilds() {
+  const desktopPath = path.join(app.getPath('home'), 'Desktop');
+  try {
+    const entries = fs.readdirSync(desktopPath);
+    for (const entry of entries) {
+      // Clean old AVIS installer dirs (AVIS-Installer, AVIS-Installer-v2, AVIS-Installer-v3, etc.)
+      if (/^AVIS-Installer/i.test(entry)) {
+        const full = path.join(desktopPath, entry);
+        const stat = fs.statSync(full);
+        if (stat.isDirectory()) {
+          fs.rmSync(full, { recursive: true, force: true });
+          log.info('Cleaned old build dir:', full);
+        }
+      }
+      // Clean old setup exes (but not the current one being run)
+      if (/^AVIS.*Setup.*\.exe$/i.test(entry) && !entry.includes(app.getVersion())) {
+        const full = path.join(desktopPath, entry);
+        try {
+          fs.unlinkSync(full);
+          log.info('Cleaned old installer:', full);
+        } catch (e) {
+          // File might be in use, skip
+        }
+      }
+    }
+  } catch (e) {
+    log.warn('Could not clean old builds:', e.message);
+  }
+
+  // Also clean electron-updater temp/pending dirs
+  const updaterCache = path.join(app.getPath('userData'), 'pending');
+  try {
+    if (fs.existsSync(updaterCache)) {
+      fs.rmSync(updaterCache, { recursive: true, force: true });
+      log.info('Cleaned updater cache');
+    }
+  } catch (e) {}
+}
 
 app.whenReady().then(() => {
   ensureDirs();

@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('avis', {
 
   // Auto-updater
   installUpdate: () => ipcRenderer.send('install-update'),
+  cancelUpdate: () => ipcRenderer.send('cancel-update'),
   checkForUpdates: () => ipcRenderer.send('check-for-updates'),
   onUpdateStatus: (callback) => ipcRenderer.on('update-status', (_, data) => callback(data)),
 
