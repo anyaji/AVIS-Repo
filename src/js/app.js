@@ -794,10 +794,10 @@ const AVIS = {
   renderMeters() {
     const container = document.getElementById('meters-container');
     const providers = [
-      { obj: ClaudeProvider, key: 'claude' }, { obj: OpenAIProvider, key: 'openai' },
-      { obj: GeminiProvider, key: 'gemini' }, { obj: GrokProvider, key: 'grok' },
-      { obj: MistralProvider, key: 'mistral' }, { obj: PerplexityProvider, key: 'perplexity' },
-      { obj: StabilityProvider, key: 'stability' }
+      { obj: ClaudeProvider, key: 'claude' }, { obj: DeepSeekProvider, key: 'deepseek' },
+      { obj: OpenAIProvider, key: 'openai' }, { obj: GeminiProvider, key: 'gemini' },
+      { obj: GrokProvider, key: 'grok' }, { obj: MistralProvider, key: 'mistral' },
+      { obj: PerplexityProvider, key: 'perplexity' }, { obj: StabilityProvider, key: 'stability' }
     ];
     container.innerHTML = providers.map(p => {
       const u = UsageMeter.providers[p.key];
