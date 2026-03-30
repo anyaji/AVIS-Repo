@@ -286,6 +286,40 @@ ipcMain.on('hot-reload', () => {
 // Expose AVIS install path so Claude knows where its own source files are
 ipcMain.handle('get-avis-path', () => __dirname);
 
+// Developer panel — list source files + read/write for built-in editor
+ipcMain.handle('dev-list-files', () => {
+  const files = [];
+  const walk = (dir, prefix) => {
+    try {
+      for (const entry of fs.readdirSync(dir)) {
+        if (entry === 'node_modules' || entry === '.git' || entry === 'assets') continue;
+        const full = path.join(dir, entry);
+        const rel = prefix ? `${prefix}/${entry}` : entry;
+        const stat = fs.statSync(full);
+        if (stat.isFile() && /\.(js|html|css|json)$/.test(entry)) {
+          files.push(rel);
+        } else if (stat.isDirectory()) {
+          walk(full, rel);
+        }
+      }
+    } catch (e) {}
+  };
+  walk(__dirname, '');
+  return files.sort();
+});
+
+ipcMain.handle('dev-read-file', (_, relPath) => {
+  const full = path.join(__dirname, relPath);
+  if (!fs.existsSync(full)) return { error: 'File not found' };
+  return { content: fs.readFileSync(full, 'utf-8'), path: relPath };
+});
+
+ipcMain.handle('dev-write-file', (_, relPath, content) => {
+  const full = path.join(__dirname, relPath);
+  fs.writeFileSync(full, content, 'utf-8');
+  return { success: true, path: relPath };
+});
+
 // ====================================================================
 // UPGRADE 1: Web Fetch — headless BrowserWindow to load & extract pages
 // ====================================================================

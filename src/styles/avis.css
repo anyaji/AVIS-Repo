@@ -1790,3 +1790,130 @@ body {
 
 /* Selection color */
 ::selection { background: rgba(0, 168, 255, 0.3); color: var(--text-primary); }
+
+/* ====================================================================
+   Developer Panel
+   ==================================================================== */
+.dev-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.dev-tab {
+  flex: 1;
+  padding: 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.15s;
+}
+.dev-tab:hover { color: var(--text-primary); }
+.dev-tab.active { color: var(--accent-blue); border-color: var(--accent-blue); background: rgba(0,168,255,0.05); }
+
+.dev-panel { display: none; }
+.dev-panel.active { display: block; }
+
+.dev-file-tree {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 8px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+.dev-file-btn {
+  padding: 3px 7px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.dev-file-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.dev-file-btn.active { border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(0,168,255,0.08); }
+
+.dev-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.dev-editor-header span {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--accent-blue);
+}
+.dev-save-btn {
+  padding: 4px 12px;
+  background: var(--accent-blue);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+.dev-save-btn:hover { background: #33baff; }
+
+.dev-code-area {
+  width: 100%;
+  min-height: 200px;
+  max-height: 400px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--accent-green);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 8px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.6;
+  tab-size: 2;
+}
+.dev-code-area:focus { border-color: var(--accent-blue); }
+
+.dev-log {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  max-height: 250px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.dev-filter-btn {
+  padding: 3px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+}
+.dev-filter-btn:hover { border-color: var(--accent-blue); }
+.dev-filter-btn.active { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+/* Panel tabs for 7 tabs */
+.panel-tab {
+  font-size: 9px;
+  padding: 8px 3px;
+}

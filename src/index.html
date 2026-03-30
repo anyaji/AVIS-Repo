@@ -35,6 +35,7 @@
         <button class="panel-tab" data-tab="browser">Browser</button>
         <button class="panel-tab" data-tab="terminal">Terminal</button>
         <button class="panel-tab" data-tab="changelog">Changes</button>
+        <button class="panel-tab" data-tab="developer">Dev</button>
       </div>
       <div class="panel-content">
         <!-- Providers Section -->
@@ -87,6 +88,45 @@
           <div style="font-size:11px;color:var(--accent-green);font-family:'JetBrains Mono',monospace;margin-bottom:8px;">AVIS Tool Execution Log</div>
           <pre id="terminal-output" style="font-size:10px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;white-space:pre-wrap;word-break:break-word;max-height:600px;overflow-y:auto;background:var(--bg-primary);padding:8px;border-radius:6px;border:1px solid var(--border);line-height:1.6;"></pre>
         </div>
+        <!-- Developer Section -->
+        <div class="panel-section" id="developer-section">
+          <div class="dev-tabs">
+            <button class="dev-tab active" onclick="AVIS.switchDevTab('editor')">Editor</button>
+            <button class="dev-tab" onclick="AVIS.switchDevTab('patch')">Patch</button>
+            <button class="dev-tab" onclick="AVIS.switchDevTab('console')">Console</button>
+          </div>
+
+          <!-- File Editor -->
+          <div class="dev-panel active" id="dev-editor">
+            <div class="dev-file-tree" id="dev-file-tree"></div>
+            <div class="dev-editor-header">
+              <span id="dev-editor-filename">Select a file</span>
+              <button class="dev-save-btn" onclick="AVIS.saveEditorFile()">Save</button>
+            </div>
+            <textarea id="dev-editor-area" class="dev-code-area" spellcheck="false" placeholder="Select a file from the tree above..."></textarea>
+          </div>
+
+          <!-- Patch Applier -->
+          <div class="dev-panel" id="dev-patch">
+            <textarea id="dev-patch-area" class="dev-code-area" spellcheck="false" placeholder="Paste patch code here...&#10;&#10;Format:&#10;// FILE: src/js/orchestrator.js&#10;// FIND: old code to replace&#10;// REPLACE_WITH:&#10;new code here"></textarea>
+            <div style="display:flex;gap:6px;margin-top:6px;">
+              <button class="dev-save-btn" onclick="AVIS.applyPatch()" style="flex:1;">Apply Patch</button>
+            </div>
+            <pre id="dev-patch-log" class="dev-log" style="margin-top:6px;"></pre>
+          </div>
+
+          <!-- Console -->
+          <div class="dev-panel" id="dev-console">
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+              <button class="dev-filter-btn active" onclick="AVIS.filterConsole('all', this)">All</button>
+              <button class="dev-filter-btn" onclick="AVIS.filterConsole('error', this)">Errors</button>
+              <button class="dev-filter-btn" onclick="AVIS.filterConsole('warn', this)">Warns</button>
+              <button class="dev-filter-btn" onclick="AVIS.clearConsole()" style="margin-left:auto;">Clear</button>
+            </div>
+            <pre id="dev-console-output" class="dev-log"></pre>
+          </div>
+        </div>
+
         <!-- Changelog Section -->
         <div class="panel-section" id="changelog-section">
           <div class="changelog-container" id="changelog-container"></div>

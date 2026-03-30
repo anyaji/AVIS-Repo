@@ -82,7 +82,12 @@ contextBridge.exposeInMainWorld('avis', {
   checkForUpdates: () => ipcRenderer.send('check-for-updates'),
   onUpdateStatus: (callback) => ipcRenderer.on('update-status', (_, data) => callback(data)),
 
-  // BUG 3: Hot-reload (AVIS edits itself then reloads)
+  // Developer panel
+  devListFiles: () => ipcRenderer.invoke('dev-list-files'),
+  devReadFile: (relPath) => ipcRenderer.invoke('dev-read-file', relPath),
+  devWriteFile: (relPath, content) => ipcRenderer.invoke('dev-write-file', relPath, content),
+
+  // Hot-reload (AVIS edits itself then reloads)
   hotReload: () => ipcRenderer.send('hot-reload'),
 
   // BUG 3: Get AVIS install path so Claude can find its own source files

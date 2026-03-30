@@ -33,8 +33,9 @@ const AVIS = {
     // Auto-updater status listener
     window.avis.onUpdateStatus((data) => this.handleUpdateStatus(data));
 
-    // Render changelog
+    // Render changelog + init dev console
     this.renderChangelog();
+    this.initDevConsole();
 
     // Welcome particle animation
     this.initParticles();
@@ -1040,6 +1041,179 @@ const AVIS = {
       }
     });
     observer.observe(document.getElementById('chat-area') || document.body, { childList: true, subtree: true });
+  },
+
+  // ====================================================================
+  // Developer Panel
+  // ====================================================================
+  _devCurrentFile: null,
+  _devConsoleLog: [],
+  _devConsoleFilter: 'all',
+
+  switchDevTab(tab) {
+    document.querySelectorAll('.dev-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.dev-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`.dev-tab[onclick*="${tab}"]`)?.classList.add('active');
+    document.getElementById(`dev-${tab}`)?.classList.add('active');
+
+    if (tab === 'editor') this.loadDevFileTree();
+  },
+
+  async loadDevFileTree() {
+    const tree = document.getElementById('dev-file-tree');
+    if (!tree) return;
+    try {
+      const files = await window.avis.devListFiles();
+      tree.innerHTML = files.map(f =>
+        `<button class="dev-file-btn${this._devCurrentFile === f ? ' active' : ''}" onclick="AVIS.openDevFile('${f}')">${f.split('/').pop()}</button>`
+      ).join('');
+    } catch (e) {
+      tree.innerHTML = '<span style="font-size:10px;color:var(--accent-red);">Could not list files</span>';
+    }
+  },
+
+  async openDevFile(relPath) {
+    try {
+      const result = await window.avis.devReadFile(relPath);
+      if (result.error) { alert(result.error); return; }
+      this._devCurrentFile = relPath;
+      document.getElementById('dev-editor-filename').textContent = relPath;
+      document.getElementById('dev-editor-area').value = result.content;
+      // Highlight active button
+      document.querySelectorAll('.dev-file-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector(`.dev-file-btn[onclick*="${relPath}"]`)?.classList.add('active');
+    } catch (e) {
+      alert('Failed to read file: ' + e.message);
+    }
+  },
+
+  async saveEditorFile() {
+    if (!this._devCurrentFile) { alert('No file selected'); return; }
+    const content = document.getElementById('dev-editor-area').value;
+    try {
+      const result = await window.avis.devWriteFile(this._devCurrentFile, content);
+      if (result.success) {
+        const nameEl = document.getElementById('dev-editor-filename');
+        nameEl.textContent = `${this._devCurrentFile} — saved!`;
+        setTimeout(() => { nameEl.textContent = this._devCurrentFile; }, 2000);
+        // Hot reload
+        setTimeout(() => { try { window.avis.hotReload(); } catch (e) {} }, 300);
+      }
+    } catch (e) {
+      alert('Save failed: ' + e.message);
+    }
+  },
+
+  async applyPatch() {
+    const patchText = document.getElementById('dev-patch-area')?.value || '';
+    const logEl = document.getElementById('dev-patch-log');
+    if (!patchText.trim()) { if (logEl) logEl.textContent = 'No patch content.'; return; }
+
+    const lines = patchText.split('\n');
+    let currentFile = null;
+    let findText = null;
+    let replaceText = null;
+    let inReplace = false;
+    let replaceLines = [];
+    let findLines = [];
+    let inFind = false;
+    const ops = [];
+
+    // Parse patch format
+    for (const line of lines) {
+      if (line.startsWith('// FILE:')) {
+        if (currentFile && findText && replaceText) {
+          ops.push({ file: currentFile, find: findText, replace: replaceText });
+        }
+        currentFile = line.replace('// FILE:', '').trim();
+        findText = null; replaceText = null; inFind = false; inReplace = false; findLines = []; replaceLines = [];
+      } else if (line.startsWith('// FIND:')) {
+        inFind = true; inReplace = false;
+        const inline = line.replace('// FIND:', '').trim();
+        if (inline) findLines.push(inline);
+      } else if (line.startsWith('// REPLACE_WITH:')) {
+        findText = findLines.join('\n');
+        inFind = false; inReplace = true;
+        const inline = line.replace('// REPLACE_WITH:', '').trim();
+        if (inline) replaceLines.push(inline);
+      } else if (inFind) {
+        findLines.push(line);
+      } else if (inReplace) {
+        replaceLines.push(line);
+      }
+    }
+    if (currentFile && findLines.length > 0) {
+      if (!findText) findText = findLines.join('\n');
+      replaceText = replaceLines.join('\n');
+      ops.push({ file: currentFile, find: findText, replace: replaceText });
+    }
+
+    if (ops.length === 0) {
+      if (logEl) logEl.textContent = 'Could not parse patch. Use format:\n// FILE: src/js/file.js\n// FIND: old code\n// REPLACE_WITH:\nnew code';
+      return;
+    }
+
+    let log = '';
+    for (const op of ops) {
+      try {
+        const fileResult = await window.avis.devReadFile(op.file);
+        if (fileResult.error) { log += `ERROR: ${op.file} — ${fileResult.error}\n`; continue; }
+        if (!fileResult.content.includes(op.find)) { log += `ERROR: ${op.file} — FIND text not found\n`; continue; }
+        const newContent = fileResult.content.replace(op.find, op.replace);
+        await window.avis.devWriteFile(op.file, newContent);
+        log += `OK: ${op.file} — patch applied\n`;
+      } catch (e) {
+        log += `ERROR: ${op.file} — ${e.message}\n`;
+      }
+    }
+
+    log += '\nHot-reloading...';
+    if (logEl) logEl.textContent = log;
+    setTimeout(() => { try { window.avis.hotReload(); } catch (e) {} }, 500);
+  },
+
+  // Console capture
+  initDevConsole() {
+    const origLog = console.log;
+    const origWarn = console.warn;
+    const origError = console.error;
+    const self = this;
+
+    console.log = function(...args) {
+      origLog.apply(console, args);
+      self._devConsoleLog.push({ level: 'log', msg: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '), time: new Date().toLocaleTimeString() });
+      self.renderDevConsole();
+    };
+    console.warn = function(...args) {
+      origWarn.apply(console, args);
+      self._devConsoleLog.push({ level: 'warn', msg: args.map(String).join(' '), time: new Date().toLocaleTimeString() });
+      self.renderDevConsole();
+    };
+    console.error = function(...args) {
+      origError.apply(console, args);
+      self._devConsoleLog.push({ level: 'error', msg: args.map(String).join(' '), time: new Date().toLocaleTimeString() });
+      self.renderDevConsole();
+    };
+  },
+
+  renderDevConsole() {
+    const el = document.getElementById('dev-console-output');
+    if (!el) return;
+    const filtered = this._devConsoleFilter === 'all' ? this._devConsoleLog : this._devConsoleLog.filter(e => e.level === this._devConsoleFilter);
+    el.textContent = filtered.map(e => `[${e.time}] [${e.level.toUpperCase()}] ${e.msg}`).join('\n');
+    el.scrollTop = el.scrollHeight;
+  },
+
+  filterConsole(level, btn) {
+    this._devConsoleFilter = level;
+    document.querySelectorAll('.dev-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    this.renderDevConsole();
+  },
+
+  clearConsole() {
+    this._devConsoleLog = [];
+    this.renderDevConsole();
   },
 
   // Apply theme preset
