@@ -3,7 +3,7 @@ const UsageMeter = {
   providers: {},
 
   init() {
-    const providerNames = ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'stability'];
+    const providerNames = ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity'];
     const stored = JSON.parse(localStorage.getItem('avis-usage') || '{}');
 
     for (const name of providerNames) {

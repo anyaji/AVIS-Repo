@@ -1546,7 +1546,6 @@ ipcMain.handle('api-call', async (_, { provider, model, messages, systemPrompt, 
       case 'mistral': callFn = callMistral(apiKey, model, messages, systemPrompt, options); break;
       case 'perplexity': callFn = callPerplexity(apiKey, model, messages, systemPrompt, options); break;
       case 'dalle': callFn = callDalle(store.get('apiKeys.openai', ''), model, messages, options); break;
-      case 'stability': callFn = callStability(apiKey, model, messages, options); break;
       default: throw new Error(`Unknown provider: ${provider}`);
     }
     return await withTimeout(callFn, API_TIMEOUT_MS, `${provider} API call`);
@@ -1667,11 +1666,6 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       case 'perplexity': {
         const axios = require('axios');
         await axios.post('https://api.perplexity.ai/chat/completions', { model: 'sonar', messages: [{ role: 'user', content: 'Hi' }], max_tokens: 10 }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' } });
-        return { success: true };
-      }
-      case 'stability': {
-        const axios = require('axios');
-        await axios.get('https://api.stability.ai/v1/user/account', { headers: { 'Authorization': `Bearer ${apiKey}` } });
         return { success: true };
       }
       case 'deepseek': {
@@ -2006,17 +2000,3 @@ async function callDalle(apiKey, model, messages, options) {
   return { text: '', image: { data: imageData.b64_json, mimeType: 'image/png' }, inputTokens: 0, outputTokens: 0, model: 'dall-e-3', revisedPrompt: imageData.revised_prompt };
 }
 
-// Stability AI — fallback image generator
-async function callStability(apiKey, model, messages) {
-  const axios = require('axios');
-  const lastMsg = messages[messages.length - 1];
-  const prompt = (typeof lastMsg.content === 'string') ? lastMsg.content : 'A beautiful image';
-
-  const response = await axios.post('https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image', {
-    text_prompts: [{ text: prompt, weight: 1 }],
-    cfg_scale: 7, height: 1024, width: 1024, steps: 30, samples: 1
-  }, { headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'Accept': 'application/json' } });
-
-  const image = response.data.artifacts[0];
-  return { text: '', image: { data: image.base64, mimeType: 'image/png' }, inputTokens: 0, outputTokens: 0, model: 'stable-diffusion-xl' };
-}

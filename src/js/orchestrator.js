@@ -12,7 +12,7 @@ PROVIDERS YOU CAN CALL RIGHT NOW:
 - call_grok — xAI Grok-2 (real-time info, unfiltered, edgy queries)
 - call_mistral — Mistral Large (fast, European data, cost efficient)
 - call_perplexity — Perplexity live web search (current events, real-time data)
-- call_stability — Image generation (DALL-E 3 primary, Stability AI fallback)
+- call_stability — Image generation via DALL-E 3
 - run_parallel — Call multiple AIs simultaneously for comparison
 - web_search — Search the web (Perplexity/Brave/DuckDuckGo/SearXNG)
 - fetch_url — Read any webpage (uses Firecrawl for clean markdown if available)
@@ -31,7 +31,7 @@ ROUTING RULES:
 - "quick/fast" simple tasks → call_claude with haiku model
 - Current events/news → call_perplexity or web_search
 - Code generation → call_gpt4 or call_claude_code
-- Image generation → call_stability (uses DALL-E 3 first, Stability AI as fallback. ANY image request auto-routes here, even if user names a specific provider)
+- Image generation → call_stability (uses DALL-E 3. ANY image request auto-routes here)
 - Comparisons → run_parallel
 - Self-modification → write_file on your own source files
 
@@ -164,8 +164,8 @@ For every user request:
       input_schema: { type: "object", properties: { query: { type: "string", description: "Search query or question requiring live web data" } }, required: ["query"] }
     },
     {
-      name: "call_stability", provider: "stability",
-      description: "Call Stability AI to generate images from text prompts.",
+      name: "call_stability", provider: "openai",
+      description: "Generate images using DALL-E 3. Supports square, wide, and tall formats.",
       input_schema: { type: "object", properties: { prompt: { type: "string", description: "Image generation prompt" } }, required: ["prompt"] }
     },
     {
@@ -190,7 +190,6 @@ For every user request:
     grok: () => GrokProvider,
     mistral: () => MistralProvider,
     perplexity: () => PerplexityProvider,
-    stability: () => StabilityProvider
   },
 
   onStep: null,
@@ -296,7 +295,7 @@ For every user request:
 
   // FIX 4: Build prompt with only truly available providers
   async buildSystemPrompt() {
-    const providerNames = { claude: 'Claude (You)', gemini: 'Google Gemini', openai: 'OpenAI GPT-4o', deepseek: 'DeepSeek', grok: 'xAI Grok', mistral: 'Mistral', perplexity: 'Perplexity', stability: 'Stability AI' };
+    const providerNames = { claude: 'Claude (You)', gemini: 'Google Gemini', openai: 'OpenAI GPT-4o + DALL-E 3', deepseek: 'DeepSeek', grok: 'xAI Grok', mistral: 'Mistral', perplexity: 'Perplexity' };
     const statuses = [];
     for (const [key, name] of Object.entries(providerNames)) {
       const hasKey = await this.hasProvider(key);
@@ -389,8 +388,10 @@ For every user request:
     const hasAnyKey = await this.hasAnyProvider();
     if (!hasAnyKey) return { text: 'No API keys configured. Please open Settings and add at least one provider API key.', provider: 'avis', model: 'system' };
 
-    if (this.isImageGenRequest(userMessage)) {
-      if (await this.hasProvider('stability')) return await this.directCall('stability', userMessage, files);
+    if (this.isImageGenRequest(userMessage) && await this.hasProvider('openai')) {
+      // Route directly to DALL-E image generation
+      const imgResult = await this.callProviderImage(userMessage);
+      return { text: imgResult, provider: 'openai', model: 'DALL-E 3' };
     }
 
     // Try Claude first (primary orchestrator with tool use)
@@ -721,10 +722,10 @@ For every user request:
            /\b(image|picture|photo|illustration|wallpaper)\b.{0,20}\b(of|showing|depicting|with|featuring)\b/i.test(prompt);
   },
 
-  // Call any text AI provider — auto-reroutes image requests to Stability
+  // Call any text AI provider — auto-reroutes image requests to DALL-E 3
   async callProvider(providerName, prompt, model) {
-    // If this is an image generation request, reroute to Stability AI regardless of target provider
-    if (this.isImagePrompt(prompt) && await this.hasProvider('stability')) {
+    // If this is an image generation request, reroute to DALL-E 3
+    if (this.isImagePrompt(prompt) && await this.hasProvider('openai')) {
       this.emitStep('route', `Image request detected — routing to DALL-E 3 (requested by ${providerName})`, 'done');
       return await this.callProviderImage(prompt);
     }
@@ -1052,7 +1053,7 @@ For every user request:
     messages.push(lastMsg);
 
     try {
-      const result = await window.avis.apiCall({ provider: providerName, model: modelOverride || providerObj.getCurrentModel().id, messages, systemPrompt: providerName !== 'stability' ? systemPrompt : '', options: {} });
+      const result = await window.avis.apiCall({ provider: providerName, model: modelOverride || providerObj.getCurrentModel().id, messages, systemPrompt, options: {} });
       if (result.error) { StepDownManager.handleApiError(providerObj, result); return { text: this.parseError(result.message), provider: providerName, model: 'error', error: true, friendlyError: true }; }
       UsageMeter.record(providerName, result.inputTokens || 0, result.outputTokens || 0, providerObj);
       providerObj.status = 'active';
@@ -1069,7 +1070,7 @@ For every user request:
 
   async hasProvider(name) { return !!(await window.avis.getApiKey(name)); },
   async hasAnyProvider() {
-    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'stability']) { if (await this.hasProvider(p)) return true; }
+    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity']) { if (await this.hasProvider(p)) return true; }
     return false;
   },
   isImageGenRequest(text) {

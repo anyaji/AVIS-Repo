@@ -180,7 +180,6 @@ const AVIS = {
       { key: 'claude', obj: ClaudeProvider }, { key: 'deepseek', obj: DeepSeekProvider }, { key: 'openai', obj: OpenAIProvider },
       { key: 'gemini', obj: GeminiProvider }, { key: 'grok', obj: GrokProvider },
       { key: 'mistral', obj: MistralProvider }, { key: 'perplexity', obj: PerplexityProvider },
-      { key: 'stability', obj: StabilityProvider }
     ];
     for (const p of providers) {
       const key = await window.avis.getApiKey(p.key);
@@ -597,7 +596,7 @@ const AVIS = {
 
       // Check if orchestrator generated an image via tool call
       if (Orchestrator._lastGeneratedImage) {
-        this.addImageToChat(Orchestrator._lastGeneratedImage, 'stability', 'SDXL');
+        this.addImageToChat(Orchestrator._lastGeneratedImage, 'openai', 'DALL-E 3');
         Orchestrator._lastGeneratedImage = null;
       }
 
@@ -769,7 +768,7 @@ const AVIS = {
     msgDiv.className = 'message ai';
     msgDiv.innerHTML = `
       <div class="image-message">
-        <div class="provider-badge stability">${provider || 'stability'} / ${model || 'image'}</div>
+        <div class="provider-badge openai">${provider || 'openai'} / ${model || 'DALL-E 3'}</div>
         <div class="image-container">
           <img id="${imgId}" src="data:${mime};base64,${b64}" alt="${this.escapeHtml(prompt)}" class="generated-image">
           <div class="image-actions">
@@ -993,8 +992,7 @@ const AVIS = {
       { obj: ClaudeProvider, key: 'claude' }, { obj: DeepSeekProvider, key: 'deepseek' },
       { obj: OpenAIProvider, key: 'openai' }, { obj: GeminiProvider, key: 'gemini' },
       { obj: GrokProvider, key: 'grok' }, { obj: MistralProvider, key: 'mistral' },
-      { obj: PerplexityProvider, key: 'perplexity' }, { obj: StabilityProvider, key: 'stability' }
-    ];
+      { obj: PerplexityProvider, key: 'perplexity' },     ];
     list.innerHTML = providers.map(p => {
       const isClaude = p.key === 'claude';
       const health = this.providerHealth[p.key];
@@ -1022,8 +1020,7 @@ const AVIS = {
       { obj: ClaudeProvider, key: 'claude' }, { obj: DeepSeekProvider, key: 'deepseek' },
       { obj: OpenAIProvider, key: 'openai' }, { obj: GeminiProvider, key: 'gemini' },
       { obj: GrokProvider, key: 'grok' }, { obj: MistralProvider, key: 'mistral' },
-      { obj: PerplexityProvider, key: 'perplexity' }, { obj: StabilityProvider, key: 'stability' }
-    ];
+      { obj: PerplexityProvider, key: 'perplexity' },     ];
     container.innerHTML = providers.map(p => {
       const u = UsageMeter.providers[p.key];
       const pct = UsageMeter.getUsagePercent(p.key);
@@ -1195,7 +1192,6 @@ const AVIS = {
       { key: 'mistral', label: 'Mistral', placeholder: 'API key...' },
       { key: 'perplexity', label: 'Perplexity', placeholder: 'pplx-...' },
       { key: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...' },
-      { key: 'stability', label: 'Stability AI', placeholder: 'sk-...' },
       { key: 'brave', label: 'Brave Search', placeholder: 'BSA...' }
     ];
     document.getElementById('onboarding-steps').innerHTML = providers.map(p => `
@@ -1229,7 +1225,7 @@ const AVIS = {
   },
 
   async finishOnboarding() {
-    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'stability', 'brave']) {
+    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'brave']) {
       const input = document.getElementById(`onboard-${p}`);
       if (input?.value.trim()) await window.avis.setApiKey(p, input.value.trim());
     }

@@ -16,7 +16,7 @@ const HotConfig = {
     showRightPanel: true,
     compactMode: false,
     budgets: {
-      claude: 50, openai: 50, gemini: 30, grok: 30, mistral: 20, perplexity: 20, stability: 10
+      claude: 50, openai: 50, gemini: 30, grok: 30, mistral: 20, perplexity: 20
     }
   },
 
@@ -117,7 +117,6 @@ const HotConfig = {
       { key: 'grok', label: 'xAI Grok' },
       { key: 'mistral', label: 'Mistral' },
       { key: 'perplexity', label: 'Perplexity' },
-      { key: 'stability', label: 'Stability AI' },
       { key: 'brave', label: 'Brave Search' },
       { key: 'firecrawl', label: 'Firecrawl' }
     ];
@@ -235,7 +234,7 @@ const HotConfig = {
 
       <div class="settings-section">
         <h3>Step-Down Thresholds (%)</h3>
-        ${providers.filter(p => p.key !== 'stability').map(p => {
+        ${providers.map(p => {
           const threshold = UsageMeter.providers[p.key]?.stepDownThreshold || 80;
           const enabled = UsageMeter.providers[p.key]?.autoStepDown !== false;
           return `
@@ -265,7 +264,7 @@ const HotConfig = {
   },
 
   async loadApiKeys() {
-    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'stability', 'brave', 'firecrawl'];
+    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'brave', 'firecrawl'];
     for (const p of providers) {
       const key = await window.avis.getApiKey(p);
       const input = document.getElementById(`key-${p}`);
@@ -276,7 +275,7 @@ const HotConfig = {
   async saveApiKey(provider, key) {
     await window.avis.setApiKey(provider, key);
     // Update provider status
-    const providerMap = { claude: ClaudeProvider, deepseek: DeepSeekProvider, openai: OpenAIProvider, gemini: GeminiProvider, grok: GrokProvider, mistral: MistralProvider, perplexity: PerplexityProvider, stability: StabilityProvider };
+    const providerMap = { claude: ClaudeProvider, deepseek: DeepSeekProvider, openai: OpenAIProvider, gemini: GeminiProvider, grok: GrokProvider, mistral: MistralProvider, perplexity: PerplexityProvider };
     if (providerMap[provider]) {
       providerMap[provider].status = key ? 'active' : 'unconfigured';
     }
