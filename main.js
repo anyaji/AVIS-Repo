@@ -394,6 +394,54 @@ ipcMain.handle('dev-write-file', (_, relPath, content) => {
 // ====================================================================
 // UPGRADE 1: Web Fetch — headless BrowserWindow to load & extract pages
 // ====================================================================
+// ====================================================================
+// Firecrawl integration — clean markdown scraping
+// ====================================================================
+ipcMain.handle('firecrawl-scrape', async (_, url) => {
+  const apiKey = store.get('apiKeys.firecrawl', '');
+  if (!apiKey) return { success: false, error: 'Firecrawl API key not configured', fallback: true };
+  try {
+    const FirecrawlApp = require('@mendable/firecrawl-js').default;
+    const app = new FirecrawlApp({ apiKey });
+    const result = await app.scrapeUrl(url, { formats: ['markdown'] });
+    if (result.success) {
+      return { success: true, content: result.markdown || result.content || '', metadata: result.metadata || {} };
+    }
+    return { success: false, error: result.error || 'Scrape failed', fallback: true };
+  } catch (err) {
+    return { success: false, error: err.message, fallback: true };
+  }
+});
+
+ipcMain.handle('firecrawl-crawl', async (_, url, limit) => {
+  const apiKey = store.get('apiKeys.firecrawl', '');
+  if (!apiKey) return { success: false, error: 'Firecrawl API key not configured' };
+  try {
+    const FirecrawlApp = require('@mendable/firecrawl-js').default;
+    const app = new FirecrawlApp({ apiKey });
+    const result = await app.crawlUrl(url, { limit: limit || 10, scrapeOptions: { formats: ['markdown'] } });
+    if (result.success) {
+      return { success: true, pages: (result.data || []).map(p => ({ url: p.metadata?.sourceURL || '', content: p.markdown || '' })) };
+    }
+    return { success: false, error: result.error || 'Crawl failed' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('firecrawl-search', async (_, query, limit) => {
+  const apiKey = store.get('apiKeys.firecrawl', '');
+  if (!apiKey) return { success: false, error: 'Firecrawl API key not configured' };
+  try {
+    const FirecrawlApp = require('@mendable/firecrawl-js').default;
+    const app = new FirecrawlApp({ apiKey });
+    const result = await app.search(query, { limit: limit || 5, scrapeOptions: { formats: ['markdown'] } });
+    return { success: true, results: result.data || [] };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('fetch-url', async (_, url) => {
   return new Promise((resolve, reject) => {
     const win = new BrowserWindow({

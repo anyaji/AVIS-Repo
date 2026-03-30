@@ -15,7 +15,8 @@ PROVIDERS YOU CAN CALL RIGHT NOW:
 - call_stability — Stability AI (image generation from text prompts)
 - run_parallel — Call multiple AIs simultaneously for comparison
 - web_search — Search the web (Perplexity/Brave/DuckDuckGo/SearXNG)
-- fetch_url — Read any webpage
+- fetch_url — Read any webpage (uses Firecrawl for clean markdown if available)
+- firecrawl_crawl — Crawl entire websites, returns all pages as markdown
 - run_code — Execute JavaScript or Python
 - read_file / write_file — Access the file system
 - open_app — Launch applications
@@ -62,8 +63,13 @@ For every user request:
     },
     {
       name: "fetch_url",
-      description: "Fetch and read the full text content from any URL/webpage.",
+      description: "Fetch and read clean markdown content from any URL/webpage. Uses Firecrawl for best results if available, falls back to headless browser.",
       input_schema: { type: "object", properties: { url: { type: "string", description: "URL to fetch and read" } }, required: ["url"] }
+    },
+    {
+      name: "firecrawl_crawl",
+      description: "Crawl an entire website and return all pages as clean markdown. Use for documentation sites, wikis, or when you need multiple pages from one domain.",
+      input_schema: { type: "object", properties: { url: { type: "string", description: "Starting URL to crawl" }, limit: { type: "number", description: "Max pages to crawl (default 10)" } }, required: ["url"] }
     },
     {
       name: "run_code",
@@ -545,6 +551,7 @@ For every user request:
     const labels = {
       web_search: `Searching: "${input.query || ''}"`,
       fetch_url: `Fetching: ${input.url || ''}`,
+      firecrawl_crawl: `Crawling site: ${input.url || ''} (max ${input.limit || 10} pages)`,
       run_code: `Running ${input.language || ''} code`,
       read_file: `Reading: ${(input.path || '').split(/[\\/]/).pop()}`,
       write_file: `Writing: ${(input.path || '').split(/[\\/]/).pop()}`,
@@ -574,6 +581,7 @@ For every user request:
       switch (name) {
         case 'web_search': return await this.toolWebSearch(input.query);
         case 'fetch_url': return await this.toolFetchUrl(input.url);
+        case 'firecrawl_crawl': return await this.toolFirecrawlCrawl(input.url, input.limit);
         case 'run_code': return await this.toolRunCode(input.language, input.code);
         case 'read_file': return await this.toolReadFile(input.path);
         case 'write_file': return await this.toolWriteFile(input.path, input.content);
@@ -766,8 +774,35 @@ For every user request:
   },
 
   async toolFetchUrl(url) {
+    // Try Firecrawl first for clean markdown
+    try {
+      const fc = await window.avis.firecrawlScrape(url);
+      if (fc.success) {
+        const title = fc.metadata?.title || url;
+        return `**Page: ${title}**\nURL: ${url}\n\n${fc.content}`;
+      }
+      // If fallback=true (no key or error), fall through to webview
+    } catch (e) { /* fall through */ }
+
+    // Fallback: headless webview
     try { const r = await window.avis.fetchUrl(url); return `**Page: ${r.title}**\nURL: ${r.url}\n\n${r.text}`; }
     catch (err) { return `Failed to fetch ${url}: ${err.message}`; }
+  },
+
+  async toolFirecrawlCrawl(url, limit) {
+    try {
+      const result = await window.avis.firecrawlCrawl(url, limit || 10);
+      if (!result.success) return `Crawl failed: ${result.error}`;
+      if (!result.pages?.length) return 'Crawl returned no pages.';
+      let output = `**Crawled ${result.pages.length} pages from ${url}:**\n\n`;
+      for (const page of result.pages) {
+        const preview = (page.content || '').substring(0, 500);
+        output += `---\n**${page.url}**\n${preview}\n\n`;
+      }
+      return output;
+    } catch (err) {
+      return `Crawl error: ${err.message}`;
+    }
   },
 
   async toolRunCode(language, code) {

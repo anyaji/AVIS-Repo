@@ -35,6 +35,7 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   overflow: hidden;
+  width: 100vw;
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -109,17 +110,20 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* Main Layout */
+/* Main Layout — strict grid, no overflow possible */
 .main-layout {
   display: flex;
   flex: 1;
   overflow: hidden;
+  height: calc(100vh - 40px);
+  max-height: calc(100vh - 40px);
 }
 
 /* Left Panel */
 .left-panel {
   width: 260px;
   min-width: 200px;
+  max-height: 100%;
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
   display: flex;
@@ -132,7 +136,12 @@ body {
   display: flex;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  white-space: nowrap;
 }
+.panel-tabs::-webkit-scrollbar { display: none; }
 
 .panel-tab {
   flex: 1;
@@ -373,35 +382,41 @@ body {
   display: flex !important;
 }
 
-/* Center Panel */
+/* Center Panel — strict flex column, chat scrolls, input pinned */
 .center-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
   min-width: 0;
+  max-height: 100%;
+  overflow: hidden;
 }
 
-/* Chat Area */
+/* Chat Area — scrollable, isolated, never overflows parent */
 .chat-area {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  overflow-x: hidden;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+  contain: layout style;
+  min-height: 0; /* critical: allows flex child to shrink below content */
 }
 
 .chat-area::-webkit-scrollbar { width: 6px; }
 .chat-area::-webkit-scrollbar-track { background: transparent; }
 .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-/* Message Bubbles */
+/* Message Bubbles — constrained, never overflow chat */
 .message {
   display: flex;
   gap: 10px;
-  max-width: 85%;
+  max-width: min(85%, 700px);
   animation: fadeIn 0.2s ease;
+  flex-shrink: 0;
 }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -543,12 +558,13 @@ body {
   animation: fadeIn 0.3s ease;
 }
 
-/* Input Area */
+/* Input Area — always pinned to bottom of center panel */
 .input-area {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-top: 1px solid var(--border);
   background: var(--bg-secondary);
   flex-shrink: 0;
+  z-index: 10;
 }
 
 .input-wrap {
@@ -641,11 +657,12 @@ body {
 .right-panel {
   width: 280px;
   min-width: 220px;
+  max-height: 100%;
   background: var(--bg-secondary);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
   flex-shrink: 0;
 }
 
@@ -664,9 +681,11 @@ body {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
 }
 
 /* Meter Card */
@@ -1310,9 +1329,12 @@ body {
   overflow: hidden;
   animation: fadeIn 0.2s ease;
   align-self: flex-start;
-  max-width: 90%;
+  max-width: min(90%, 650px);
   font-size: 12px;
   font-family: 'JetBrains Mono', monospace;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
 }
 
 .step-panel-done {
@@ -1458,8 +1480,10 @@ body {
   border-left: 3px solid var(--accent-amber);
   border-radius: 8px;
   padding: 14px 16px;
-  max-width: 500px;
+  max-width: min(90%, 500px);
   animation: fadeIn 0.2s ease;
+  position: relative;
+  z-index: 1;
 }
 .continue-card-header {
   font-family: 'JetBrains Mono', monospace;

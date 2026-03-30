@@ -92,7 +92,8 @@ const HotConfig = {
       { key: 'mistral', label: 'Mistral' },
       { key: 'perplexity', label: 'Perplexity' },
       { key: 'stability', label: 'Stability AI' },
-      { key: 'brave', label: 'Brave Search' }
+      { key: 'brave', label: 'Brave Search' },
+      { key: 'firecrawl', label: 'Firecrawl' }
     ];
 
     let html = `
@@ -202,7 +203,7 @@ const HotConfig = {
   },
 
   async loadApiKeys() {
-    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'stability', 'brave'];
+    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity', 'stability', 'brave', 'firecrawl'];
     for (const p of providers) {
       const key = await window.avis.getApiKey(p);
       const input = document.getElementById(`key-${p}`);

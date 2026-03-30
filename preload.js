@@ -44,6 +44,11 @@ contextBridge.exposeInMainWorld('avis', {
   isFirstRun: () => ipcRenderer.invoke('is-first-run'),
   completeOnboarding: () => ipcRenderer.invoke('complete-onboarding'),
 
+  // Firecrawl
+  firecrawlScrape: (url) => ipcRenderer.invoke('firecrawl-scrape', url),
+  firecrawlCrawl: (url, limit) => ipcRenderer.invoke('firecrawl-crawl', url, limit),
+  firecrawlSearch: (query, limit) => ipcRenderer.invoke('firecrawl-search', query, limit),
+
   // Web fetch & search
   fetchUrl: (url) => ipcRenderer.invoke('fetch-url', url),
   braveSearch: (query) => ipcRenderer.invoke('brave-search', query),
