@@ -8,6 +8,12 @@ const HotConfig = {
     soundEffects: false,
     startupBehavior: 'fresh',
     customSystemPrompt: '',
+    theme: 'default',
+    leftPanelWidth: 260,
+    rightPanelWidth: 280,
+    showLeftPanel: true,
+    showRightPanel: true,
+    compactMode: false,
     budgets: {
       claude: 50, openai: 50, gemini: 30, grok: 30, mistral: 20, perplexity: 20, stability: 10
     }
@@ -52,6 +58,25 @@ const HotConfig = {
     // App name
     const titleEl = document.getElementById('app-title');
     if (titleEl && c.appName) titleEl.textContent = c.appName;
+
+    // Layout — panel widths
+    const leftPanel = document.querySelector('.left-panel');
+    const rightPanel = document.querySelector('.right-panel');
+    if (leftPanel) {
+      leftPanel.style.width = (c.leftPanelWidth || 260) + 'px';
+      leftPanel.style.display = c.showLeftPanel === false ? 'none' : '';
+    }
+    if (rightPanel) {
+      rightPanel.style.width = (c.rightPanelWidth || 280) + 'px';
+      rightPanel.style.display = c.showRightPanel === false ? 'none' : '';
+    }
+
+    // Compact mode — tighter spacing
+    if (c.compactMode) {
+      document.body.classList.add('compact-mode');
+    } else {
+      document.body.classList.remove('compact-mode');
+    }
 
     // Apply budget limits to usage meters
     if (c.budgets && typeof UsageMeter !== 'undefined') {
@@ -156,6 +181,36 @@ const HotConfig = {
         <div class="setting-row">
           <label>Custom System Prompt Addon</label>
           <textarea onchange="HotConfig.update('customSystemPrompt', this.value)">${this.get('customSystemPrompt') || ''}</textarea>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Layout</h3>
+        <div class="setting-row">
+          <label>Left Panel Width: <span id="left-w-val">${this.get('leftPanelWidth') || 260}px</span></label>
+          <input type="range" min="180" max="400" value="${this.get('leftPanelWidth') || 260}" oninput="document.getElementById('left-w-val').textContent=this.value+'px'" onchange="HotConfig.update('leftPanelWidth', parseInt(this.value))">
+        </div>
+        <div class="setting-row">
+          <label>Right Panel Width: <span id="right-w-val">${this.get('rightPanelWidth') || 280}px</span></label>
+          <input type="range" min="200" max="400" value="${this.get('rightPanelWidth') || 280}" oninput="document.getElementById('right-w-val').textContent=this.value+'px'" onchange="HotConfig.update('rightPanelWidth', parseInt(this.value))">
+        </div>
+        <div class="setting-row">
+          <div class="toggle-wrap">
+            <label>Show Left Panel</label>
+            <div class="toggle ${this.get('showLeftPanel') !== false ? 'active' : ''}" onclick="this.classList.toggle('active'); HotConfig.update('showLeftPanel', this.classList.contains('active'))"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="toggle-wrap">
+            <label>Show Right Panel (Usage Meters)</label>
+            <div class="toggle ${this.get('showRightPanel') !== false ? 'active' : ''}" onclick="this.classList.toggle('active'); HotConfig.update('showRightPanel', this.classList.contains('active'))"></div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="toggle-wrap">
+            <label>Compact Mode (tighter spacing)</label>
+            <div class="toggle ${this.get('compactMode') ? 'active' : ''}" onclick="this.classList.toggle('active'); HotConfig.update('compactMode', this.classList.contains('active'))"></div>
+          </div>
         </div>
       </div>
 

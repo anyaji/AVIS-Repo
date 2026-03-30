@@ -1317,13 +1317,10 @@ body {
 }
 .continue-btn:hover { background: #33baff; }
 
-/* Auto-update bar */
+/* Auto-update bar — sits above input, not over it */
 .update-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 32px;
+  flex-shrink: 0;
+  height: 28px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
   display: flex;
@@ -1331,9 +1328,8 @@ body {
   gap: 8px;
   padding: 0 16px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-secondary);
-  z-index: 100;
 }
 
 .update-bar.ready {
@@ -1643,6 +1639,22 @@ body {
 
 /* Selection color */
 ::selection { background: rgba(0, 168, 255, 0.3); color: var(--text-primary); }
+
+/* Compact mode — tighter spacing throughout */
+.compact-mode .titlebar { height: 36px; }
+.compact-mode .nav-tab { padding: 3px 8px; height: 24px; font-size: 9px; }
+.compact-mode .tab-separator { height: 10px; }
+.compact-mode .main-layout { height: calc(100vh - 36px); max-height: calc(100vh - 36px); }
+.compact-mode .chat-area { padding: 8px 12px; gap: 8px; }
+.compact-mode .message-bubble { padding: 8px 12px; font-size: 13px; }
+.compact-mode .input-area { padding: 8px 12px; }
+.compact-mode .input-wrap { padding: 6px 10px; }
+.compact-mode .meter-card { padding: 8px; }
+.compact-mode .provider-item { padding: 6px 8px; }
+.compact-mode .right-panel-header { height: 32px; padding: 0 12px; font-size: 10px; }
+.compact-mode .panel-content { padding: 8px; }
+.compact-mode .step-panel { font-size: 11px; }
+.compact-mode .update-bar { height: 24px; font-size: 9px; }
 
 /* ====================================================================
    Developer Panel

@@ -161,6 +161,14 @@
         </div>
       </div>
 
+      <!-- Update Bar — inside center panel, above input, never overlaps -->
+      <div id="update-bar" class="update-bar" style="display:none;">
+        <span id="update-icon" class="update-icon">&#8635;</span>
+        <span id="update-message" class="update-message"></span>
+        <button id="update-cancel-btn" class="update-cancel-btn" style="display:none;" onclick="window.avis.cancelUpdate()">Not Now</button>
+        <button id="update-restart-btn" class="update-restart-btn" style="display:none;" onclick="window.avis.installUpdate()">Restart Now</button>
+      </div>
+
       <div class="input-area">
         <div id="file-preview-area" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
         <div class="input-wrap">
@@ -185,14 +193,6 @@
         <button class="panel-action-btn" id="btn-check-update" onclick="AVIS.manualUpdateCheck()">&#8635; Check for Updates</button>
       </div>
     </div>
-  </div>
-
-  <!-- Update Bar -->
-  <div id="update-bar" class="update-bar" style="display:none;">
-    <span id="update-icon" class="update-icon">&#8635;</span>
-    <span id="update-message" class="update-message"></span>
-    <button id="update-cancel-btn" class="update-cancel-btn" style="display:none;" onclick="window.avis.cancelUpdate()">Not Now</button>
-    <button id="update-restart-btn" class="update-restart-btn" style="display:none;" onclick="window.avis.installUpdate()">Restart Now</button>
   </div>
 
   <!-- Drop Overlay -->
