@@ -21,8 +21,8 @@ PROVIDERS YOU CAN CALL RIGHT NOW:
 - read_file / write_file — Access the file system
 - open_app — Launch applications
 - launch_steam_game — Launch Steam games by name (uses Steam URL protocol, much faster than clicking around)
-- computer_action — Control mouse and keyboard (DPI-aware, full desktop screenshots, click/double_click/right_click/type/key/scroll)
-COMPUTER CONTROL WORKFLOW: Always screenshot FIRST to see the screen, identify coordinates, THEN click. Coordinates are auto-DPI-scaled.
+- computer_action — Control mouse and keyboard (DPI-aware, targeted window capture, click/type/key/scroll)
+COMPUTER CONTROL WORKFLOW: 1) list_windows to find the app, 2) screenshot with window_name to capture just that window, 3) identify coordinates from the image, 4) click. Coordinates are auto-DPI-scaled.
 - get_weather — Instant weather for any city (free, no API key)
 
 ROUTING RULES:
@@ -104,16 +104,17 @@ For every user request:
     },
     {
       name: "computer_action",
-      description: "Control the computer with DPI-aware coordinates. Actions: screenshot (full desktop), click (left click), double_click, right_click, type (text input), key (special keys like {ENTER}, ^c for Ctrl+C), scroll (up/down), move (cursor). IMPORTANT: Always take a screenshot first to see the screen, then click. Coordinates are automatically DPI-scaled.",
+      description: "Control the computer with DPI-aware coordinates. Actions: screenshot (capture desktop or a specific window by name), list_windows (see all open windows), click, double_click, right_click, type, key (special keys like {ENTER}, ^c), scroll, move. WORKFLOW: Use list_windows to find the target app, then screenshot with window_name to capture just that window, then click on it.",
       input_schema: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["screenshot", "click", "double_click", "right_click", "type", "key", "scroll", "move"], description: "Action to perform" },
-          x: { type: "number", description: "X coordinate for click/move (pre-DPI, will be auto-scaled)" },
-          y: { type: "number", description: "Y coordinate for click/move (pre-DPI, will be auto-scaled)" },
-          text: { type: "string", description: "Text to type (for 'type' action) or key combo (for 'key' action, e.g. {ENTER}, ^c, %{F4})" },
+          action: { type: "string", enum: ["screenshot", "list_windows", "click", "double_click", "right_click", "type", "key", "scroll", "move"], description: "Action to perform" },
+          window_name: { type: "string", description: "For screenshot: capture this specific window instead of full desktop (e.g. 'Steam', 'Chrome', 'Discord')" },
+          x: { type: "number", description: "X coordinate for click/move (auto DPI-scaled)" },
+          y: { type: "number", description: "Y coordinate for click/move (auto DPI-scaled)" },
+          text: { type: "string", description: "Text to type, or key combo for 'key' action (e.g. {ENTER}, ^c, %{F4})" },
           direction: { type: "string", enum: ["up", "down"], description: "Scroll direction" },
-          amount: { type: "number", description: "Scroll amount (notches, default 3)" }
+          amount: { type: "number", description: "Scroll notches (default 3)" }
         },
         required: ["action"]
       }
@@ -863,14 +864,22 @@ For every user request:
     const r = await window.avis.computerAction(input);
     if (r.success) {
       if (r.action === 'screenshot' && r.image) {
-        return `Screenshot taken (${r.width || '?'}x${r.height || '?'}, scale: ${r.scaleFactor || '?'}x).${r.fallback ? ' [Window only — desktopCapturer unavailable]' : ' [Full desktop]'}`;
+        const mode = r.mode === 'window' ? `Window: "${r.windowName}"` : r.mode === 'desktop' ? 'Full desktop' : 'AVIS window';
+        return `Screenshot captured [${mode}] (${r.width || '?'}x${r.height || '?'}, scale: ${r.scaleFactor}x)`;
+      }
+      if (r.action === 'list_windows') {
+        return `Open windows:\n${(r.windows || []).map((w, i) => `${i + 1}. ${w}`).join('\n')}`;
       }
       if (r.action === 'click' || r.action === 'double_click' || r.action === 'right_click') {
-        return `${r.action} at (${r.originalX || r.x}, ${r.originalY || r.y}) → DPI-scaled to (${r.x}, ${r.y}), scale factor: ${r.scaleFactor || 1}x`;
+        return `${r.action} at (${r.originalX || r.x}, ${r.originalY || r.y}) → scaled (${r.x}, ${r.y}), DPI: ${r.scaleFactor || 1}x`;
       }
-      if (r.action === 'type') return `Typed text successfully.`;
+      if (r.action === 'type') return 'Typed text successfully.';
       if (r.action === 'key') return `Sent key: ${input.text}`;
       return `Action "${r.action}" completed.`;
+    }
+    // If screenshot failed with available windows list, return that info
+    if (r.availableWindows) {
+      return `Could not find window "${input.window_name}". Available windows:\n${r.availableWindows.map((w, i) => `${i + 1}. ${w}`).join('\n')}`;
     }
     return `Action "${input.action}" failed: ${r.error}`;
   },

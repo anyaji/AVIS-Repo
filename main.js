@@ -1124,24 +1124,42 @@ function runPowerShell(script) {
   });
 }
 
-ipcMain.handle('computer-action', async (_, { action, x, y, text: inputText, button, direction, amount }) => {
+ipcMain.handle('computer-action', async (_, { action, x, y, text: inputText, button, direction, amount, window_name }) => {
   const scale = getScaleFactor();
   try {
     switch (action) {
       case 'screenshot': {
-        // Use Electron's desktopCapturer for full desktop screenshot
         const { desktopCapturer } = require('electron');
-        const sources = await desktopCapturer.getSources({
-          types: ['screen'],
-          thumbnailSize: { width: Math.round(screen.getPrimaryDisplay().size.width * scale), height: Math.round(screen.getPrimaryDisplay().size.height * scale) }
-        });
-        if (sources.length > 0) {
-          const img = sources[0].thumbnail;
-          return { success: true, action: 'screenshot', image: img.toDataURL(), width: img.getSize().width, height: img.getSize().height, scaleFactor: scale };
+        const thumbSize = { width: Math.round(screen.getPrimaryDisplay().size.width * scale), height: Math.round(screen.getPrimaryDisplay().size.height * scale) };
+
+        // If window_name specified, try to capture that specific window
+        if (window_name) {
+          const windowSources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: thumbSize });
+          const target = windowSources.find(s => s.name.toLowerCase().includes(window_name.toLowerCase()));
+          if (target) {
+            const img = target.thumbnail;
+            return { success: true, action: 'screenshot', image: img.toDataURL(), width: img.getSize().width, height: img.getSize().height, scaleFactor: scale, windowName: target.name, mode: 'window' };
+          }
+          // Window not found — list available windows so Claude can retry
+          const available = windowSources.map(s => s.name).slice(0, 15);
+          return { success: false, action: 'screenshot', error: `Window "${window_name}" not found. Available: ${available.join(', ')}`, availableWindows: available };
         }
-        // Fallback: capture main window only
+
+        // No window_name — capture full desktop
+        const screenSources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: thumbSize });
+        if (screenSources.length > 0) {
+          const img = screenSources[0].thumbnail;
+          return { success: true, action: 'screenshot', image: img.toDataURL(), width: img.getSize().width, height: img.getSize().height, scaleFactor: scale, mode: 'desktop' };
+        }
+        // Fallback
         const fallback = await mainWindow.webContents.capturePage();
-        return { success: true, action: 'screenshot', image: fallback.toDataURL(), scaleFactor: scale, fallback: true };
+        return { success: true, action: 'screenshot', image: fallback.toDataURL(), scaleFactor: scale, mode: 'fallback' };
+      }
+
+      case 'list_windows': {
+        const { desktopCapturer } = require('electron');
+        const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 1, height: 1 } });
+        return { success: true, action: 'list_windows', windows: sources.map(s => s.name).filter(n => n.length > 0) };
       }
 
       case 'click': {
