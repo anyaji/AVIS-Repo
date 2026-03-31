@@ -9,7 +9,6 @@ PROVIDERS YOU CAN CALL RIGHT NOW:
 - call_gemini — Google Gemini Pro/Ultra (multimodal, long context, data analysis)
 - call_gpt4 — OpenAI GPT-4o (code generation, math, structured output)
 - call_deepseek — DeepSeek Chat/Reasoner (fast, cheap, strong reasoning)
-- call_grok — xAI Grok-2 (real-time info, unfiltered, edgy queries)
 - call_mistral — Mistral Large (fast, European data, cost efficient)
 - call_perplexity — Perplexity live web search (current events, real-time data)
 - call_stability — Image generation via DALL-E 3
@@ -149,11 +148,6 @@ For every user request:
       input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to DeepSeek" }, model: { type: "string", enum: ["deepseek-chat", "deepseek-reasoner"], description: "Model (default: deepseek-chat)" } }, required: ["prompt"] }
     },
     {
-      name: "call_grok", provider: "grok",
-      description: "Call xAI Grok for a task. Best for: real-time info, unfiltered analysis, edgy or controversial queries.",
-      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Grok" } }, required: ["prompt"] }
-    },
-    {
       name: "call_mistral", provider: "mistral",
       description: "Call Mistral for a task. Best for: fast responses, European data, lightweight tasks, cost efficiency.",
       input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Mistral" } }, required: ["prompt"] }
@@ -175,7 +169,7 @@ For every user request:
         type: "object",
         properties: {
           prompt: { type: "string", description: "Task to send to all providers" },
-          providers: { type: "array", items: { type: "string", enum: ["claude", "gemini", "gpt4", "deepseek", "grok", "mistral"] }, description: "Which providers to call" }
+          providers: { type: "array", items: { type: "string", enum: ["claude", "gemini", "gpt4", "deepseek", "mistral"] }, description: "Which providers to call" }
         },
         required: ["prompt", "providers"]
       }
@@ -187,7 +181,7 @@ For every user request:
     deepseek: () => DeepSeekProvider,
     openai: () => OpenAIProvider,
     gemini: () => GeminiProvider,
-    grok: () => GrokProvider,
+    
     mistral: () => MistralProvider,
     perplexity: () => PerplexityProvider,
   },
@@ -295,7 +289,6 @@ For every user request:
 
   // FIX 4: Build prompt with only truly available providers
   async buildSystemPrompt() {
-    const providerNames = { claude: 'Claude (You)', gemini: 'Google Gemini', openai: 'OpenAI GPT-4o + DALL-E 3', deepseek: 'DeepSeek', grok: 'xAI Grok', mistral: 'Mistral', perplexity: 'Perplexity' };
     const statuses = [];
     for (const [key, name] of Object.entries(providerNames)) {
       const hasKey = await this.hasProvider(key);
@@ -312,7 +305,15 @@ For every user request:
 
     const avisPathNote = this.avisPath ? `\n\nYour own source code is located at: ${this.avisPath.replace(/\\/g, '/')}` : '';
 
+    const now = new Date();
+    const dateContext = `\n\nCURRENT DATE & TIME (REAL — injected by AVIS at runtime):
+- Date: ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+- Time: ${now.toLocaleTimeString('en-US')}
+- Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant — always use this as your temporal reference. For anything that may have changed since your training, use web_search or call_perplexity.`;
+
     return this.SYSTEM_PROMPT +
+      dateContext +
       `\n\nCurrent provider status:\n${statuses.join('\n')}\n\nDO NOT attempt to call providers marked DISABLED or NOT CONFIGURED. Route only to ACTIVE providers.` +
       avisPathNote +
       MemoryManager.getMemoriesForPrompt() +
@@ -673,7 +674,6 @@ For every user request:
       call_gemini: `Calling Gemini: "${(input.prompt || '').substring(0, 60)}..."`,
       call_gpt4: `Calling GPT-4o: "${(input.prompt || '').substring(0, 60)}..."`,
       call_deepseek: `Calling DeepSeek: "${(input.prompt || '').substring(0, 60)}..."`,
-      call_grok: `Calling Grok: "${(input.prompt || '').substring(0, 60)}..."`,
       call_mistral: `Calling Mistral: "${(input.prompt || '').substring(0, 60)}..."`,
       call_perplexity: `Calling Perplexity: "${(input.query || '').substring(0, 60)}..."`,
       call_stability: `Generating image: "${(input.prompt || '').substring(0, 60)}..."`,
@@ -704,7 +704,6 @@ For every user request:
         case 'call_gemini': return await this.callProvider('gemini', input.prompt, input.model);
         case 'call_gpt4': return await this.callProvider('openai', input.prompt, input.model);
         case 'call_deepseek': return await this.callProvider('deepseek', input.prompt, input.model);
-        case 'call_grok': return await this.callProvider('grok', input.prompt, input.model);
         case 'call_mistral': return await this.callProvider('mistral', input.prompt, input.model);
         case 'call_perplexity': return await this.callProviderSearch('perplexity', input.query);
         case 'call_stability': return await this.callProviderImage(input.prompt);
@@ -864,8 +863,8 @@ For every user request:
 
   // Run same prompt across multiple providers in parallel
   async callParallel(prompt, providerList) {
-    const nameMap = { claude: 'claude', gemini: 'gemini', gpt4: 'openai', deepseek: 'deepseek', grok: 'grok', mistral: 'mistral' };
-    const displayMap = { claude: 'Claude', gemini: 'Gemini', gpt4: 'GPT-4o', deepseek: 'DeepSeek', grok: 'Grok', mistral: 'Mistral' };
+    const nameMap = { claude: 'claude', gemini: 'gemini', gpt4: 'openai', deepseek: 'deepseek', mistral: 'mistral' };
+    const displayMap = { claude: 'Claude', gemini: 'Gemini', gpt4: 'GPT-4o', deepseek: 'DeepSeek', mistral: 'Mistral' };
 
     const promises = (providerList || []).map(async (p) => {
       const actualProvider = nameMap[p] || p;
@@ -1062,7 +1061,7 @@ For every user request:
   },
 
   async fallbackRoute(userMessage, files) {
-    for (const name of ['openai', 'deepseek', 'gemini', 'mistral', 'grok', 'perplexity']) {
+    for (const name of ['openai', 'deepseek', 'gemini', 'mistral', 'perplexity']) {
       if (await this.hasProvider(name)) return await this.directCall(name, userMessage, files);
     }
     return { text: 'No AI providers configured.', provider: 'avis', model: 'system' };
@@ -1070,7 +1069,7 @@ For every user request:
 
   async hasProvider(name) { return !!(await window.avis.getApiKey(name)); },
   async hasAnyProvider() {
-    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'grok', 'mistral', 'perplexity']) { if (await this.hasProvider(p)) return true; }
+    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity']) { if (await this.hasProvider(p)) return true; }
     return false;
   },
   isImageGenRequest(text) {

@@ -31,6 +31,7 @@
       <button class="nav-tab" data-tab="developer" id="dev-tab-btn" style="display:none;">Dev</button>
     </div>
     <div class="titlebar-right">
+      <span id="live-clock" class="live-clock"></span>
       <button class="window-btn" onclick="avis.minimize()" title="Minimize">&#x2500;</button>
       <button class="window-btn" onclick="avis.maximize()" title="Maximize">&#x25A1;</button>
       <button class="window-btn close" onclick="avis.close()" title="Close">&#x2715;</button>
@@ -76,7 +77,6 @@
               <option value="openai">GPT-4o</option>
               <option value="deepseek">DeepSeek</option>
               <option value="gemini">Gemini</option>
-              <option value="grok">Grok</option>
               <option value="mistral">Mistral</option>
               <option value="perplexity">Perplexity</option>
             </select>
@@ -160,7 +160,7 @@
           <div class="welcome-content">
             <div class="big-logo glow-text">AVIS</div>
             <div class="welcome-tagline">Avel Intelligence Services</div>
-            <div class="welcome-version" id="welcome-version">v1.3.0</div>
+            <div class="welcome-version" id="welcome-version">v2.6.3</div>
             <div class="welcome-divider"></div>
             <div class="welcome-features">
               <div class="welcome-feature"><span class="wf-icon">&#129504;</span> Multi-AI Orchestration</div>
@@ -274,7 +274,6 @@
   <script src="js/providers/deepseek.js"></script>
   <script src="js/providers/openai.js"></script>
   <script src="js/providers/gemini.js"></script>
-  <script src="js/providers/grok.js"></script>
   <script src="js/providers/mistral.js"></script>
   <script src="js/providers/perplexity.js"></script>
   <script src="js/usageMeter.js"></script>
