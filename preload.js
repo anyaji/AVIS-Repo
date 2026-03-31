@@ -83,6 +83,11 @@ contextBridge.exposeInMainWorld('avis', {
   toolReadFile: (path) => ipcRenderer.invoke('tool-read-file', path),
   toolWriteFile: (path, content) => ipcRenderer.invoke('tool-write-file', path, content),
 
+  // Document generation
+  generatePptx: (params) => ipcRenderer.invoke('generate-pptx', params),
+  generateDocx: (params) => ipcRenderer.invoke('generate-docx', params),
+  generateXlsx: (params) => ipcRenderer.invoke('generate-xlsx', params),
+
   // Image handling
   saveImage: (params) => ipcRenderer.invoke('save-image', params),
   setWallpaper: (path) => ipcRenderer.invoke('set-wallpaper', path),

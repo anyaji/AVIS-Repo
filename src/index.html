@@ -28,6 +28,8 @@
       <button class="nav-tab" data-tab="terminal">Terminal</button>
       <div class="tab-separator"></div>
       <button class="nav-tab" data-tab="changelog">Changes</button>
+      <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="council">Council</button>
       <button class="nav-tab" data-tab="developer" id="dev-tab-btn" style="display:none;">Dev</button>
     </div>
     <div class="titlebar-right">
@@ -156,6 +158,25 @@
               <button class="dev-filter-btn" onclick="AVIS.loadLicensePanel()" style="margin-left:auto;">Refresh</button>
             </div>
             <div id="license-mgmt-list" style="font-size:12px;color:var(--text-secondary);">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Council Workspace -->
+        <div class="panel-section" id="council-section">
+          <div class="terminal-toolbar" style="margin-bottom:8px;">
+            <span class="terminal-title">&#9733; AI Council Workspace</span>
+            <div class="terminal-actions">
+              <button onclick="AVIS.councilCopyResult()" title="Copy result">&#128203;</button>
+              <button onclick="AVIS.councilExportResult()" title="Export to file">&#128190;</button>
+              <button onclick="AVIS.councilClear()" title="Clear">&#128465;</button>
+            </div>
+          </div>
+          <div id="council-workspace" style="font-size:12px;color:var(--text-primary);overflow-y:auto;max-height:calc(100vh - 160px);line-height:1.6;">
+            <div style="color:var(--text-secondary);padding:20px;text-align:center;">
+              <div style="font-size:24px;margin-bottom:8px;">&#9733;</div>
+              <div>Council workspace is empty</div>
+              <div style="font-size:11px;margin-top:4px;">Use Council Mode in the Direct panel to start a collaborative AI task</div>
+            </div>
           </div>
         </div>
 

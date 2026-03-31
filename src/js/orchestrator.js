@@ -22,6 +22,10 @@ PROVIDERS YOU CAN CALL RIGHT NOW:
 - launch_steam_game — Launch Steam games by name (uses Steam URL protocol, much faster than clicking around)
 - computer_action — Control mouse and keyboard (DPI-aware, targeted window capture, click/type/key/scroll)
 COMPUTER CONTROL WORKFLOW: 1) list_windows to find the app, 2) screenshot with window_name to capture just that window, 3) identify coordinates from the image, 4) click. Coordinates are auto-DPI-scaled.
+- generate_presentation — Create PowerPoint (.pptx) with slides, titles, text, images, tables, charts, shapes
+- generate_document — Create Word (.docx) with headings, paragraphs, tables, images, page breaks
+- generate_spreadsheet — Create Excel (.xlsx) with multiple sheets, headers, data, column widths
+
 ROUTING RULES:
 - "call claude code" or "build/fix [project]" → call_claude_code
 - "use opus" or complex deep reasoning → call_claude with opus model
@@ -109,6 +113,103 @@ For every user request:
           amount: { type: "number", description: "Scroll notches (default 3)" }
         },
         required: ["action"]
+      }
+    },
+    {
+      name: "generate_presentation",
+      description: "Generate a PowerPoint (.pptx) presentation. Builds professional slides with titles, text, images, tables, charts, and shapes. Saves to Desktop. Use for corporate presentations, pitch decks, reports.",
+      input_schema: {
+        type: "object",
+        properties: {
+          slides: {
+            type: "array", description: "Array of slide objects",
+            items: {
+              type: "object",
+              properties: {
+                background: { type: "object", description: "Background: { color: 'hex' } or { fill: { type: 'solid', color: 'hex' } }" },
+                elements: {
+                  type: "array", description: "Array of elements on this slide",
+                  items: {
+                    type: "object",
+                    properties: {
+                      type: { type: "string", enum: ["title", "text", "image", "table", "shape", "chart"], description: "Element type" },
+                      text: { type: "string" }, x: { type: "number" }, y: { type: "number" }, w: { type: "number" }, h: { type: "number" },
+                      fontSize: { type: "number" }, color: { type: "string" }, font: { type: "string" }, align: { type: "string" },
+                      bold: { type: "boolean" }, bullet: { type: "boolean" },
+                      data: { type: "string", description: "Base64 image data for image type" },
+                      path: { type: "string", description: "File path for image type" },
+                      rows: { type: "array", description: "2D array for table type" },
+                      fill: { type: "string", description: "Fill color for shape type" },
+                      shape: { type: "string", description: "Shape name: RECTANGLE, OVAL, LINE, etc." },
+                      chartType: { type: "string", description: "BAR, LINE, PIE, DOUGHNUT, AREA" },
+                      chartData: { type: "array", description: "Chart data series" },
+                      chartTitle: { type: "string" }
+                    }, required: ["type"]
+                  }
+                }
+              }
+            }
+          },
+          options: {
+            type: "object",
+            properties: {
+              title: { type: "string" }, author: { type: "string" }, filename: { type: "string" }, layout: { type: "string" }
+            }
+          }
+        }, required: ["slides"]
+      }
+    },
+    {
+      name: "generate_document",
+      description: "Generate a Word (.docx) document. Builds professional documents with headings, paragraphs, tables, images, and page breaks. Saves to Desktop.",
+      input_schema: {
+        type: "object",
+        properties: {
+          content: {
+            type: "array", description: "Array of content blocks",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string", enum: ["heading", "paragraph", "table", "image", "pagebreak"] },
+                text: { type: "string" }, level: { type: "number", description: "Heading level 1-3" },
+                fontSize: { type: "number" }, bold: { type: "boolean" }, italic: { type: "boolean" },
+                color: { type: "string" }, align: { type: "string" }, font: { type: "string" },
+                bullet: { type: "boolean" },
+                rows: { type: "array", description: "2D array for table (first row = headers)" },
+                data: { type: "string", description: "Base64 image data" },
+                width: { type: "number" }, height: { type: "number" }
+              }, required: ["type"]
+            }
+          },
+          options: {
+            type: "object",
+            properties: { title: { type: "string" }, author: { type: "string" }, filename: { type: "string" } }
+          }
+        }, required: ["content"]
+      }
+    },
+    {
+      name: "generate_spreadsheet",
+      description: "Generate an Excel (.xlsx) spreadsheet with multiple sheets. Each sheet has a name and 2D data array (first row = headers). Saves to Desktop.",
+      input_schema: {
+        type: "object",
+        properties: {
+          sheets: {
+            type: "array", description: "Array of sheet objects",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Sheet tab name" },
+                data: { type: "array", description: "2D array — rows of cells. First row = headers." },
+                colWidths: { type: "array", description: "Array of column widths in characters" }
+              }, required: ["name", "data"]
+            }
+          },
+          options: {
+            type: "object",
+            properties: { filename: { type: "string" } }
+          }
+        }, required: ["sheets"]
       }
     }
   ],
@@ -659,6 +760,9 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
       read_file: `Reading: ${(input.path || '').split(/[\\/]/).pop()}`,
       write_file: `Writing: ${(input.path || '').split(/[\\/]/).pop()}`,
       open_app: `Opening: ${input.target || ''}`,
+      generate_presentation: `Building PowerPoint: ${input.options?.filename || 'presentation'}`,
+      generate_document: `Building Word doc: ${input.options?.filename || 'document'}`,
+      generate_spreadsheet: `Building Excel: ${input.options?.filename || 'spreadsheet'}`,
       launch_steam_game: `Launching Steam game: ${input.game_name || ''}`,
       computer_action: `Computer: ${input.action || ''}${input.x ? ` at (${input.x},${input.y})` : ''}${input.text ? ` "${input.text.substring(0,30)}"` : ''}`,
       call_claude: `Calling Claude ${(input.model || 'opus').includes('haiku') ? 'Haiku' : (input.model || '').includes('sonnet') ? 'Sonnet' : 'Opus'}: "${(input.prompt || '').substring(0, 50)}..."`,
@@ -689,6 +793,9 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
         case 'open_app': return await this.toolOpenApp(input.target);
         case 'launch_steam_game': return await this.toolLaunchSteam(input.game_name, input.app_id);
         case 'computer_action': return await this.toolComputerAction(input);
+        case 'generate_presentation': return await this.toolGeneratePptx(input.slides, input.options);
+        case 'generate_document': return await this.toolGenerateDocx(input.content, input.options);
+        case 'generate_spreadsheet': return await this.toolGenerateXlsx(input.sheets, input.options);
         // AI provider calls
         case 'call_claude': return await this.callProvider('claude', input.prompt, input.model || 'claude-opus-4-5-20250514');
         case 'call_claude_code': return await this.toolClaudeCode(input.task, input.project_path, input.flags);
@@ -968,6 +1075,21 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
   async toolOpenApp(target) {
     const r = await window.avis.openApp(target);
     return r.success ? `Opened: ${r.target}` : `Failed to open ${r.target}: ${r.error || 'unknown'}`;
+  },
+
+  async toolGeneratePptx(slides, options) {
+    const r = await window.avis.generatePptx({ slides, options });
+    return r.success ? `PowerPoint created: ${r.path} (${r.slides} slides)` : `Failed: ${r.error}`;
+  },
+
+  async toolGenerateDocx(content, options) {
+    const r = await window.avis.generateDocx({ content, options });
+    return r.success ? `Word document created: ${r.path}` : `Failed: ${r.error}`;
+  },
+
+  async toolGenerateXlsx(sheets, options) {
+    const r = await window.avis.generateXlsx({ sheets, options });
+    return r.success ? `Excel spreadsheet created: ${r.path}` : `Failed: ${r.error}`;
   },
 
 

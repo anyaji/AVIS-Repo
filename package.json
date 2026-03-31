@@ -1,6 +1,6 @@
 {
   "name": "avis",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "AVIS - Avel Intelligence Services: Multi-AI Orchestration Platform",
   "main": "main.js",
   "author": "Avel Productions LLC",
@@ -58,6 +58,7 @@
     "@mendable/firecrawl-js": "^4.18.0",
     "axios": "^1.7.0",
     "dayjs": "^1.11.0",
+    "docx": "^9.6.1",
     "electron-log": "^5.4.3",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.0",
@@ -66,6 +67,7 @@
     "marked": "^15.0.0",
     "openai": "^4.73.0",
     "pdf-parse": "^1.1.1",
+    "pptxgenjs": "^4.0.1",
     "uuid": "^11.0.0",
     "xlsx": "^0.18.5"
   },

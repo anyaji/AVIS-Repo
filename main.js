@@ -777,6 +777,158 @@ ipcMain.handle('copy-image-clipboard', async (_, base64) => {
   }
 });
 
+// ====================================================================
+// Document Generation — PPTX, DOCX, XLSX
+// ====================================================================
+ipcMain.handle('generate-pptx', async (_, { slides, options }) => {
+  try {
+    const PptxGenJS = require('pptxgenjs');
+    const pptx = new PptxGenJS();
+    pptx.author = options?.author || 'AVIS';
+    pptx.title = options?.title || 'Presentation';
+    if (options?.layout) pptx.layout = options.layout;
+
+    for (const slideData of slides) {
+      const slide = pptx.addSlide();
+      if (slideData.background) slide.background = slideData.background;
+
+      for (const el of (slideData.elements || [])) {
+        switch (el.type) {
+          case 'title':
+            slide.addText(el.text, {
+              x: el.x || 0.5, y: el.y || 0.5, w: el.w || '90%',
+              fontSize: el.fontSize || 28, bold: true, color: el.color || 'FFFFFF',
+              fontFace: el.font || 'Arial', align: el.align || 'left'
+            });
+            break;
+          case 'text':
+            slide.addText(el.text, {
+              x: el.x || 0.5, y: el.y || 1.5, w: el.w || '90%', h: el.h,
+              fontSize: el.fontSize || 14, color: el.color || 'CCCCCC',
+              fontFace: el.font || 'Arial', align: el.align || 'left',
+              bullet: el.bullet || false, lineSpacing: el.lineSpacing || 22
+            });
+            break;
+          case 'image':
+            const imgOpts = { x: el.x || 0.5, y: el.y || 1.5, w: el.w || 4, h: el.h || 3 };
+            if (el.data) imgOpts.data = el.data; // base64
+            else if (el.path) imgOpts.path = el.path;
+            slide.addImage(imgOpts);
+            break;
+          case 'table':
+            slide.addTable(el.rows, {
+              x: el.x || 0.5, y: el.y || 1.5, w: el.w || '90%',
+              fontSize: el.fontSize || 11, color: el.color || 'CCCCCC',
+              border: { pt: 0.5, color: '666666' },
+              colW: el.colWidths, autoPage: true
+            });
+            break;
+          case 'shape':
+            slide.addShape(pptx.shapes[el.shape || 'RECTANGLE'], {
+              x: el.x || 0, y: el.y || 0, w: el.w || 10, h: el.h || 0.05,
+              fill: { color: el.fill || '00A8FF' }
+            });
+            break;
+          case 'chart':
+            slide.addChart(pptx.charts[el.chartType || 'BAR'], el.chartData, {
+              x: el.x || 0.5, y: el.y || 1.5, w: el.w || 8, h: el.h || 4,
+              showTitle: !!el.chartTitle, title: el.chartTitle || '',
+              showValue: el.showValues !== false
+            });
+            break;
+        }
+      }
+    }
+
+    const savePath = path.join(app.getPath('desktop'), `${options?.filename || 'AVIS_Presentation'}.pptx`);
+    await pptx.writeFile({ fileName: savePath });
+    return { success: true, path: savePath, slides: slides.length };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('generate-docx', async (_, { content, options }) => {
+  try {
+    const docx = require('docx');
+    const children = [];
+
+    for (const block of content) {
+      switch (block.type) {
+        case 'heading':
+          children.push(new docx.Paragraph({
+            children: [new docx.TextRun({ text: block.text, bold: true, size: (block.level === 1 ? 32 : block.level === 2 ? 26 : 22) * 2, font: block.font || 'Arial' })],
+            heading: block.level === 1 ? docx.HeadingLevel.HEADING_1 : block.level === 2 ? docx.HeadingLevel.HEADING_2 : docx.HeadingLevel.HEADING_3,
+            spacing: { after: 200 }
+          }));
+          break;
+        case 'paragraph':
+          children.push(new docx.Paragraph({
+            children: [new docx.TextRun({ text: block.text, size: (block.fontSize || 12) * 2, font: block.font || 'Arial', bold: block.bold, italics: block.italic, color: block.color })],
+            spacing: { after: 120 }, alignment: block.align === 'center' ? docx.AlignmentType.CENTER : block.align === 'right' ? docx.AlignmentType.RIGHT : docx.AlignmentType.LEFT,
+            bullet: block.bullet ? { level: 0 } : undefined
+          }));
+          break;
+        case 'image':
+          if (block.data) {
+            children.push(new docx.Paragraph({
+              children: [new docx.ImageRun({ data: Buffer.from(block.data, 'base64'), transformation: { width: block.width || 400, height: block.height || 300 }, type: 'png' })],
+              alignment: docx.AlignmentType.CENTER
+            }));
+          }
+          break;
+        case 'table':
+          children.push(new docx.Table({
+            rows: block.rows.map((row, ri) => new docx.TableRow({
+              children: row.map(cell => new docx.TableCell({
+                children: [new docx.Paragraph({ children: [new docx.TextRun({ text: String(cell), bold: ri === 0, size: 22, font: 'Arial' })] })],
+                shading: ri === 0 ? { fill: '003366', color: 'FFFFFF' } : undefined,
+                width: { size: 2000, type: docx.WidthType.DXA }
+              }))
+            })),
+            width: { size: 100, type: docx.WidthType.PERCENTAGE }
+          }));
+          break;
+        case 'pagebreak':
+          children.push(new docx.Paragraph({ children: [], pageBreakBefore: true }));
+          break;
+      }
+    }
+
+    const doc = new docx.Document({
+      creator: options?.author || 'AVIS',
+      title: options?.title || 'Document',
+      sections: [{ children }]
+    });
+
+    const buffer = await docx.Packer.toBuffer(doc);
+    const savePath = path.join(app.getPath('desktop'), `${options?.filename || 'AVIS_Document'}.docx`);
+    fs.writeFileSync(savePath, buffer);
+    return { success: true, path: savePath };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('generate-xlsx', async (_, { sheets, options }) => {
+  try {
+    const XLSX = require('xlsx');
+    const wb = XLSX.utils.book_new();
+
+    for (const sheet of sheets) {
+      const ws = XLSX.utils.aoa_to_sheet(sheet.data);
+      if (sheet.colWidths) ws['!cols'] = sheet.colWidths.map(w => ({ wch: w }));
+      XLSX.utils.book_append_sheet(wb, ws, sheet.name || 'Sheet1');
+    }
+
+    const savePath = path.join(app.getPath('desktop'), `${options?.filename || 'AVIS_Spreadsheet'}.xlsx`);
+    XLSX.writeFile(wb, savePath);
+    return { success: true, path: savePath };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // Dynamic paths — work for ANY user on ANY machine
 ipcMain.handle('get-paths', () => ({
   home: app.getPath('home'),

@@ -1133,6 +1133,71 @@ Assign at least 2 AIs. Be specific about what each should do. Do NOT do the task
     }
     this.terminalLog.push(`[COUNCIL] Synthesis complete — ${elapsed}s`);
     this.updateTerminal();
+
+    // Post to Council workspace tab
+    this.postToCouncilWorkspace(prompt, plan, results, synthesisResult.text, aiNames, elapsed);
+  },
+
+  postToCouncilWorkspace(task, plan, contributions, synthesis, aiNames, elapsed) {
+    const workspace = document.getElementById('council-workspace');
+    if (!workspace) return;
+
+    const timestamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const contributionsHtml = contributions.filter(r => !r.error).map(r =>
+      `<div style="margin:8px 0;padding:8px 10px;background:var(--bg-card);border-radius:6px;border-left:3px solid var(--accent-blue);">
+        <div style="font-size:11px;font-weight:600;color:var(--accent-blue);margin-bottom:4px;">${r.label}</div>
+        <div style="font-size:12px;color:var(--text-secondary);">${this.renderMarkdown(r.text.substring(0, 500))}</div>
+      </div>`
+    ).join('');
+
+    const entryHtml = `
+      <div class="council-entry" style="margin-bottom:16px;padding:12px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:14px;font-weight:700;color:var(--accent-amber);">&#9733; Council Result</span>
+          <span style="font-size:10px;color:var(--text-secondary);">${timestamp} &middot; ${elapsed}s</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;padding:6px 8px;background:var(--bg-primary);border-radius:4px;">
+          <strong>Task:</strong> ${task}<br>
+          <strong>Team:</strong> Claude + ${aiNames.join(' + ')}
+        </div>
+        <details style="margin-bottom:8px;">
+          <summary style="font-size:11px;color:var(--accent-blue);cursor:pointer;user-select:none;">View plan &amp; contributions</summary>
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;padding:6px;background:var(--bg-primary);border-radius:4px;white-space:pre-wrap;">${plan}</div>
+          ${contributionsHtml}
+        </details>
+        <div style="border-top:1px solid var(--border);padding-top:10px;">
+          ${this.renderMarkdown(synthesis)}
+        </div>
+      </div>`;
+
+    workspace.innerHTML = entryHtml + workspace.innerHTML.replace(/Council workspace is empty[\s\S]*?<\/div>\s*<\/div>/, '');
+    this._councilLastResult = synthesis;
+  },
+
+  councilCopyResult() {
+    if (this._councilLastResult) {
+      navigator.clipboard.writeText(this._councilLastResult);
+      this.showToast('Council result copied');
+    }
+  },
+
+  councilExportResult() {
+    const workspace = document.getElementById('council-workspace');
+    if (workspace) {
+      const blob = new Blob([workspace.innerText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'AVIS_Council_Result.txt'; a.click();
+      URL.revokeObjectURL(url);
+    }
+  },
+
+  councilClear() {
+    const workspace = document.getElementById('council-workspace');
+    if (workspace) {
+      workspace.innerHTML = '<div style="color:var(--text-secondary);padding:20px;text-align:center;"><div style="font-size:24px;margin-bottom:8px;">&#9733;</div><div>Council workspace is empty</div><div style="font-size:11px;margin-top:4px;">Use Council Mode in the Direct panel to start a collaborative AI task</div></div>';
+    }
+    this._councilLastResult = null;
   },
 
   directChatCopy() {
