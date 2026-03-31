@@ -395,28 +395,11 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
       return { text: imgResult, provider: 'openai', model: 'DALL-E 3' };
     }
 
-    // Try Claude first (primary orchestrator with tool use)
+    // Claude is primary — simple direct routing like v1.8.1
     const hasClaude = await this.hasProvider('claude');
-    if (hasClaude && this.isProviderAvailable('claude')) {
-      try {
-        // Always use agentic loop — streaming was causing silent failures
-        const result = await this.agenticLoop(userMessage, files);
-        if (result) { this._claudeFailCount = 0; this._activeOrchestrator = 'claude'; return result; }
-      } catch (e) {
-        this._claudeFailCount++;
-        this.emitStep('warn', `Claude failed (${this._claudeFailCount}/3) — trying backup...`, 'warn');
-        if (this._claudeFailCount < 3) {
-          // Retry once before failover
-          try {
-            const retry = await this.agenticLoop(userMessage, files);
-            if (retry) { this._claudeFailCount = 0; return retry; }
-          } catch (e2) {}
-        }
-      }
-    }
+    if (hasClaude) return await this.agenticLoop(userMessage, files);
 
-    // Claude unavailable — failover to next available provider
-    return await this.failoverOrchestrate(userMessage, files);
+    return await this.fallbackRoute(userMessage, files);
   },
 
   // Failover orchestrator — sends to the best available non-Claude provider
