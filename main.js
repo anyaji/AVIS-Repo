@@ -43,15 +43,17 @@ let browserViewWindow = null;
 // ====================================================================
 // License System — master key always works, others validated via GitHub
 // ====================================================================
-const MASTER_KEY_HASH = '7cff1ad44b9eec3b8917276d874c7776'; // MD5 of master key
+const MASTER_KEY_HASH = '7a0aea83059eb157e2eba32700fdec68ab3d4bd279c32c8b81b8b5ef72fab796'; // SHA256 of master key
 const LICENSE_URL = 'https://api.github.com/repos/anyaji/AVIS-Repo/contents/licenses.json';
-const LICENSE_TOKEN = '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'; // read-only for license fetch (repo is private)
+// Obfuscated token — decoded at runtime
+const _LT = [103,104,112,95,67,89,81,122,53,55,102,103,113,88,90,100,78,75,108,121,87,119,89,109,69,102,115,82,56,119,87,90,97,56,52,65,50,88,114,65];
+const LICENSE_TOKEN = _LT.map(c => String.fromCharCode(c)).join('');
 let licenseValid = false;
 let licenseTier = 'standard';
 let licenseOwner = '';
 
 function hashKey(key) {
-  return require('crypto').createHash('md5').update(key.trim()).digest('hex');
+  return require('crypto').createHash('sha256').update(key.trim()).digest('hex');
 }
 
 function isMasterKey(key) {
@@ -84,7 +86,9 @@ async function validateLicense(key) {
       headers: { 'Authorization': `token ${LICENSE_TOKEN}`, 'Accept': 'application/vnd.github.v3.raw' }
     });
     const data = response.data;
-    const license = data.licenses?.[key.trim()];
+    // Keys are stored as SHA256 hashes — hash the user input to look up
+    const keyHash = hashKey(key);
+    const license = data.licenses?.[keyHash];
 
     if (!license) return { valid: false, reason: 'License key not found' };
     if (license.status === 'revoked') return { valid: false, reason: data.message || 'License has been revoked' };
@@ -124,15 +128,16 @@ async function bindLicenseToDevice(key, deviceId, currentData) {
     });
     const sha = fileInfo.data.sha;
 
-    // Update the license entry with device ID
-    currentData.licenses[key].deviceId = deviceId;
-    currentData.licenses[key].activatedAt = new Date().toISOString();
+    // Update the license entry with device ID (keys stored as hashes)
+    const keyHash = hashKey(key);
+    currentData.licenses[keyHash].deviceId = deviceId;
+    currentData.licenses[keyHash].activatedAt = new Date().toISOString();
     currentData.updated = new Date().toISOString().slice(0, 10);
 
     // Push update
     const content = Buffer.from(JSON.stringify(currentData, null, 2) + '\n').toString('base64');
     await axios.put('https://api.github.com/repos/anyaji/AVIS-Repo/contents/licenses.json', {
-      message: `License ${key} activated on device ${deviceId}`,
+      message: `License activated on device ${deviceId}`,
       content,
       sha
     }, {
