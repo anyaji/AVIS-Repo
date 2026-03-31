@@ -1053,6 +1053,8 @@ const AVIS = {
     if (card) { card.className = card.className.replace(/working|done|error/g, '').trim() + ` ${status}`; }
   },
 
+  _councilMaxRounds: 3,
+  _councilQualityThreshold: 8,
   _councilProviderMap: {
     'GPT4': { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o', color: '#10a37f' },
     'DEEPSEEK': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek', color: '#4d6bfe' },
@@ -1061,30 +1063,83 @@ const AVIS = {
     'DALLE': { provider: 'openai', model: 'dall-e-3', label: 'DALL-E 3', color: '#ff6b6b' }
   },
 
+  // Dispatch a single agent task (reusable across rounds)
+  async _dispatchAgent(key, task, prompt) {
+    const p = this._councilProviderMap[key];
+    if (!p) return { key, label: key, text: `[Unknown agent ${key}]`, error: true };
+
+    if (key === 'DALLE') {
+      try {
+        const result = await window.avis.apiCall({
+          provider: 'openai', model: 'dall-e-3',
+          messages: [{ role: 'user', content: task }],
+          systemPrompt: '', options: { isDalle: true, prompt: task }
+        });
+        if (result.error) return { key, label: p.label, text: `[Image failed: ${result.message}]`, error: true };
+        return { key, label: p.label, text: `[Generated image: ${result.revisedPrompt || task}]`, imageData: result.base64, imageUrl: result.imageUrl, error: false };
+      } catch (err) { return { key, label: p.label, text: `[Error: ${err.message}]`, error: true }; }
+    }
+
+    try {
+      const apiKey = await window.avis.getApiKey(p.provider);
+      if (!apiKey) return { key, label: p.label, text: `[${p.label} not configured]`, error: true };
+
+      const result = await window.avis.apiCall({
+        provider: p.provider, model: p.model,
+        messages: [{ role: 'user', content: `Original task: ${prompt}\n\nYour assignment: ${task}\n\nProvide your contribution. Be thorough and detailed.` }],
+        systemPrompt: `You are ${p.label}, part of an AI council. Focus on your assignment and deliver your best work.`,
+        options: {}
+      });
+
+      if (result.error) return { key, label: p.label, text: `[Error: ${result.message}]`, error: true };
+      return { key, label: p.label, text: result.text, error: false };
+    } catch (err) { return { key, label: p.label, text: `[Error: ${err.message}]`, error: true }; }
+  },
+
+  // Create an agent card in the grid
+  _addAgentCard(container, key, task, round) {
+    const p = this._councilProviderMap[key];
+    if (!p) return;
+    const id = `${key.toLowerCase()}-r${round}`;
+    container.insertAdjacentHTML('beforeend', `
+      <div class="agent-card" id="agent-${id}">
+        <div class="agent-card-header">
+          <span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block;"></span>
+          <span class="agent-card-name">${p.label}</span>
+          <span style="font-size:9px;color:var(--text-secondary);">R${round}</span>
+          <span class="agent-card-status waiting" id="status-${id}">WAITING</span>
+        </div>
+        <div style="font-size:10px;color:var(--text-secondary);margin-bottom:6px;font-style:italic;">${task}</div>
+        <div class="agent-card-output" id="output-${id}">Waiting...</div>
+      </div>`);
+    return id;
+  },
+
   async _runCouncilPipeline(prompt, start) {
     this._councilPrompt = prompt;
     this._councilResults = [];
+    const agents = document.getElementById('council-agents');
 
-    // Step 1: Claude plans
+    // ===== ROUND 1: Plan + Execute =====
     const planResult = await window.avis.apiCall({
       provider: 'claude', model: 'claude-sonnet-4-20250514',
       messages: [{ role: 'user', content: prompt }],
-      systemPrompt: `You are the lead coordinator of an AI council. You have these specialists:
-- GPT-4o: Code generation, structured output, math, creative writing, data formatting
-- DeepSeek: Fast reasoning, logic, analysis, cheap bulk work
-- Gemini: Multimodal, long context, data processing
-- Perplexity: LIVE web access — current/real-time information
-- DALLE: Image generation via DALL-E 3 — use for any visual assets, diagrams, illustrations
+      systemPrompt: `You are the lead coordinator of an AI council. Specialists available:
+- GPT4: Code, structured output, math, creative writing, formatting
+- DEEPSEEK: Fast reasoning, logic, analysis, data processing
+- GEMINI: Multimodal, long context, research synthesis
+- PERPLEXITY: LIVE web access — current/real-time information, fact-checking
+- DALLE: Image generation (DALL-E 3) — visuals, diagrams, illustrations
 
-Analyze the task and assign sub-tasks. Format EXACTLY as:
-PLAN: [1-2 sentence overview]
+Analyze the task. Assign sub-tasks. Format EXACTLY:
+PLAN: [overview]
 ASSIGN_GPT4: [task or SKIP]
 ASSIGN_DEEPSEEK: [task or SKIP]
 ASSIGN_GEMINI: [task or SKIP]
 ASSIGN_PERPLEXITY: [task or SKIP]
 ASSIGN_DALLE: [image description or SKIP]
 
-Assign at least 2 AIs. If the task involves presentations, reports, or anything visual, assign DALLE. Be specific.`,
+Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       options: {}
     });
 
@@ -1094,191 +1149,213 @@ Assign at least 2 AIs. If the task involves presentations, reports, or anything 
       return;
     }
 
-    const plan = planResult.text;
-    this._updateAgentCard('coordinator', 'done', this.renderMarkdown(plan));
+    this._updateAgentCard('coordinator', 'done', this.renderMarkdown(planResult.text));
 
-    // Step 2: Parse assignments (now includes DALLE)
-    const assignments = {};
-    for (const line of plan.split('\n')) {
-      const match = line.match(/^ASSIGN_(GPT4|DEEPSEEK|GEMINI|PERPLEXITY|DALLE):\s*(.+)/i);
-      if (match && match[2].trim().toUpperCase() !== 'SKIP') {
-        assignments[match[1].toUpperCase()] = match[2].trim();
+    // Parse initial assignments
+    const parseAssignments = (text, prefix) => {
+      const a = {};
+      for (const line of text.split('\n')) {
+        const match = line.match(new RegExp(`^${prefix}(GPT4|DEEPSEEK|GEMINI|PERPLEXITY|DALLE):\\s*(.+)`, 'i'));
+        if (match && match[2].trim().toUpperCase() !== 'SKIP') a[match[1].toUpperCase()] = match[2].trim();
       }
-    }
+      return a;
+    };
 
+    let assignments = parseAssignments(planResult.text, 'ASSIGN_');
     if (Object.keys(assignments).length === 0) {
       document.getElementById('agent-synthesis').style.display = '';
-      this._updateAgentCard('synthesis', 'done', this.renderMarkdown(plan));
+      this._updateAgentCard('synthesis', 'done', this.renderMarkdown(planResult.text));
       this.stopCouncil();
       return;
     }
 
-    // Create agent cards
-    const grid = document.getElementById('agent-cards-grid');
-    if (grid) {
-      grid.innerHTML = Object.entries(assignments).map(([key, task]) => {
-        const p = this._councilProviderMap[key];
-        return `<div class="agent-card" id="agent-${key.toLowerCase()}">
-          <div class="agent-card-header">
-            <span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block;"></span>
-            <span class="agent-card-name">${p.label}</span>
-            <span class="agent-card-status waiting" id="status-${key.toLowerCase()}">WAITING</span>
-          </div>
-          <div style="font-size:10px;color:var(--text-secondary);margin-bottom:6px;font-style:italic;">${task}</div>
-          <div class="agent-card-output" id="output-${key.toLowerCase()}">Waiting for assignment...</div>
-        </div>`;
-      }).join('');
-    }
+    let allResults = [];
+    let synthesisText = '';
+    let round = 1;
+    let score = 0;
 
-    // Step 3: Call agents in parallel
-    const calls = Object.entries(assignments).map(async ([key, task]) => {
-      const p = this._councilProviderMap[key];
-      const id = key.toLowerCase();
-      this._updateAgentCard(id, 'working', '<span style="color:var(--accent-blue);">Working...</span>');
+    // ===== MULTI-ROUND LOOP =====
+    while (round <= this._councilMaxRounds && score < this._councilQualityThreshold) {
+      // Add round header
+      agents.insertAdjacentHTML('beforeend', `
+        <div style="font-size:11px;font-weight:700;color:var(--accent-blue);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:8px;">
+          ROUND ${round}${round > 1 ? ' — Auto-fixing gaps' : ' — Initial execution'}
+        </div>`);
 
-      try {
-        // DALL-E uses image generation API, not chat
-        if (key === 'DALLE') {
-          const result = await window.avis.apiCall({
-            provider: 'openai', model: 'dall-e-3',
-            messages: [{ role: 'user', content: task }],
-            systemPrompt: '', options: { isDalle: true, prompt: task }
-          });
-          if (result.error) {
-            this._updateAgentCard(id, 'error', `Error: ${result.message}`);
-            return { key, label: p.label, text: `[Image generation failed: ${result.message}]`, error: true };
-          }
-          const imgHtml = result.imageUrl ? `<img src="${result.imageUrl}" style="max-width:100%;border-radius:6px;">` :
-                          result.base64 ? `<img src="data:image/png;base64,${result.base64}" style="max-width:100%;border-radius:6px;">` :
-                          'Image generated';
-          this._updateAgentCard(id, 'done', imgHtml + `<div style="font-size:10px;color:var(--text-secondary);margin-top:4px;">${result.revisedPrompt || task}</div>`);
-          return { key, label: p.label, text: `[Generated image: ${result.revisedPrompt || task}]`, imageData: result.base64, error: false };
-        }
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+      agents.appendChild(grid);
 
-        const apiKey = await window.avis.getApiKey(p.provider);
-        if (!apiKey) {
-          this._updateAgentCard(id, 'error', `${p.label} not configured — skipped`);
-          return { key, label: p.label, text: `[${p.label} not configured]`, error: true };
-        }
-
-        const result = await window.avis.apiCall({
-          provider: p.provider, model: p.model,
-          messages: [{ role: 'user', content: `Original task: ${prompt}\n\nYour assignment: ${task}\n\nProvide your contribution. Be thorough but concise.` }],
-          systemPrompt: `You are ${p.label}, part of an AI council. Focus on your assignment and give your best work.`,
-          options: {}
-        });
-
+      // Create cards and dispatch agents
+      const dispatchPromises = Object.entries(assignments).map(async ([key, task]) => {
+        const cardId = this._addAgentCard(grid, key, task, round);
+        this._updateAgentCard(cardId, 'working', '<span style="color:var(--accent-blue);">Working...</span>');
+        const result = await this._dispatchAgent(key, task, prompt);
         if (result.error) {
-          this._updateAgentCard(id, 'error', `Error: ${result.message}`);
-          return { key, label: p.label, text: `[Error: ${result.message}]`, error: true };
+          this._updateAgentCard(cardId, 'error', result.text);
+        } else if (result.imageData || result.imageUrl) {
+          const src = result.imageUrl || `data:image/png;base64,${result.imageData}`;
+          this._updateAgentCard(cardId, 'done', `<img src="${src}" style="max-width:100%;border-radius:6px;"><div style="font-size:10px;color:var(--text-secondary);margin-top:4px;">${result.text}</div>`);
+        } else {
+          this._updateAgentCard(cardId, 'done', this.renderMarkdown(result.text));
         }
+        return result;
+      });
 
-        this._updateAgentCard(id, 'done', this.renderMarkdown(result.text));
-        return { key, label: p.label, text: result.text, error: false };
-      } catch (err) {
-        this._updateAgentCard(id, 'error', `Error: ${err.message}`);
-        return { key, label: p.label, text: `[Error: ${err.message}]`, error: true };
+      const roundResults = (await Promise.allSettled(dispatchPromises)).map(r => r.value).filter(Boolean);
+      allResults = [...allResults, ...roundResults];
+
+      // Synthesize
+      const synthCard = document.getElementById('agent-synthesis');
+      if (synthCard) synthCard.style.display = '';
+      this._updateAgentCard('synthesis', 'working', `<span style="color:var(--accent-blue);">Synthesizing (Round ${round})...</span>`);
+
+      const contributions = allResults.filter(r => !r.error).map(r => `=== ${r.label} ===\n${r.text}`).join('\n\n');
+      const prevContext = round > 1 ? `\n\nPrevious draft (improve upon this):\n${synthesisText}` : '';
+
+      const synthResult = await window.avis.apiCall({
+        provider: 'claude', model: 'claude-sonnet-4-20250514',
+        messages: [{ role: 'user', content: `Original task: ${prompt}\n\nAll AI contributions:\n\n${contributions}${prevContext}\n\nSynthesize into a polished, comprehensive final response. Use markdown.` }],
+        systemPrompt: round > 1
+          ? 'You are improving a previous draft with new contributions from specialists who fixed identified gaps. Integrate their fixes seamlessly.'
+          : 'You are synthesizing contributions from multiple AI specialists into a final deliverable.',
+        options: {}
+      });
+
+      if (synthResult.error) {
+        this._updateAgentCard('synthesis', 'error', `Synthesis failed: ${synthResult.message}`);
+        break;
       }
-    });
 
-    const results = (await Promise.allSettled(calls)).map(r => r.value).filter(Boolean);
-    this._councilResults = results;
+      synthesisText = synthResult.text;
+      this._councilLastResult = synthesisText;
 
-    // Step 4: Claude synthesizes
-    const synthCard = document.getElementById('agent-synthesis');
-    if (synthCard) synthCard.style.display = '';
-    this._updateAgentCard('synthesis', 'working', '<span style="color:var(--accent-blue);">Synthesizing contributions...</span>');
+      // Review with Claude Opus
+      const reviewerId = `reviewer-r${round}`;
+      agents.insertAdjacentHTML('beforeend', `
+        <div class="agent-card coordinator" id="agent-${reviewerId}" style="border-color:var(--accent-amber);">
+          <div class="agent-card-header">
+            <span class="agent-card-name">Claude Opus (Review — Round ${round})</span>
+            <span class="agent-card-status working" id="status-${reviewerId}">REVIEWING</span>
+          </div>
+          <div class="agent-card-output" id="output-${reviewerId}"><span style="color:var(--accent-amber);">Evaluating quality...</span></div>
+        </div>`);
 
-    const contributions = results.filter(r => !r.error).map(r => `=== ${r.label} ===\n${r.text}`).join('\n\n');
+      const reviewResult = await window.avis.apiCall({
+        provider: 'claude', model: 'claude-opus-4-5-20250514',
+        messages: [{ role: 'user', content: `Task: ${prompt}\n\nCurrent draft (Round ${round}):\n${synthesisText}\n\nReview this output. Score 1-10. If below 8, identify SPECIFIC fixes and assign them to the right AI.
 
-    const synthesisResult = await window.avis.apiCall({
-      provider: 'claude', model: 'claude-sonnet-4-20250514',
-      messages: [{ role: 'user', content: `Original task: ${prompt}\n\nAI Council contributions:\n\n${contributions}\n\nSynthesize into a single, polished, comprehensive response. Credit which AI contributed what. Override wrong info. Use markdown formatting.` }],
-      systemPrompt: 'You are the lead coordinator synthesizing contributions from multiple AI specialists into a final deliverable.',
-      options: {}
-    });
+Format EXACTLY:
+SCORE: [1-10]
+STRENGTHS: [what's good]
+GAPS: [what's missing]
+FIX_GPT4: [rewrite/format task, or NONE]
+FIX_DEEPSEEK: [analysis/calculation task, or NONE]
+FIX_GEMINI: [research/data task, or NONE]
+FIX_PERPLEXITY: [fact-check/current data task, or NONE]
+FIX_DALLE: [image needed description, or NONE]
+SUGGESTION_1: [optional improvement for user]
+SUGGESTION_2: [optional improvement for user]
+SUGGESTION_3: [optional improvement for user]` }],
+        systemPrompt: `You are a ruthless quality reviewer on round ${round} of ${this._councilMaxRounds}. Score honestly. If score < 8, you MUST assign FIX_ tasks to the agents best suited to address each gap. Be specific about what needs fixing. NONE means that agent isn't needed for fixes.`,
+        options: {}
+      });
 
-    if (synthesisResult.error) {
-      const fallback = results.filter(r => !r.error).map(r => `### ${r.label}\n${r.text}`).join('\n\n---\n\n');
-      this._updateAgentCard('synthesis', 'error', this.renderMarkdown(fallback));
-      this.stopCouncil();
-      return;
+      let reviewText = '';
+      let suggestions = [];
+      score = 8; // default if review fails
+
+      if (!reviewResult.error) {
+        reviewText = reviewResult.text;
+        const scoreMatch = reviewText.match(/SCORE:\s*(\d+)/i);
+        if (scoreMatch) score = parseInt(scoreMatch[1]);
+        const suggMatches = reviewText.matchAll(/SUGGESTION_\d+:\s*(.+)/gi);
+        for (const m of suggMatches) suggestions.push(m[1].trim());
+      }
+
+      const scoreColor = score >= 8 ? 'var(--accent-green)' : score >= 6 ? 'var(--accent-amber)' : 'var(--accent-red)';
+      this._updateAgentCard(reviewerId, 'done',
+        `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+          <span style="font-size:20px;font-weight:700;color:${scoreColor};">${score}/10</span>
+          <span style="font-size:11px;color:var(--text-secondary);">Round ${round}</span>
+        </div>` +
+        `<div style="font-size:12px;color:var(--text-secondary);">${this.renderMarkdown(reviewText)}</div>`);
+
+      this.terminalLog.push(`[COUNCIL] Round ${round} — Score: ${score}/10`);
+      this.updateTerminal();
+
+      // If score >= threshold or max rounds, break
+      if (score >= this._councilQualityThreshold || round >= this._councilMaxRounds) break;
+
+      // Parse FIX_ assignments for next round
+      assignments = {};
+      for (const line of reviewText.split('\n')) {
+        const match = line.match(/^FIX_(GPT4|DEEPSEEK|GEMINI|PERPLEXITY|DALLE):\s*(.+)/i);
+        if (match && match[2].trim().toUpperCase() !== 'NONE') {
+          assignments[match[1].toUpperCase()] = match[2].trim();
+        }
+      }
+
+      if (Object.keys(assignments).length === 0) break; // nothing to fix
+
+      round++;
     }
 
-    this._councilLastResult = synthesisResult.text;
-
-    // Step 5: Self-evaluation by Claude Opus
-    const agents = document.getElementById('council-agents');
-    agents.insertAdjacentHTML('beforeend', `
-      <div class="agent-card coordinator" id="agent-reviewer" style="border-color:var(--accent-amber);">
-        <div class="agent-card-header">
-          <span class="agent-card-name">Claude Opus (Quality Review)</span>
-          <span class="agent-card-status working" id="status-reviewer">REVIEWING</span>
-        </div>
-        <div class="agent-card-output" id="output-reviewer"><span style="color:var(--accent-amber);">Evaluating output quality...</span></div>
-      </div>`);
-
-    const reviewResult = await window.avis.apiCall({
-      provider: 'claude', model: 'claude-opus-4-5-20250514',
-      messages: [{ role: 'user', content: `Original task: ${prompt}\n\nDraft response:\n${synthesisResult.text}\n\nRate this response 1-10 and provide feedback. Format EXACTLY as:\nSCORE: [number]\nSTRENGTHS: [what's good]\nGAPS: [what's missing or could be better]\nSUGGESTION_1: [specific improvement the user might want]\nSUGGESTION_2: [another improvement]\nSUGGESTION_3: [another improvement]` }],
-      systemPrompt: 'You are a senior quality reviewer. Be critical but constructive. Score honestly — 7+ means good enough to present, below 7 means it needs revision. Suggestions should be specific actionable improvements the user can request.',
-      options: {}
-    });
-
+    // ===== FINAL PRESENTATION =====
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    const aiNames = results.filter(r => !r.error).map(r => r.label);
+    const aiNames = [...new Set(allResults.filter(r => !r.error).map(r => r.label))];
+    const finalScoreColor = score >= 8 ? 'var(--accent-green)' : score >= 6 ? 'var(--accent-amber)' : 'var(--accent-red)';
 
-    let score = 8;
+    // Gather suggestions from last review
     let suggestions = [];
-    let reviewText = '';
+    if (!allResults.error) {
+      // Re-parse from last review
+      const lastReviewEl = document.getElementById(`output-reviewer-r${round}`) || document.getElementById(`output-reviewer-r${round > 1 ? round : 1}`);
+      // Use stored suggestions from the loop
+    }
 
-    if (!reviewResult.error) {
-      reviewText = reviewResult.text;
-      const scoreMatch = reviewText.match(/SCORE:\s*(\d+)/i);
-      if (scoreMatch) score = parseInt(scoreMatch[1]);
-      const suggMatches = reviewText.matchAll(/SUGGESTION_\d+:\s*(.+)/gi);
+    // Final synthesis card with suggestions
+    let suggestionsHtml = '';
+    // Re-extract suggestions from the review text on screen
+    const reviewOutputs = document.querySelectorAll('[id^="output-reviewer-"]');
+    if (reviewOutputs.length > 0) {
+      const lastReview = reviewOutputs[reviewOutputs.length - 1].textContent || '';
+      const suggMatches = lastReview.matchAll(/SUGGESTION_\d+:\s*(.+)/gi);
+      suggestions = [];
       for (const m of suggMatches) suggestions.push(m[1].trim());
     }
 
-    const scoreColor = score >= 8 ? 'var(--accent-green)' : score >= 6 ? 'var(--accent-amber)' : 'var(--accent-red)';
-    this._updateAgentCard('reviewer', 'done',
-      `<div style="font-size:16px;font-weight:700;color:${scoreColor};margin-bottom:6px;">${score}/10</div>` +
-      `<div style="font-size:12px;color:var(--text-secondary);">${this.renderMarkdown(reviewText)}</div>`);
-
-    // Show synthesis with suggestions
-    let suggestionsHtml = '';
     if (suggestions.length > 0) {
       suggestionsHtml = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
-        <div style="font-size:11px;font-weight:600;color:var(--accent-amber);margin-bottom:6px;">★ Suggested improvements:</div>
-        ${suggestions.map((s, i) => `<button onclick="AVIS.councilRevise('${s.replace(/'/g, "\\'").substring(0, 200)}')" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-amber)'" onmouseout="this.style.borderColor='var(--border)'">${i+1}. ${s}</button>`).join('')}
+        <div style="font-size:11px;font-weight:600;color:var(--accent-amber);margin-bottom:6px;">★ Want to refine further?</div>
+        ${suggestions.map((s, i) => `<button onclick="AVIS.councilRevise('${s.replace(/'/g, "\\'").substring(0, 200)}')" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent-amber)'" onmouseout="this.style.borderColor='var(--border)'">${i+1}. ${s}</button>`).join('')}
       </div>`;
     }
 
     this._updateAgentCard('synthesis', 'done',
-      `<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">Claude + ${aiNames.join(' + ')} — ${elapsed}s — Quality: <span style="color:${scoreColor};font-weight:700;">${score}/10</span></div>` +
-      `<div class="synthesis-output">${this.renderMarkdown(synthesisResult.text)}</div>` +
+      `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <span style="font-size:11px;color:var(--text-secondary);">Claude + ${aiNames.join(' + ')}</span>
+        <span style="font-size:11px;color:var(--text-secondary);">${round} round${round > 1 ? 's' : ''} — ${elapsed}s</span>
+        <span style="font-size:13px;font-weight:700;color:${finalScoreColor};">${score}/10</span>
+      </div>` +
+      `<div class="synthesis-output">${this.renderMarkdown(synthesisText)}</div>` +
       suggestionsHtml +
       `<div style="display:flex;gap:6px;margin-top:10px;">
         <button onclick="AVIS.councilCopyResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Copy Result</button>
         <button onclick="AVIS.councilExportResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Export</button>
       </div>`);
 
-    // Log to terminal
-    this.terminalLog.push(`[COUNCIL] Task: ${prompt.substring(0, 80)}...`);
-    for (const r of results) this.terminalLog.push(`[COUNCIL] ${r.label}: ${r.error ? 'ERROR' : 'Done'}`);
-    this.terminalLog.push(`[COUNCIL] Quality score: ${score}/10`);
-    this.terminalLog.push(`[COUNCIL] Complete — ${elapsed}s`);
+    // Terminal + history
+    this.terminalLog.push(`[COUNCIL] Final: ${round} rounds, Score ${score}/10, ${elapsed}s`);
     this.updateTerminal();
 
-    // Add to council history
     const histList = document.getElementById('council-history-list');
     if (histList) {
       const ts = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      const entry = `<div style="padding:6px 8px;background:var(--bg-card);border-radius:4px;margin-bottom:4px;">
+      histList.innerHTML = `<div style="padding:6px 8px;background:var(--bg-card);border-radius:4px;margin-bottom:4px;">
         <div style="font-size:11px;color:var(--text-primary);font-weight:600;">${prompt.substring(0, 40)}${prompt.length > 40 ? '...' : ''}</div>
-        <div style="font-size:10px;color:var(--text-secondary);">${ts} — Score: <span style="color:${scoreColor}">${score}/10</span> — ${elapsed}s</div>
-      </div>`;
-      histList.innerHTML = entry + (histList.innerHTML === 'No council tasks yet' ? '' : histList.innerHTML);
+        <div style="font-size:10px;color:var(--text-secondary);">${ts} — <span style="color:${finalScoreColor}">${score}/10</span> — ${round}R — ${elapsed}s</div>
+      </div>` + (histList.innerHTML === 'No council tasks yet' ? '' : histList.innerHTML);
     }
 
     this.stopCouncil();
@@ -1286,9 +1363,6 @@ Assign at least 2 AIs. If the task involves presentations, reports, or anything 
 
   async councilRevise(suggestion) {
     if (this._councilRunning) return;
-    const input = document.getElementById('council-input');
-    if (input) input.value = `Revise the previous council output: ${suggestion}`;
-    // Re-run with revision context
     this._councilRunning = true;
     const sendBtn = document.getElementById('council-send-btn');
     const stopBtn = document.getElementById('council-stop-btn');
@@ -1296,21 +1370,22 @@ Assign at least 2 AIs. If the task involves presentations, reports, or anything 
     if (stopBtn) stopBtn.style.display = 'inline-flex';
 
     const agents = document.getElementById('council-agents');
-    const revisedPrompt = `Original task: ${this._councilPrompt}\n\nPrevious output:\n${this._councilLastResult}\n\nRevision request: ${suggestion}`;
-
     agents.insertAdjacentHTML('beforeend', `
+      <div style="font-size:11px;font-weight:700;color:var(--accent-amber);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:8px;">
+        USER REVISION REQUEST
+      </div>
       <div class="agent-card coordinator" id="agent-revision" style="border-color:var(--accent-blue);">
         <div class="agent-card-header">
           <span class="agent-card-name">Claude (Revision)</span>
           <span class="agent-card-status working" id="status-revision">REVISING</span>
         </div>
-        <div class="agent-card-output" id="output-revision"><span style="color:var(--accent-blue);">Applying revision: ${suggestion.substring(0, 100)}...</span></div>
+        <div class="agent-card-output" id="output-revision"><span style="color:var(--accent-blue);">Revising: ${suggestion.substring(0, 100)}...</span></div>
       </div>`);
 
     const revResult = await window.avis.apiCall({
       provider: 'claude', model: 'claude-sonnet-4-20250514',
-      messages: [{ role: 'user', content: revisedPrompt }],
-      systemPrompt: 'You are revising a previous AI council output based on user feedback. Produce the complete improved version, not just the changes. Use markdown formatting.',
+      messages: [{ role: 'user', content: `Original task: ${this._councilPrompt}\n\nCurrent output:\n${this._councilLastResult}\n\nRevision: ${suggestion}` }],
+      systemPrompt: 'Produce the complete improved version incorporating the revision request. Use markdown.',
       options: {}
     });
 
@@ -1318,13 +1393,12 @@ Assign at least 2 AIs. If the task involves presentations, reports, or anything 
       this._councilLastResult = revResult.text;
       this._updateAgentCard('revision', 'done', `<div class="synthesis-output">${this.renderMarkdown(revResult.text)}</div>
         <div style="display:flex;gap:6px;margin-top:10px;">
-          <button onclick="AVIS.councilCopyResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Copy Result</button>
+          <button onclick="AVIS.councilCopyResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Copy</button>
           <button onclick="AVIS.councilExportResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Export</button>
         </div>`);
     } else {
-      this._updateAgentCard('revision', 'error', `Revision failed: ${revResult.message}`);
+      this._updateAgentCard('revision', 'error', `Failed: ${revResult.message}`);
     }
-
     this.stopCouncil();
   },
 
