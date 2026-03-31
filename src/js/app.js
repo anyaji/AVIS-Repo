@@ -555,10 +555,10 @@ const AVIS = {
 
   manualUpdateCheck() {
     const btn = document.getElementById('btn-check-update');
-    if (btn) btn.textContent = '\u21BB Checking...';
+    if (btn) { btn.textContent = '\u21BB Checking...'; btn.disabled = true; }
     window.avis.checkForUpdates();
-    // Reset button text after 5s
-    setTimeout(() => { if (btn) btn.textContent = '\u21BB Check for Updates'; }, 5000);
+    // Reset button after 8s (update-status handler will show result in the update bar)
+    setTimeout(() => { if (btn) { btn.textContent = '\u21BB Check for Updates'; btn.disabled = false; } }, 8000);
   },
 
   showToast(message) {

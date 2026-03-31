@@ -343,7 +343,13 @@ ipcMain.on('install-update', () => {
 
 // Allow renderer to manually check for updates
 ipcMain.on('check-for-updates', () => {
-  autoUpdater.checkForUpdates().catch(() => {});
+  if (!app.isPackaged) {
+    sendUpdateStatus('current', `AVIS v${app.getVersion()} is up to date (dev mode)`);
+    return;
+  }
+  autoUpdater.checkForUpdates().catch((err) => {
+    sendUpdateStatus('error', `Update check failed: ${err.message || 'unknown error'}`);
+  });
 });
 
 // ====================================================================
