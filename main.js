@@ -691,16 +691,28 @@ ipcMain.handle('copy-image-clipboard', async (_, base64) => {
   }
 });
 
-// Dynamic paths — work for ANY user on ANY machine
+// Dynamic paths — work for ANY user on ANY machine, OneDrive-aware
+function getRealDesktop() {
+  // Check OneDrive redirect first (common on Windows 10/11)
+  const oneDrive = path.join(os.homedir(), 'OneDrive', 'Desktop');
+  if (fs.existsSync(oneDrive)) return oneDrive;
+  // Then try Electron's detection
+  try { return app.getPath('desktop'); } catch (e) {}
+  // Fallback
+  return path.join(os.homedir(), 'Desktop');
+}
+
 ipcMain.handle('get-paths', () => ({
   home: app.getPath('home'),
-  desktop: app.getPath('desktop'),
+  desktop: getRealDesktop(),
   documents: app.getPath('documents'),
   downloads: app.getPath('downloads'),
   appData: app.getPath('userData'),
   temp: app.getPath('temp'),
   avisSource: __dirname
 }));
+
+ipcMain.handle('open-folder', (_, folderPath) => { shell.openPath(folderPath); });
 
 // Expose AVIS install path so Claude knows where its own source files are
 ipcMain.handle('get-avis-path', () => __dirname);

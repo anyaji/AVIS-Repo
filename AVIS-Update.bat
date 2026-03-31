@@ -12,7 +12,7 @@ echo.
 :: Kill AVIS if running
 taskkill /F /IM "AVIS - Avel Intelligence Services.exe" >nul 2>&1
 
-:: Download latest release using PowerShell
+:: Download latest release using PowerShell — uses %USERPROFILE%\Desktop (reliable on all PCs)
 powershell -ExecutionPolicy Bypass -Command ^
   "$ProgressPreference = 'Continue'; " ^
   "try { " ^
@@ -22,7 +22,10 @@ powershell -ExecutionPolicy Bypass -Command ^
   "  $asset = $release.assets | Where-Object { $_.name -like '*.exe' -and $_.name -notlike '*blockmap*' } | Select-Object -First 1; " ^
   "  if (-not $asset) { Write-Host '  No installer found.'; exit 1 }; " ^
   "  $url = $asset.browser_download_url; " ^
-  "  $dest = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AVIS-Setup.exe'; " ^
+  "  $desk = $env:USERPROFILE + '\Desktop'; " ^
+  "  if (Test-Path ($env:USERPROFILE + '\OneDrive\Desktop')) { $desk = $env:USERPROFILE + '\OneDrive\Desktop' }; " ^
+  "  $dest = $desk + '\AVIS-Setup.exe'; " ^
+  "  Write-Host '  Saving to:' $dest; " ^
   "  Write-Host '  Downloading...' $asset.name; " ^
   "  Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing; " ^
   "  Write-Host '  Download complete. Installing...'; " ^

@@ -10,7 +10,9 @@ const os = require('os');
 
 const REPO = 'anyaji/AVIS-Repo';
 const RELEASE_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
-const DESKTOP = path.join(os.homedir(), 'Desktop');
+// OneDrive-aware desktop detection
+const oneDriveDesktop = path.join(os.homedir(), 'OneDrive', 'Desktop');
+const DESKTOP = fs.existsSync(oneDriveDesktop) ? oneDriveDesktop : path.join(os.homedir(), 'Desktop');
 
 console.log('');
 console.log('  ================================');
