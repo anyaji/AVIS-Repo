@@ -620,11 +620,6 @@ const AVIS = {
         this.addContinueCard(result.pauseInfo);
       } else if (result.error && result.friendlyError) {
         this.addErrorCard(result.text, result.provider);
-      } else if (result.streamed) {
-        this.finalizeStreamBubble(result.provider, result.model);
-      } else if (result.failover) {
-        // Show failover notice then the response
-        this.addMessageToChat('ai', `\u26A0\uFE0F *Claude unavailable — response from ${result.activeOrchestrator}:*\n\n${result.text}`, result.provider, result.model);
       } else if (result.text) {
         this.addMessageToChat('ai', result.text, result.provider, result.model);
       } else if (!result.image && !result.error && !result.paused) {
