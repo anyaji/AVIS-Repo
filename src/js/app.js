@@ -1491,6 +1491,7 @@ const AVIS = {
     document.getElementById(`dev-${tab}`)?.classList.add('active');
 
     if (tab === 'editor') this.loadDevFileTree();
+    if (tab === 'licenses') this.loadLicensePanel();
   },
 
   async loadDevFileTree() {
@@ -1535,6 +1536,59 @@ const AVIS = {
       }
     } catch (e) {
       alert('Save failed: ' + e.message);
+    }
+  },
+
+  // ====================================================================
+  // License Management Panel (Master key only)
+  // ====================================================================
+  async loadLicensePanel() {
+    const list = document.getElementById('license-mgmt-list');
+    if (!list) return;
+    list.innerHTML = '<div style="color:var(--text-secondary);">Loading licenses...</div>';
+
+    const result = await window.avis.listAllLicenses();
+    if (result.error) {
+      list.innerHTML = `<div style="color:var(--accent-red);">${result.error}</div>`;
+      return;
+    }
+
+    const licenses = result.data.licenses || {};
+    const entries = Object.entries(licenses);
+    list.innerHTML = entries.map(([hash, lic]) => {
+      const isActive = lic.status === 'active';
+      const isMaster = lic.tier === 'master';
+      const tierBadge = lic.tier === 'master' ? '&#9733; MASTER' : lic.tier === 'tester' ? '&#9881; TESTER' : '&#9679; STANDARD';
+      const tierColor = lic.tier === 'master' ? 'var(--accent-amber)' : lic.tier === 'tester' ? 'var(--accent-blue)' : 'var(--text-secondary)';
+      const statusColor = isActive ? 'var(--accent-green)' : 'var(--accent-red)';
+      const deviceInfo = lic.deviceId ? `Device: ${lic.deviceId.substring(0, 8)}...` : 'Not activated';
+      const activatedAt = lic.activatedAt ? new Date(lic.activatedAt).toLocaleDateString() : '';
+
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-card);border-radius:6px;margin-bottom:4px;border:1px solid var(--border);">
+        <div style="flex:1;">
+          <div style="font-weight:600;color:var(--text-primary);font-size:13px;">${lic.owner}</div>
+          <div style="font-size:10px;color:${tierColor};">${tierBadge}</div>
+          <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">${deviceInfo}${activatedAt ? ' | ' + activatedAt : ''}</div>
+        </div>
+        <span style="font-size:11px;font-weight:600;color:${statusColor};">${lic.status.toUpperCase()}</span>
+        ${isMaster ? '' : `<button onclick="AVIS.toggleLicense('${hash}', '${isActive ? 'revoked' : 'active'}')"
+          style="padding:4px 10px;font-size:10px;border:1px solid ${isActive ? 'var(--accent-red)' : 'var(--accent-green)'};background:transparent;color:${isActive ? 'var(--accent-red)' : 'var(--accent-green)'};border-radius:4px;cursor:pointer;font-weight:600;">
+          ${isActive ? 'REVOKE' : 'ACTIVATE'}
+        </button>`}
+      </div>`;
+    }).join('');
+  },
+
+  async toggleLicense(hash, newStatus) {
+    const action = newStatus === 'revoked' ? 'Revoke' : 'Activate';
+    if (!confirm(`${action} this license?`)) return;
+
+    const result = await window.avis.updateLicenseStatus(hash, newStatus);
+    if (result.success) {
+      this.showToast(`License ${newStatus === 'revoked' ? 'revoked' : 'activated'}`);
+      this.loadLicensePanel();
+    } else {
+      this.showToast(`Failed: ${result.error}`);
     }
   },
 

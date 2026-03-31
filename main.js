@@ -197,7 +197,55 @@ ipcMain.handle('license:check', () => {
 });
 
 ipcMain.handle('license:device-id', () => getDeviceId());
-ipcMain.handle('license:set-gh-token', (_, token) => { store.set('github.token', token); return true; });
+
+// License management — master key only
+ipcMain.handle('license:list-all', async () => {
+  if (licenseTier !== 'master') return { error: 'Unauthorized' };
+  try {
+    const axios = require('axios');
+    const response = await axios.get(LICENSE_URL, {
+      timeout: 10000,
+      headers: { 'Authorization': `token ${LICENSE_TOKEN}`, 'Accept': 'application/vnd.github.v3.raw' }
+    });
+    return { success: true, data: response.data };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('license:update-status', async (_, { hash, status }) => {
+  if (licenseTier !== 'master') return { error: 'Unauthorized' };
+  try {
+    const axios = require('axios');
+    // Fetch current file with SHA
+    const fileInfo = await axios.get(LICENSE_URL, {
+      headers: { 'Authorization': `token ${LICENSE_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' },
+      timeout: 10000
+    });
+    const sha = fileInfo.data.sha;
+    const content = Buffer.from(fileInfo.data.content, 'base64').toString('utf-8');
+    const data = JSON.parse(content);
+
+    if (!data.licenses[hash]) return { error: 'License not found' };
+    data.licenses[hash].status = status;
+    data.updated = new Date().toISOString().slice(0, 10);
+
+    const newContent = Buffer.from(JSON.stringify(data, null, 2) + '\n').toString('base64');
+    await axios.put('https://api.github.com/repos/anyaji/AVIS-Repo/contents/licenses.json', {
+      message: `License ${data.licenses[hash].owner} ${status}`,
+      content: newContent,
+      sha
+    }, {
+      headers: { 'Authorization': `token ${LICENSE_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' },
+      timeout: 10000
+    });
+
+    log.info(`License ${data.licenses[hash].owner} set to ${status}`);
+    return { success: true };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
 
 ipcMain.handle('license:clear', () => {
   store.delete('license.key');

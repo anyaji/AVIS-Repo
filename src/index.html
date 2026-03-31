@@ -112,6 +112,7 @@
             <button class="dev-tab active" onclick="AVIS.switchDevTab('editor')">Editor</button>
             <button class="dev-tab" onclick="AVIS.switchDevTab('patch')">Patch</button>
             <button class="dev-tab" onclick="AVIS.switchDevTab('console')">Console</button>
+            <button class="dev-tab" onclick="AVIS.switchDevTab('licenses')">Licenses</button>
           </div>
 
           <!-- File Editor -->
@@ -142,6 +143,15 @@
               <button class="dev-filter-btn" onclick="AVIS.clearConsole()" style="margin-left:auto;">Clear</button>
             </div>
             <pre id="dev-console-output" class="dev-log"></pre>
+          </div>
+
+          <!-- License Management (Master only) -->
+          <div class="dev-panel" id="dev-licenses">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <span style="font-size:13px;font-weight:600;color:var(--text-primary);">License Management</span>
+              <button class="dev-filter-btn" onclick="AVIS.loadLicensePanel()" style="margin-left:auto;">Refresh</button>
+            </div>
+            <div id="license-mgmt-list" style="font-size:12px;color:var(--text-secondary);">Loading...</div>
           </div>
         </div>
 
