@@ -22,8 +22,6 @@ PROVIDERS YOU CAN CALL RIGHT NOW:
 - launch_steam_game — Launch Steam games by name (uses Steam URL protocol, much faster than clicking around)
 - computer_action — Control mouse and keyboard (DPI-aware, targeted window capture, click/type/key/scroll)
 COMPUTER CONTROL WORKFLOW: 1) list_windows to find the app, 2) screenshot with window_name to capture just that window, 3) identify coordinates from the image, 4) click. Coordinates are auto-DPI-scaled.
-- get_weather — Instant weather for any city (free, no API key)
-
 ROUTING RULES:
 - "call claude code" or "build/fix [project]" → call_claude_code
 - "use opus" or complex deep reasoning → call_claude with opus model
@@ -90,11 +88,6 @@ For every user request:
       name: "open_app",
       description: "Open an application, file, or URL on Windows.",
       input_schema: { type: "object", properties: { target: { type: "string" } }, required: ["target"] }
-    },
-    {
-      name: "get_weather",
-      description: "Get current weather and 3-day forecast for any location. Free, instant, no API key needed. Use for any weather questions.",
-      input_schema: { type: "object", properties: { location: { type: "string", description: "City name, e.g. 'Dallas TX' or 'London'" } }, required: ["location"] }
     },
     {
       name: "launch_steam_game",
@@ -666,7 +659,6 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
       read_file: `Reading: ${(input.path || '').split(/[\\/]/).pop()}`,
       write_file: `Writing: ${(input.path || '').split(/[\\/]/).pop()}`,
       open_app: `Opening: ${input.target || ''}`,
-      get_weather: `Getting weather for ${input.location || 'auto'}`,
       launch_steam_game: `Launching Steam game: ${input.game_name || ''}`,
       computer_action: `Computer: ${input.action || ''}${input.x ? ` at (${input.x},${input.y})` : ''}${input.text ? ` "${input.text.substring(0,30)}"` : ''}`,
       call_claude: `Calling Claude ${(input.model || 'opus').includes('haiku') ? 'Haiku' : (input.model || '').includes('sonnet') ? 'Sonnet' : 'Opus'}: "${(input.prompt || '').substring(0, 50)}..."`,
@@ -695,7 +687,6 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
         case 'read_file': return await this.toolReadFile(input.path);
         case 'write_file': return await this.toolWriteFile(input.path, input.content);
         case 'open_app': return await this.toolOpenApp(input.target);
-        case 'get_weather': return await this.toolGetWeather(input.location);
         case 'launch_steam_game': return await this.toolLaunchSteam(input.game_name, input.app_id);
         case 'computer_action': return await this.toolComputerAction(input);
         // AI provider calls
@@ -979,24 +970,6 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
     return r.success ? `Opened: ${r.target}` : `Failed to open ${r.target}: ${r.error || 'unknown'}`;
   },
 
-  async toolGetWeather(location) {
-    try {
-      const w = await window.avis.getWeather(location);
-      if (!w.success) return `Weather lookup failed: ${w.error}`;
-      let text = `**Weather for ${w.location}**\n`;
-      text += `Current: ${w.condition}, ${w.temp_f}°F (${w.temp_c}°C)\n`;
-      text += `Feels like: ${w.feels_like_f}°F | Humidity: ${w.humidity}% | Wind: ${w.wind_mph} mph\n`;
-      if (w.forecast?.length) {
-        text += `\n**3-Day Forecast:**\n`;
-        for (const day of w.forecast) {
-          text += `${day.date}: ${day.condition}, ${day.min_f}–${day.max_f}°F\n`;
-        }
-      }
-      return text;
-    } catch (err) {
-      return `Weather error: ${err.message}`;
-    }
-  },
 
   async toolLaunchSteam(gameName, appId) {
     try {

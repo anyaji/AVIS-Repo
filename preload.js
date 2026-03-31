@@ -80,9 +80,6 @@ contextBridge.exposeInMainWorld('avis', {
   toolReadFile: (path) => ipcRenderer.invoke('tool-read-file', path),
   toolWriteFile: (path, content) => ipcRenderer.invoke('tool-write-file', path, content),
 
-  // Weather API
-  getWeather: (location) => ipcRenderer.invoke('get-weather', location),
-
   // Image handling
   saveImage: (params) => ipcRenderer.invoke('save-image', params),
   setWallpaper: (path) => ipcRenderer.invoke('set-wallpaper', path),

@@ -123,8 +123,9 @@ const AVIS = {
   // ====================================================================
   async checkLicense() {
     const stored = await window.avis.checkLicense();
-    if (stored.valid && stored.key) {
-      // Re-validate to make sure it's still active
+    // If a key exists, always try to validate it — don't rely on stored.valid
+    // (fixes race condition where main process hasn't finished async validation yet)
+    if (stored.key) {
       const result = await window.avis.validateLicense(stored.key);
       if (result.valid) return true;
     }

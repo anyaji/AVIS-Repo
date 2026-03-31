@@ -30,7 +30,7 @@ const ResponseCache = {
   set(provider, prompt, response) {
     if (!response || (typeof response === 'string' && response.length < 10)) return;
     // Don't cache time-sensitive queries
-    if (/today|now|current|latest|live|real.?time|weather|news/i.test(prompt)) return;
+    if (/today|now|current|latest|live|real.?time|news/i.test(prompt)) return;
 
     // Enforce max size
     if (this._cache.size >= this.maxSize) {

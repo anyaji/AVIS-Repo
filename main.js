@@ -392,6 +392,18 @@ app.whenReady().then(() => {
   ensureDirs();
   migrateKeys();
 
+  // v3.1.0 migration — force users to re-enter API keys
+  const lastMigration = store.get('migration.version', '0.0.0');
+  if (lastMigration < '3.1.0') {
+    log.info('v3.1.0 migration: clearing API keys and onboarding flag');
+    store.delete('apiKeys');
+    store.set('onboardingComplete', false);
+    store.set('migration.version', '3.1.0');
+    // Also clear the backup so migrateKeys() doesn't restore old keys
+    const backupPath = path.join(app.getPath('appData'), 'AVIS', 'keys-backup.json');
+    try { if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath); } catch (e) {}
+  }
+
   // Log which keys are loaded on startup
   const keys = store.get('apiKeys', {});
   Object.entries(keys).forEach(([provider, key]) => {
@@ -403,7 +415,7 @@ app.whenReady().then(() => {
   let showSplash = true;
   try {
     if (fs.existsSync(configPath)) {
-      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, ''));
       if (cfg.showStartupSplash === false) showSplash = false;
     }
   } catch (e) {}
@@ -501,7 +513,8 @@ ipcMain.handle('get-all-keys', () => store.get('apiKeys', {}));
 ipcMain.handle('get-config', () => {
   const configPath = path.join(APPDATA_DIR, 'config.json');
   if (fs.existsSync(configPath)) {
-    return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const raw = fs.readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, ''); // strip BOM
+    return JSON.parse(raw);
   }
   return null;
 });
@@ -1044,38 +1057,6 @@ ipcMain.handle('run-claude-code', async (_, { task, projectPath, flags }) => {
       }
     });
   });
-});
-
-// ====================================================================
-// BUG 3: Weather API — free, no key via wttr.in
-// ====================================================================
-ipcMain.handle('get-weather', async (_, location) => {
-  const axios = require('axios');
-  try {
-    const loc = encodeURIComponent(location || 'auto');
-    const response = await axios.get(`https://wttr.in/${loc}?format=j1`, { timeout: 8000, headers: { 'Accept': 'application/json' } });
-    const d = response.data;
-    const current = d.current_condition?.[0] || {};
-    const area = d.nearest_area?.[0] || {};
-    return {
-      success: true,
-      location: `${area.areaName?.[0]?.value || location}, ${area.region?.[0]?.value || ''}, ${area.country?.[0]?.value || ''}`.replace(/, ,/g, ','),
-      temp_f: current.temp_F,
-      temp_c: current.temp_C,
-      condition: current.weatherDesc?.[0]?.value || '',
-      humidity: current.humidity,
-      wind_mph: current.windspeedMiles,
-      feels_like_f: current.FeelsLikeF,
-      forecast: (d.weather || []).slice(0, 3).map(day => ({
-        date: day.date,
-        max_f: day.maxtempF,
-        min_f: day.mintempF,
-        condition: day.hourly?.[4]?.weatherDesc?.[0]?.value || ''
-      }))
-    };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
 });
 
 // ====================================================================
