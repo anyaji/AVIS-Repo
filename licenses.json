@@ -87,7 +87,7 @@
     },
     "a22ead4667d237e66ebf9e7ed5a765d77770452b80441bf317e445f74e78e1c3": {
       "owner": "Tester 8",
-      "status": "active",
+      "status": "revoked",
       "tier": "tester"
     }
   },
