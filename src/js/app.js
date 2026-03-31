@@ -306,6 +306,12 @@ const AVIS = {
     document.getElementById('direct-chat-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.directChatSend();
     });
+    document.getElementById('direct-chat-provider')?.addEventListener('change', (e) => {
+      const info = document.getElementById('council-info');
+      const input = document.getElementById('direct-chat-input');
+      if (info) info.style.display = e.target.value === 'council' ? 'block' : 'none';
+      if (input) input.placeholder = e.target.value === 'council' ? 'Describe the task for the AI council...' : 'Ask this provider directly...';
+    });
     document.getElementById('browser-url-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -928,6 +934,12 @@ const AVIS = {
     if (!prompt) return;
 
     const selected = providerSelect?.value || 'claude';
+
+    // Council mode — route through agentic orchestrator
+    if (selected === 'council') {
+      return this.councilSend(prompt, statusEl, responseEl);
+    }
+
     if (statusEl) statusEl.textContent = `Asking ${selected}...`;
     if (responseEl) responseEl.innerHTML = '<span style="color:var(--text-secondary);">Thinking...</span>';
 
@@ -974,6 +986,153 @@ const AVIS = {
       if (statusEl) statusEl.textContent = `\u2717 ${err.message}`;
       if (responseEl) responseEl.textContent = err.message;
     }
+  },
+
+  // ====================================================================
+  // Council Mode — AIs collaborate to solve a task
+  // ====================================================================
+  async councilSend(prompt, statusEl, responseEl) {
+    if (statusEl) statusEl.textContent = '★ Council assembling...';
+    if (responseEl) responseEl.innerHTML = '<span style="color:var(--accent-amber);">★ Council is deliberating...</span>';
+
+    const start = Date.now();
+    const councilLog = [];
+
+    // Step 1: Claude analyzes the task and creates a plan
+    if (statusEl) statusEl.textContent = '★ Claude analyzing task...';
+    const planResult = await window.avis.apiCall({
+      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      messages: [{ role: 'user', content: prompt }],
+      systemPrompt: `You are the lead coordinator of an AI council. You have access to these AI specialists:
+- GPT-4o (OpenAI): Excellent at code generation, structured output, math, and creative writing
+- DeepSeek: Fast reasoning, strong at logic puzzles, analysis, and cheap bulk work
+- Gemini: Strong at multimodal tasks, long context analysis, and data processing
+- Perplexity: Has LIVE web access — use for anything requiring current/real-time information
+
+Analyze the user's task. Create a brief plan that assigns specific sub-tasks to the best-suited AIs.
+Format your response EXACTLY as:
+PLAN: [1-2 sentence overview]
+ASSIGN_GPT4: [specific sub-task for GPT-4o, or SKIP if not needed]
+ASSIGN_DEEPSEEK: [specific sub-task for DeepSeek, or SKIP if not needed]
+ASSIGN_GEMINI: [specific sub-task for Gemini, or SKIP if not needed]
+ASSIGN_PERPLEXITY: [specific sub-task for Perplexity, or SKIP if not needed]
+
+Assign at least 2 AIs. Be specific about what each should do. Do NOT do the task yourself yet.`,
+      options: {}
+    });
+
+    if (planResult.error) {
+      if (statusEl) statusEl.textContent = '✗ Council failed to plan';
+      if (responseEl) responseEl.textContent = planResult.message;
+      return;
+    }
+
+    const plan = planResult.text;
+    councilLog.push({ ai: 'Claude (Coordinator)', role: 'Plan', text: plan });
+
+    // Step 2: Parse assignments and call each AI in parallel
+    const assignments = {};
+    const lines = plan.split('\n');
+    for (const line of lines) {
+      const match = line.match(/^ASSIGN_(GPT4|DEEPSEEK|GEMINI|PERPLEXITY):\s*(.+)/i);
+      if (match && match[2].trim().toUpperCase() !== 'SKIP') {
+        assignments[match[1].toUpperCase()] = match[2].trim();
+      }
+    }
+
+    const providerMap = {
+      'GPT4': { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o' },
+      'DEEPSEEK': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek' },
+      'GEMINI': { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini' },
+      'PERPLEXITY': { provider: 'perplexity', model: 'sonar-pro', label: 'Perplexity' }
+    };
+
+    const assignedCount = Object.keys(assignments).length;
+    if (assignedCount === 0) {
+      // Claude didn't assign anyone — just use the plan as the answer
+      this._directChatResponse = plan;
+      if (statusEl) statusEl.textContent = `★ Council (Claude solo) — ${((Date.now() - start) / 1000).toFixed(1)}s`;
+      if (responseEl) responseEl.innerHTML = this.renderMarkdown(plan);
+      return;
+    }
+
+    // Show progress
+    if (responseEl) {
+      responseEl.innerHTML = `<div style="color:var(--accent-amber);">★ Plan created — calling ${assignedCount} AIs...</div><div style="margin-top:6px;font-size:11px;color:var(--text-secondary);white-space:pre-wrap;">${plan}</div>`;
+    }
+
+    // Call assigned AIs in parallel
+    const calls = Object.entries(assignments).map(async ([key, task]) => {
+      const p = providerMap[key];
+      if (!p) return null;
+      if (statusEl) statusEl.textContent = `★ Waiting on ${Object.keys(assignments).map(k => providerMap[k]?.label).join(', ')}...`;
+
+      try {
+        const apiKey = await window.avis.getApiKey(p.provider);
+        if (!apiKey) return { key, label: p.label, text: `[${p.label} not configured — skipped]`, error: true };
+
+        const result = await window.avis.apiCall({
+          provider: p.provider, model: p.model,
+          messages: [{ role: 'user', content: `Original task: ${prompt}\n\nYour specific assignment: ${task}\n\nProvide your contribution. Be thorough but concise.` }],
+          systemPrompt: `You are ${p.label}, part of an AI council working together on a task. Focus on your specific assignment and provide your best contribution. Another AI will synthesize all contributions into a final answer.`,
+          options: {}
+        });
+
+        if (result.error) return { key, label: p.label, text: `[Error: ${result.message}]`, error: true };
+        return { key, label: p.label, text: result.text, error: false };
+      } catch (err) {
+        return { key, label: p.label, text: `[Error: ${err.message}]`, error: true };
+      }
+    });
+
+    const results = (await Promise.allSettled(calls)).map(r => r.value).filter(Boolean);
+
+    for (const r of results) {
+      councilLog.push({ ai: r.label, role: 'Contribution', text: r.text });
+    }
+
+    // Step 3: Claude synthesizes all contributions
+    if (statusEl) statusEl.textContent = '★ Claude synthesizing...';
+
+    const contributions = results.map(r =>
+      `=== ${r.label} ===\n${r.text}`
+    ).join('\n\n');
+
+    const synthesisResult = await window.avis.apiCall({
+      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      messages: [{ role: 'user', content: `Original task: ${prompt}\n\nHere are contributions from the AI council:\n\n${contributions}\n\nSynthesize these contributions into a single, cohesive, high-quality response. Credit which AI contributed what insight where relevant. If any AI's contribution was wrong or low quality, override it with the correct information.` }],
+      systemPrompt: 'You are the lead coordinator synthesizing contributions from multiple AI specialists into a final answer. Produce a polished, comprehensive response. Use markdown formatting.',
+      options: {}
+    });
+
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
+    if (synthesisResult.error) {
+      // Fall back to showing raw contributions
+      const fallback = results.map(r => `### ${r.label}\n${r.text}`).join('\n\n---\n\n');
+      this._directChatResponse = fallback;
+      if (statusEl) statusEl.textContent = `★ Council (synthesis failed) — ${elapsed}s`;
+      if (responseEl) responseEl.innerHTML = this.renderMarkdown(fallback);
+      return;
+    }
+
+    // Build final output with council summary header
+    const aiNames = results.filter(r => !r.error).map(r => r.label);
+    const header = `**★ AI Council** — Claude + ${aiNames.join(' + ')} (${elapsed}s)\n\n---\n\n`;
+    const finalText = header + synthesisResult.text;
+
+    this._directChatResponse = synthesisResult.text;
+    if (statusEl) statusEl.textContent = `★ Council: Claude + ${aiNames.join(' + ')} (${elapsed}s)`;
+    if (responseEl) responseEl.innerHTML = this.renderMarkdown(finalText);
+
+    // Log to terminal
+    this.terminalLog.push(`[COUNCIL] Task: ${prompt.substring(0, 80)}...`);
+    this.terminalLog.push(`[COUNCIL] Plan: ${plan.substring(0, 200)}...`);
+    for (const r of results) {
+      this.terminalLog.push(`[COUNCIL] ${r.label}: ${r.text.substring(0, 150)}...`);
+    }
+    this.terminalLog.push(`[COUNCIL] Synthesis complete — ${elapsed}s`);
+    this.updateTerminal();
   },
 
   directChatCopy() {

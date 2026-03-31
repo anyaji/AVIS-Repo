@@ -70,16 +70,20 @@
         <!-- Direct Chat — talk to any provider directly -->
         <div class="panel-section" id="browser-section">
           <div style="margin-bottom:8px;">
-            <select id="direct-chat-provider" class="search-box" style="width:100%;margin-bottom:6px;">
-              <option value="claude">Claude Sonnet</option>
-              <option value="claude-opus">Claude Opus</option>
-              <option value="claude-haiku">Claude Haiku</option>
-              <option value="openai">GPT-4o</option>
-              <option value="deepseek">DeepSeek</option>
-              <option value="gemini">Gemini</option>
-              <option value="mistral">Mistral</option>
-              <option value="perplexity">Perplexity</option>
-            </select>
+            <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+              <select id="direct-chat-provider" class="search-box" style="flex:1;">
+                <option value="claude">Claude Sonnet</option>
+                <option value="claude-opus">Claude Opus</option>
+                <option value="claude-haiku">Claude Haiku</option>
+                <option value="openai">GPT-4o</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="gemini">Gemini</option>
+                <option value="mistral">Mistral</option>
+                <option value="perplexity">Perplexity</option>
+                <option value="council">&#9733; Council Mode</option>
+              </select>
+            </div>
+            <div id="council-info" style="display:none;font-size:10px;color:var(--accent-amber);padding:4px 0;font-family:'JetBrains Mono',monospace;">&#9733; Council: AIs collaborate to solve your task together</div>
             <div style="display:flex;gap:6px;">
               <input type="text" id="direct-chat-input" placeholder="Ask this provider directly..." class="search-box" style="flex:1;">
               <button onclick="AVIS.directChatSend()" class="panel-go-btn">Ask</button>
