@@ -317,10 +317,35 @@ const AVIS = {
     document.getElementById('direct-chat-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.directChatSend();
     });
-    // Council input — Enter to send
-    document.getElementById('council-input')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.startCouncil(); }
-    });
+    // Council input — Enter to send, Shift+Enter newline, auto-resize
+    const councilInput = document.getElementById('council-input');
+    if (councilInput) {
+      councilInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.startCouncil(); }
+        if (e.key === 'Enter' && e.shiftKey) {
+          setTimeout(() => { councilInput.style.height = 'auto'; councilInput.style.height = Math.min(councilInput.scrollHeight, 150) + 'px'; }, 0);
+        }
+      });
+      // Paste image support
+      councilInput.addEventListener('paste', (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            e.preventDefault();
+            const blob = item.getAsFile();
+            const reader = new FileReader();
+            reader.onload = () => {
+              this._councilFiles = this._councilFiles || [];
+              this._councilFiles.push({ type: 'image', data: reader.result.split(',')[1], name: 'pasted-image.png', mimeType: item.type });
+              this._renderCouncilFilePreviews();
+            };
+            reader.readAsDataURL(blob);
+          }
+        }
+      });
+    }
+    this._councilFiles = [];
     document.getElementById('browser-url-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -1063,6 +1088,44 @@ const AVIS = {
     'DALLE': { provider: 'openai', model: 'dall-e-3', label: 'DALL-E 3', color: '#ff6b6b' }
   },
 
+  // Council file handling
+  async councilAttachFile() {
+    const filePath = await window.avis.openFileDialog();
+    if (!filePath) return;
+    try {
+      const file = await window.avis.readFile(filePath);
+      this._councilFiles = this._councilFiles || [];
+      this._councilFiles.push(file);
+      this._renderCouncilFilePreviews();
+    } catch (err) { this.showToast(`Failed to read file: ${err.message}`); }
+  },
+
+  _renderCouncilFilePreviews() {
+    const container = document.getElementById('council-file-preview');
+    if (!container) return;
+    container.innerHTML = (this._councilFiles || []).map((f, i) => {
+      if (f.type === 'image') {
+        return `<div style="position:relative;display:inline-block;">
+          <img src="data:${f.mimeType || 'image/png'};base64,${f.data}" style="height:48px;border-radius:4px;border:1px solid var(--border);">
+          <span onclick="AVIS._councilFiles.splice(${i},1);AVIS._renderCouncilFilePreviews();" style="position:absolute;top:-4px;right:-4px;background:var(--accent-red);color:#fff;width:14px;height:14px;border-radius:50%;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;">✕</span>
+        </div>`;
+      }
+      return `<div style="padding:4px 8px;background:var(--bg-card);border-radius:4px;font-size:10px;color:var(--text-secondary);display:flex;align-items:center;gap:4px;">
+        📄 ${f.name} <span onclick="AVIS._councilFiles.splice(${i},1);AVIS._renderCouncilFilePreviews();" style="color:var(--accent-red);cursor:pointer;">✕</span>
+      </div>`;
+    }).join('');
+    container.style.display = this._councilFiles.length > 0 ? 'flex' : 'none';
+  },
+
+  // Copy agent card output
+  copyAgentOutput(cardId) {
+    const el = document.getElementById(`output-${cardId}`);
+    if (el) {
+      navigator.clipboard.writeText(el.innerText);
+      this.showToast('Copied');
+    }
+  },
+
   // Dispatch a single agent task (reusable across rounds)
   async _dispatchAgent(key, task, prompt) {
     const p = this._councilProviderMap[key];
@@ -1108,6 +1171,7 @@ const AVIS = {
           <span class="agent-card-name">${p.label}</span>
           <span style="font-size:9px;color:var(--text-secondary);">R${round}</span>
           <span class="agent-card-status waiting" id="status-${id}">WAITING</span>
+          <span onclick="AVIS.copyAgentOutput('${id}')" style="margin-left:auto;cursor:pointer;font-size:12px;opacity:0.5;transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5" title="Copy output">📋</span>
         </div>
         <div style="font-size:10px;color:var(--text-secondary);margin-bottom:6px;font-style:italic;">${task}</div>
         <div class="agent-card-output" id="output-${id}">Waiting...</div>
@@ -1340,9 +1404,28 @@ SUGGESTION_3: [optional improvement for user]` }],
       </div>` +
       `<div class="synthesis-output">${this.renderMarkdown(synthesisText)}</div>` +
       suggestionsHtml +
-      `<div style="display:flex;gap:6px;margin-top:10px;">
-        <button onclick="AVIS.councilCopyResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Copy Result</button>
-        <button onclick="AVIS.councilExportResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Export</button>
+      `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:600;color:var(--accent-green);margin-bottom:8px;">📦 Ship It — Export Options:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <button onclick="AVIS.councilShip('pptx')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:18px;">📊</div>PowerPoint
+          </button>
+          <button onclick="AVIS.councilShip('docx')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:18px;">📄</div>Word Doc
+          </button>
+          <button onclick="AVIS.councilShip('xlsx')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:18px;">📈</div>Excel
+          </button>
+          <button onclick="AVIS.councilShip('md')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:18px;">📝</div>Markdown
+          </button>
+          <button onclick="AVIS.councilShip('txt')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:18px;">📋</div>Plain Text
+          </button>
+          <button onclick="AVIS.councilCopyResult()" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="font-size:18px;">📎</div>Clipboard
+          </button>
+        </div>
       </div>`);
 
     // Terminal + history
@@ -1400,6 +1483,84 @@ SUGGESTION_3: [optional improvement for user]` }],
       this._updateAgentCard('revision', 'error', `Failed: ${revResult.message}`);
     }
     this.stopCouncil();
+  },
+
+  async councilShip(format) {
+    if (!this._councilLastResult) { this.showToast('No result to export'); return; }
+
+    const title = (this._councilPrompt || 'Council Output').substring(0, 50).replace(/[^\w\s-]/g, '');
+    const filename = `AVIS_Council_${title.replace(/\s+/g, '_')}`;
+
+    if (format === 'md') {
+      const blob = new Blob([this._councilLastResult], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${filename}.md`; a.click();
+      URL.revokeObjectURL(url);
+      this.showToast('Exported as Markdown');
+      return;
+    }
+
+    if (format === 'txt') {
+      const blob = new Blob([this._councilLastResult], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${filename}.txt`; a.click();
+      URL.revokeObjectURL(url);
+      this.showToast('Exported as Plain Text');
+      return;
+    }
+
+    // For PPTX, DOCX, XLSX — ask Claude to structure the content, then generate
+    this.showToast(`Building ${format.toUpperCase()}...`);
+
+    if (format === 'pptx') {
+      const structResult = await window.avis.apiCall({
+        provider: 'claude', model: 'claude-sonnet-4-20250514',
+        messages: [{ role: 'user', content: `Convert this content into a PowerPoint presentation structure. Return ONLY valid JSON, no markdown fences.\n\nContent:\n${this._councilLastResult}\n\nReturn JSON format:\n{"slides":[{"elements":[{"type":"title","text":"...","x":0.5,"y":0.3,"fontSize":28,"color":"FFFFFF"},{"type":"text","text":"...","x":0.5,"y":1.2,"fontSize":14,"color":"CCCCCC"}],"background":{"fill":{"type":"solid","color":"0D1117"}}}],"options":{"title":"...","filename":"${filename}","author":"AVIS Council"}}` }],
+        systemPrompt: 'Convert content to PowerPoint JSON. Use dark backgrounds (0D1117), white/light text. Create 5-10 slides. Title slide first, content slides with bullet points, data slides with tables. Return ONLY valid JSON.',
+        options: {}
+      });
+      if (!structResult.error) {
+        try {
+          const data = JSON.parse(structResult.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
+          const result = await window.avis.generatePptx(data);
+          this.showToast(result.success ? `PowerPoint saved to Desktop` : `Failed: ${result.error}`);
+        } catch (e) { this.showToast(`Failed to parse structure: ${e.message}`); }
+      } else { this.showToast(`Failed: ${structResult.message}`); }
+      return;
+    }
+
+    if (format === 'docx') {
+      const structResult = await window.avis.apiCall({
+        provider: 'claude', model: 'claude-sonnet-4-20250514',
+        messages: [{ role: 'user', content: `Convert this content into a Word document structure. Return ONLY valid JSON, no markdown fences.\n\nContent:\n${this._councilLastResult}\n\nReturn JSON format:\n{"content":[{"type":"heading","text":"...","level":1},{"type":"paragraph","text":"..."},{"type":"table","rows":[["Header1","Header2"],["data1","data2"]]},{"type":"pagebreak"}],"options":{"title":"...","filename":"${filename}","author":"AVIS Council"}}` }],
+        systemPrompt: 'Convert content to Word document JSON. Use headings, paragraphs, tables, and page breaks. Be thorough — include all content. Return ONLY valid JSON.',
+        options: {}
+      });
+      if (!structResult.error) {
+        try {
+          const data = JSON.parse(structResult.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
+          const result = await window.avis.generateDocx(data);
+          this.showToast(result.success ? `Word doc saved to Desktop` : `Failed: ${result.error}`);
+        } catch (e) { this.showToast(`Failed to parse structure: ${e.message}`); }
+      } else { this.showToast(`Failed: ${structResult.message}`); }
+      return;
+    }
+
+    if (format === 'xlsx') {
+      const structResult = await window.avis.apiCall({
+        provider: 'claude', model: 'claude-sonnet-4-20250514',
+        messages: [{ role: 'user', content: `Convert this content into an Excel spreadsheet structure. Extract all data, comparisons, and lists into tabular format. Return ONLY valid JSON, no markdown fences.\n\nContent:\n${this._councilLastResult}\n\nReturn JSON format:\n{"sheets":[{"name":"Sheet1","data":[["Header1","Header2"],["val1","val2"]],"colWidths":[20,30]}],"options":{"filename":"${filename}"}}` }],
+        systemPrompt: 'Convert content to Excel JSON. Create meaningful sheets — extract tables, data, lists, comparisons into spreadsheet format. First row = headers. Return ONLY valid JSON.',
+        options: {}
+      });
+      if (!structResult.error) {
+        try {
+          const data = JSON.parse(structResult.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
+          const result = await window.avis.generateXlsx(data);
+          this.showToast(result.success ? `Excel saved to Desktop` : `Failed: ${result.error}`);
+        } catch (e) { this.showToast(`Failed to parse structure: ${e.message}`); }
+      } else { this.showToast(`Failed: ${structResult.message}`); }
+    }
   },
 
   councilCopyResult() {

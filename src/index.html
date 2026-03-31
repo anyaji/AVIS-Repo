@@ -190,7 +190,12 @@
 
       <!-- Council Input -->
       <div class="input-area">
+        <div id="council-file-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
         <div class="input-wrap">
+          <div class="input-actions">
+            <button id="council-attach-btn" title="Attach file" onclick="AVIS.councilAttachFile()">&#128206;</button>
+            <button id="council-paste-btn" title="Paste image (Ctrl+V)" onclick="AVIS.showToast('Press Ctrl+V to paste an image')">&#128444;</button>
+          </div>
           <textarea id="council-input" rows="1" placeholder="Describe your task for the AI Council..."></textarea>
           <button class="send-btn council-send" id="council-send-btn" onclick="AVIS.startCouncil()">COUNCIL</button>
           <button class="stop-btn" id="council-stop-btn" style="display:none;" onclick="AVIS.stopCouncil()">&#9632; STOP</button>
