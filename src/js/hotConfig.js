@@ -5,8 +5,6 @@ const HotConfig = {
     accentColor: '#00a8ff',
     fontSize: 14,
     bubbleStyle: 'rounded',
-    soundEffects: false,
-    startupBehavior: 'fresh',
     customSystemPrompt: '',
     showStartupSplash: true,
     theme: 'default',
@@ -162,19 +160,6 @@ const HotConfig = {
             <option value="rounded" ${this.get('bubbleStyle') === 'rounded' ? 'selected' : ''}>Rounded</option>
             <option value="sharp" ${this.get('bubbleStyle') === 'sharp' ? 'selected' : ''}>Sharp</option>
             <option value="minimal" ${this.get('bubbleStyle') === 'minimal' ? 'selected' : ''}>Minimal</option>
-          </select>
-        </div>
-        <div class="setting-row">
-          <div class="toggle-wrap">
-            <label>Sound Effects</label>
-            <div class="toggle ${this.get('soundEffects') ? 'active' : ''}" onclick="this.classList.toggle('active'); HotConfig.update('soundEffects', this.classList.contains('active'))"></div>
-          </div>
-        </div>
-        <div class="setting-row">
-          <label>Startup Behavior</label>
-          <select onchange="HotConfig.update('startupBehavior', this.value)">
-            <option value="fresh" ${this.get('startupBehavior') === 'fresh' ? 'selected' : ''}>Fresh Start</option>
-            <option value="resume" ${this.get('startupBehavior') === 'resume' ? 'selected' : ''}>Resume Last</option>
           </select>
         </div>
         <div class="setting-row">

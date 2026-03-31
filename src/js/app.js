@@ -193,6 +193,11 @@ const AVIS = {
         ? { status: 'active', reason: 'ACTIVE' }
         : { status: 'unconfigured', reason: 'NOT SET' };
     }
+    // Firecrawl (tool, not a chat provider — just check key exists)
+    const fcKey = await window.avis.getApiKey('firecrawl');
+    this.providerHealth['firecrawl'] = fcKey
+      ? { status: 'active', reason: 'ACTIVE' }
+      : { status: 'unconfigured', reason: 'NOT SET' };
     // Update BOTH panels
     this.updateProviderStatus();
     this.renderMeters();
@@ -200,7 +205,7 @@ const AVIS = {
 
   // FIX 3: Ping all configured providers to check health
   async healthCheckAll() {
-    const providers = ['claude', 'openai', 'gemini', 'mistral', 'deepseek', 'perplexity'];
+    const providers = ['claude', 'openai', 'gemini', 'mistral', 'deepseek', 'perplexity', 'firecrawl'];
     const checks = providers.map(async (p) => {
       const key = await window.avis.getApiKey(p);
       if (!key) { this.providerHealth[p] = { status: 'unconfigured', reason: 'NOT SET' }; return; }
@@ -1252,11 +1257,23 @@ const AVIS = {
   // ====================================================================
   CHANGELOG: [
     {
-      version: '2.6.0', date: '2026-03-30', label: 'latest',
+      version: '3.1.0', date: '2026-03-31', label: 'latest',
+      items: [
+        'Fixed tab navigation (History, Search, Direct, Terminal, Changes)',
+        'Fixed blank UI on startup (license race condition)',
+        'Removed weather API (unused)',
+        'Removed Grok provider (was unreliable)',
+        'Cleaned up dead code and unused settings',
+        'Firecrawl API verification added',
+        'All users prompted to re-enter API keys on update',
+        'Stable branch + git tags for safe rollbacks'
+      ]
+    },
+    {
+      version: '2.6.0', date: '2026-03-30',
       items: [
         'AVIS now knows the real date and time (injected every message)',
         'Live clock in the titlebar',
-        'Removed Grok (was unreliable)',
         'All file paths now work on any computer (not just yours)',
         '6 providers: Claude, GPT-4, Gemini, DeepSeek, Mistral, Perplexity'
       ]

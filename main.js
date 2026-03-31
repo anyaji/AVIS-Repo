@@ -758,6 +758,20 @@ ipcMain.handle('dev-write-file', (_, relPath, content) => {
 // ====================================================================
 // Firecrawl integration — clean markdown scraping
 // ====================================================================
+// Firecrawl API key verification — quick scrape of example.com
+ipcMain.handle('firecrawl-verify', async () => {
+  const apiKey = store.get('apiKeys.firecrawl', '');
+  if (!apiKey) return { valid: false, error: 'No Firecrawl API key configured' };
+  try {
+    const FirecrawlApp = require('@mendable/firecrawl-js').default;
+    const fcApp = new FirecrawlApp({ apiKey });
+    const result = await fcApp.scrapeUrl('https://example.com', { formats: ['markdown'] });
+    return { valid: result.success === true, error: result.success ? null : 'Scrape test failed' };
+  } catch (err) {
+    return { valid: false, error: err.message };
+  }
+});
+
 ipcMain.handle('firecrawl-scrape', async (_, url) => {
   const apiKey = store.get('apiKeys.firecrawl', '');
   if (!apiKey) return { success: false, error: 'Firecrawl API key not configured', fallback: true };

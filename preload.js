@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('avis', {
   firecrawlScrape: (url) => ipcRenderer.invoke('firecrawl-scrape', url),
   firecrawlCrawl: (url, limit) => ipcRenderer.invoke('firecrawl-crawl', url, limit),
   firecrawlSearch: (query, limit) => ipcRenderer.invoke('firecrawl-search', query, limit),
+  firecrawlVerify: () => ipcRenderer.invoke('firecrawl-verify'),
 
   // Web fetch & search
   fetchUrl: (url) => ipcRenderer.invoke('fetch-url', url),
