@@ -450,6 +450,19 @@ function cleanOldBuilds() {
   } catch (e) {}
 }
 
+// Single instance lock — only one copy of AVIS at a time
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
 app.whenReady().then(() => {
   ensureDirs();
   migrateKeys();
