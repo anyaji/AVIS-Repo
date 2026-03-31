@@ -1,23 +1,95 @@
 {
   "licenses": {
-    "7a0aea83059eb157e2eba32700fdec68ab3d4bd279c32c8b81b8b5ef72fab796": { "owner": "Avel (Master)", "status": "active", "tier": "master" },
-    "b4494079027fc16ab89b9107070efb3835050c6928c2e1854bd7e165f1185dee": { "owner": "Naji", "status": "active", "tier": "standard" },
-    "ab05119ab76561d23640e30ca3390fd487898453efb3fb95dbacefacf57ce911": { "owner": "Tone", "status": "active", "tier": "standard" },
-    "766779f152761f44291c2ab647a42930462de20afe3e5d1597b4a822d38d977b": { "owner": "Amber", "status": "active", "tier": "standard" },
-    "dec41e5852cb162b37fc8dc7aa68e33f03cdea3ff20aac759cf542541780de36": { "owner": "Elijah", "status": "active", "tier": "standard" },
-    "373ee9292eb5b51edcaee59eb5d677048ad758285bd939e26bb41f15add9697d": { "owner": "Dad", "status": "active", "tier": "standard" },
-    "bf888215f64a2e1eb39e3e96efc9e3920e6bf4ba70501ee5e1144540fd2b87ac": { "owner": "Mom", "status": "active", "tier": "standard" },
-    "099d3120a5e3d6c70b141b12208c480840b6616d0da7b220530ff79fb11a7c64": { "owner": "Terrell", "status": "active", "tier": "standard" },
-    "dd2f36752bb5761c9270da111346a86b6984a5be8062b75667e71b8e67dc75e0": { "owner": "Sean", "status": "active", "tier": "standard" },
-    "3430135ed308604c1785fb13494d7e9f2236f390bad12a4330ae6a626f1bb2c5": { "owner": "Shania", "status": "active", "tier": "standard" },
-    "2e7dbe77f321a42bedc4918132e3d48352d49568d7cff123d0d9445fe2e28e95": { "owner": "Tester 1", "status": "active", "tier": "tester" },
-    "a2762c569f4966326a3c5617e300b9e0e4800e734b747c954f3f7e7ba20e2f42": { "owner": "Tester 2", "status": "active", "tier": "tester" },
-    "79f9ec24769e758cff966104477e608fe207da7ca7df2d9ada9e061796fed089": { "owner": "Tester 3", "status": "active", "tier": "tester" },
-    "0ed37e4b2b23eab4865c554666d37112a9dc3372517e6a25fd7639dd0a2cd7ce": { "owner": "Tester 4", "status": "active", "tier": "tester" },
-    "2f5d94b8a85645332eee1cd745a2ff263ca1454665192b7a989c490281384f7b": { "owner": "Tester 5", "status": "active", "tier": "tester" },
-    "ff8127746cee03d01339e0dd3f9a81abd3a7655fc4e2e9bc3af1e47612fdbd93": { "owner": "Tester 6", "status": "active", "tier": "tester" },
-    "4699f874c6fcbdc38a8adda89547ab387b31ea1caf56beea9d86ebd3942f0d7c": { "owner": "Tester 7", "status": "active", "tier": "tester" },
-    "a22ead4667d237e66ebf9e7ed5a765d77770452b80441bf317e445f74e78e1c3": { "owner": "Tester 8", "status": "active", "tier": "tester" }
+    "7a0aea83059eb157e2eba32700fdec68ab3d4bd279c32c8b81b8b5ef72fab796": {
+      "owner": "Avel (Master)",
+      "status": "active",
+      "tier": "master"
+    },
+    "b4494079027fc16ab89b9107070efb3835050c6928c2e1854bd7e165f1185dee": {
+      "owner": "Naji",
+      "status": "active",
+      "tier": "standard"
+    },
+    "ab05119ab76561d23640e30ca3390fd487898453efb3fb95dbacefacf57ce911": {
+      "owner": "Tone",
+      "status": "active",
+      "tier": "standard"
+    },
+    "766779f152761f44291c2ab647a42930462de20afe3e5d1597b4a822d38d977b": {
+      "owner": "Amber",
+      "status": "active",
+      "tier": "standard"
+    },
+    "dec41e5852cb162b37fc8dc7aa68e33f03cdea3ff20aac759cf542541780de36": {
+      "owner": "Elijah",
+      "status": "active",
+      "tier": "standard"
+    },
+    "373ee9292eb5b51edcaee59eb5d677048ad758285bd939e26bb41f15add9697d": {
+      "owner": "Dad",
+      "status": "active",
+      "tier": "standard"
+    },
+    "bf888215f64a2e1eb39e3e96efc9e3920e6bf4ba70501ee5e1144540fd2b87ac": {
+      "owner": "Mom",
+      "status": "active",
+      "tier": "standard"
+    },
+    "099d3120a5e3d6c70b141b12208c480840b6616d0da7b220530ff79fb11a7c64": {
+      "owner": "Terrell",
+      "status": "active",
+      "tier": "standard"
+    },
+    "dd2f36752bb5761c9270da111346a86b6984a5be8062b75667e71b8e67dc75e0": {
+      "owner": "Sean",
+      "status": "active",
+      "tier": "standard"
+    },
+    "3430135ed308604c1785fb13494d7e9f2236f390bad12a4330ae6a626f1bb2c5": {
+      "owner": "Shania",
+      "status": "active",
+      "tier": "standard"
+    },
+    "2e7dbe77f321a42bedc4918132e3d48352d49568d7cff123d0d9445fe2e28e95": {
+      "owner": "Tester 1",
+      "status": "active",
+      "tier": "tester"
+    },
+    "a2762c569f4966326a3c5617e300b9e0e4800e734b747c954f3f7e7ba20e2f42": {
+      "owner": "Tester 2",
+      "status": "active",
+      "tier": "tester"
+    },
+    "79f9ec24769e758cff966104477e608fe207da7ca7df2d9ada9e061796fed089": {
+      "owner": "Tester 3",
+      "status": "active",
+      "tier": "tester"
+    },
+    "0ed37e4b2b23eab4865c554666d37112a9dc3372517e6a25fd7639dd0a2cd7ce": {
+      "owner": "Tester 4",
+      "status": "active",
+      "tier": "tester"
+    },
+    "2f5d94b8a85645332eee1cd745a2ff263ca1454665192b7a989c490281384f7b": {
+      "owner": "Tester 5",
+      "status": "active",
+      "tier": "tester"
+    },
+    "ff8127746cee03d01339e0dd3f9a81abd3a7655fc4e2e9bc3af1e47612fdbd93": {
+      "owner": "Tester 6",
+      "status": "active",
+      "tier": "tester"
+    },
+    "4699f874c6fcbdc38a8adda89547ab387b31ea1caf56beea9d86ebd3942f0d7c": {
+      "owner": "Tester 7",
+      "status": "active",
+      "tier": "tester"
+    },
+    "a22ead4667d237e66ebf9e7ed5a765d77770452b80441bf317e445f74e78e1c3": {
+      "owner": "Tester 8",
+      "status": "revoked",
+      "tier": "tester"
+    }
   },
   "message": "",
   "updated": "2026-03-31"
