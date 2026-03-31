@@ -1269,13 +1269,17 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       const roundResults = (await Promise.allSettled(dispatchPromises)).map(r => r.value).filter(Boolean);
       allResults = [...allResults, ...roundResults];
 
-      // Synthesize
+      // Synthesize — cap each contribution to prevent token overflow
       const synthCard = document.getElementById('agent-synthesis');
       if (synthCard) synthCard.style.display = '';
-      this._updateAgentCard('synthesis', 'working', `<span style="color:var(--accent-blue);">Synthesizing (Round ${round})...</span>`);
+      const synthStart = Date.now();
+      const synthTimer = setInterval(() => {
+        const sec = Math.round((Date.now() - synthStart) / 1000);
+        this._updateAgentCard('synthesis', 'working', `<span style="color:var(--accent-blue);">Synthesizing (Round ${round})... ${sec}s</span>`);
+      }, 1000);
 
-      const contributions = allResults.filter(r => !r.error).map(r => `=== ${r.label} ===\n${r.text}`).join('\n\n');
-      const prevContext = round > 1 ? `\n\nPrevious draft (improve upon this):\n${synthesisText}` : '';
+      const contributions = allResults.filter(r => !r.error).map(r => `=== ${r.label} ===\n${r.text.substring(0, 3000)}`).join('\n\n');
+      const prevContext = round > 1 ? `\n\nPrevious draft (improve upon this):\n${synthesisText.substring(0, 4000)}` : '';
 
       const synthResult = await window.avis.apiCall({
         provider: 'claude', model: 'claude-sonnet-4-20250514',
@@ -1286,6 +1290,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
         options: {}
       });
 
+      clearInterval(synthTimer);
       if (synthResult.error) {
         this._updateAgentCard('synthesis', 'error', `Synthesis failed: ${synthResult.message}`);
         break;
@@ -1305,9 +1310,16 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
           <div class="agent-card-output" id="output-${reviewerId}"><span style="color:var(--accent-amber);">Evaluating quality...</span></div>
         </div>`);
 
+      const revStart = Date.now();
+      const revTimer = setInterval(() => {
+        const sec = Math.round((Date.now() - revStart) / 1000);
+        const el = document.getElementById(`output-${reviewerId}`);
+        if (el) el.innerHTML = `<span style="color:var(--accent-amber);">Evaluating quality... ${sec}s</span>`;
+      }, 1000);
+
       const reviewResult = await window.avis.apiCall({
         provider: 'claude', model: 'claude-opus-4-5-20250514',
-        messages: [{ role: 'user', content: `Task: ${prompt}\n\nCurrent draft (Round ${round}):\n${synthesisText}\n\nReview this output. Score 1-10. If below 8, identify SPECIFIC fixes and assign them to the right AI.
+        messages: [{ role: 'user', content: `Task: ${prompt}\n\nCurrent draft (Round ${round}):\n${synthesisText.substring(0, 6000)}\n\nReview this output. Score 1-10. If below 8, identify SPECIFIC fixes and assign them to the right AI.
 
 Format EXACTLY:
 SCORE: [1-10]
@@ -1325,6 +1337,7 @@ SUGGESTION_3: [optional improvement for user]` }],
         options: {}
       });
 
+      clearInterval(revTimer);
       let reviewText = '';
       let suggestions = [];
       score = 8; // default if review fails

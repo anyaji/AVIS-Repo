@@ -1736,7 +1736,7 @@ Add-Type -AssemblyName System.Windows.Forms
 // ====================================================================
 // BUG 1 & 4: Timeout + abort infrastructure for all API calls
 // ====================================================================
-const API_TIMEOUT_MS = 60000; // 60s for regular API calls
+const API_TIMEOUT_MS = 90000; // 90s for regular API calls (council synthesis needs more time)
 let activeAbortController = null;
 
 function withTimeout(promise, ms, label) {
