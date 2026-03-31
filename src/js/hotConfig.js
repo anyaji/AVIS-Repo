@@ -114,7 +114,6 @@ const HotConfig = {
       { key: 'gemini', label: 'Google Gemini', hint: 'AI...' },
       { key: 'mistral', label: 'Mistral', hint: 'API key...' },
       { key: 'perplexity', label: 'Perplexity', hint: 'pplx-...' },
-      { key: 'brave', label: 'Brave Search', hint: 'BSA...' },
       { key: 'firecrawl', label: 'Firecrawl', hint: 'fc-...' }
     ];
 
@@ -256,7 +255,7 @@ const HotConfig = {
   },
 
   async loadApiKeys() {
-    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'brave', 'firecrawl'];
+    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'firecrawl'];
     for (const p of providers) {
       const key = await window.avis.getApiKey(p);
       const input = document.getElementById(`key-${p}`);
@@ -287,7 +286,7 @@ const HotConfig = {
   },
 
   async testAllKeys() {
-    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'brave', 'firecrawl'];
+    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'firecrawl'];
     for (const p of providers) {
       const input = document.getElementById(`key-${p}`);
       if (input?.value?.trim()) await this.testKey(p);
@@ -305,7 +304,7 @@ const HotConfig = {
 
   async resetAllKeys() {
     if (!confirm('Clear ALL API keys? You will need to re-enter them.')) return;
-    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'brave', 'firecrawl'];
+    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'firecrawl'];
     for (const p of providers) await this.clearKey(p);
   },
 

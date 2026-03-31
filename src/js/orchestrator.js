@@ -13,7 +13,7 @@ PROVIDERS YOU CAN CALL RIGHT NOW:
 - call_perplexity — Perplexity live web search (current events, real-time data)
 - call_stability — Image generation via DALL-E 3
 - run_parallel — Call multiple AIs simultaneously for comparison
-- web_search — Search the web (Perplexity/Brave/DuckDuckGo/SearXNG)
+- web_search — Search the web (Perplexity/DuckDuckGo/SearXNG)
 - fetch_url — Read any webpage (uses Firecrawl for clean markdown if available)
 - firecrawl_crawl — Crawl entire websites, returns all pages as markdown
 - run_code — Execute JavaScript or Python
@@ -60,7 +60,7 @@ For every user request:
   BASE_TOOLS: [
     {
       name: "web_search",
-      description: "Search the web for current information using Perplexity/Brave/DuckDuckGo/SearXNG.",
+      description: "Search the web for current information using Perplexity/DuckDuckGo/SearXNG.",
       input_schema: { type: "object", properties: { query: { type: "string", description: "Search query" } }, required: ["query"] }
     },
     {
@@ -1019,7 +1019,7 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
         }
       } catch (e) {}
     }
-    try { const r = await window.avis.braveSearch(query); if (r?.length > 0) return r.map(x => `**${x.title}**\n${x.snippet}\n${x.url}`).join('\n\n'); } catch (e) {}
+    // Brave removed — skip to DuckDuckGo
     try { const r = await window.avis.searxSearch(query); if (r?.length > 0) return r.map(x => `**${x.title}**\n${x.snippet}\n${x.url || ''}`).join('\n\n'); } catch (e) {}
     try { const r = await window.avis.ddgSearch(query); if (r?.length > 0) return r.map(x => `**${x.title}**\n${x.snippet}\n${x.url || ''}`).join('\n\n'); } catch (e) {}
     return `Could not search for "${query}". All search providers failed.`;

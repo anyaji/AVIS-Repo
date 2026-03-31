@@ -1155,27 +1155,6 @@ ipcMain.handle('browser-screenshot', async () => {
 });
 
 // ====================================================================
-// UPGRADE 1: Brave Search fallback
-// ====================================================================
-ipcMain.handle('brave-search', async (_, query) => {
-  const axios = require('axios');
-  const apiKey = store.get('apiKeys.brave', '');
-  if (!apiKey) throw new Error('Brave Search API key not configured');
-
-  const response = await axios.get('https://api.search.brave.com/res/v1/web/search', {
-    params: { q: query, count: 5 },
-    headers: { 'Accept': 'application/json', 'Accept-Encoding': 'gzip', 'X-Subscription-Token': apiKey }
-  });
-
-  const results = (response.data.web?.results || []).map(r => ({
-    title: r.title,
-    snippet: r.description,
-    url: r.url
-  }));
-  return results;
-});
-
-// ====================================================================
 // FIX 1: DuckDuckGo instant answer (no API key, always works)
 // ====================================================================
 ipcMain.handle('ddg-search', async (_, query) => {
@@ -1897,11 +1876,6 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
         const FirecrawlApp = require('@mendable/firecrawl-js').default;
         const fcApp = new FirecrawlApp({ apiKey });
         await fcApp.v1.scrapeUrl('https://example.com', { formats: ['markdown'] });
-        return { success: true };
-      }
-      case 'brave': {
-        const axios = require('axios');
-        await axios.get('https://api.search.brave.com/res/v1/web/search', { params: { q: 'test', count: 1 }, headers: { 'Accept': 'application/json', 'X-Subscription-Token': apiKey } });
         return { success: true };
       }
       default: return { success: false, error: 'Unknown provider' };

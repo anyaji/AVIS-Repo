@@ -1269,7 +1269,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       const roundResults = (await Promise.allSettled(dispatchPromises)).map(r => r.value).filter(Boolean);
       allResults = [...allResults, ...roundResults];
 
-      // Synthesize — cap each contribution to prevent token overflow
+      // Synthesize — cap each contribution, try/catch everything, live status
       const synthCard = document.getElementById('agent-synthesis');
       if (synthCard) synthCard.style.display = '';
       const synthStart = Date.now();
@@ -1278,17 +1278,22 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
         this._updateAgentCard('synthesis', 'working', `<span style="color:var(--accent-blue);">Synthesizing (Round ${round})... ${sec}s</span>`);
       }, 1000);
 
-      const contributions = allResults.filter(r => !r.error).map(r => `=== ${r.label} ===\n${r.text.substring(0, 3000)}`).join('\n\n');
-      const prevContext = round > 1 ? `\n\nPrevious draft (improve upon this):\n${synthesisText.substring(0, 4000)}` : '';
+      let synthResult;
+      try {
+        const contributions = allResults.filter(r => !r.error).map(r => `=== ${r.label} ===\n${r.text.substring(0, 3000)}`).join('\n\n');
+        const prevContext = round > 1 ? `\n\nPrevious draft (improve upon this):\n${synthesisText.substring(0, 4000)}` : '';
 
-      const synthResult = await window.avis.apiCall({
-        provider: 'claude', model: 'claude-sonnet-4-20250514',
-        messages: [{ role: 'user', content: `Original task: ${prompt}\n\nAll AI contributions:\n\n${contributions}${prevContext}\n\nSynthesize into a polished, comprehensive final response. Use markdown.` }],
-        systemPrompt: round > 1
-          ? 'You are improving a previous draft with new contributions from specialists who fixed identified gaps. Integrate their fixes seamlessly.'
-          : 'You are synthesizing contributions from multiple AI specialists into a final deliverable.',
-        options: {}
-      });
+        synthResult = await window.avis.apiCall({
+          provider: 'claude', model: 'claude-sonnet-4-20250514',
+          messages: [{ role: 'user', content: `Original task: ${prompt}\n\nAll AI contributions:\n\n${contributions}${prevContext}\n\nSynthesize into a polished, comprehensive final response. Use markdown.` }],
+          systemPrompt: round > 1
+            ? 'You are improving a previous draft with new contributions from specialists who fixed identified gaps. Integrate their fixes seamlessly.'
+            : 'You are synthesizing contributions from multiple AI specialists into a final deliverable. Be concise but thorough.',
+          options: {}
+        });
+      } catch (err) {
+        synthResult = { error: true, message: err.message };
+      }
 
       clearInterval(synthTimer);
       if (synthResult.error) {
@@ -1298,6 +1303,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
 
       synthesisText = synthResult.text;
       this._councilLastResult = synthesisText;
+      this._updateAgentCard('synthesis', 'done', `<span style="color:var(--accent-green);">Draft ready (Round ${round}) — ${Math.round((Date.now() - synthStart) / 1000)}s</span>`);
 
       // Review with Claude Opus
       const reviewerId = `reviewer-r${round}`;
@@ -1307,7 +1313,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
             <span class="agent-card-name">Claude Opus (Review — Round ${round})</span>
             <span class="agent-card-status working" id="status-${reviewerId}">REVIEWING</span>
           </div>
-          <div class="agent-card-output" id="output-${reviewerId}"><span style="color:var(--accent-amber);">Evaluating quality...</span></div>
+          <div class="agent-card-output" id="output-${reviewerId}"><span style="color:var(--accent-amber);">Evaluating quality... 0s</span></div>
         </div>`);
 
       const revStart = Date.now();
@@ -1317,65 +1323,60 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
         if (el) el.innerHTML = `<span style="color:var(--accent-amber);">Evaluating quality... ${sec}s</span>`;
       }, 1000);
 
-      const reviewResult = await window.avis.apiCall({
-        provider: 'claude', model: 'claude-opus-4-5-20250514',
-        messages: [{ role: 'user', content: `Task: ${prompt}\n\nCurrent draft (Round ${round}):\n${synthesisText.substring(0, 6000)}\n\nReview this output. Score 1-10. If below 8, identify SPECIFIC fixes and assign them to the right AI.
-
-Format EXACTLY:
-SCORE: [1-10]
-STRENGTHS: [what's good]
-GAPS: [what's missing]
-FIX_GPT4: [rewrite/format task, or NONE]
-FIX_DEEPSEEK: [analysis/calculation task, or NONE]
-FIX_GEMINI: [research/data task, or NONE]
-FIX_PERPLEXITY: [fact-check/current data task, or NONE]
-FIX_DALLE: [image needed description, or NONE]
-SUGGESTION_1: [optional improvement for user]
-SUGGESTION_2: [optional improvement for user]
-SUGGESTION_3: [optional improvement for user]` }],
-        systemPrompt: `You are a ruthless quality reviewer on round ${round} of ${this._councilMaxRounds}. Score honestly. If score < 8, you MUST assign FIX_ tasks to the agents best suited to address each gap. Be specific about what needs fixing. NONE means that agent isn't needed for fixes.`,
-        options: {}
-      });
+      let reviewResult;
+      try {
+        reviewResult = await window.avis.apiCall({
+          provider: 'claude', model: 'claude-opus-4-5-20250514',
+          messages: [{ role: 'user', content: `Task: ${prompt}\n\nDraft (Round ${round}):\n${synthesisText.substring(0, 6000)}\n\nScore 1-10. If below 8, assign fixes.\n\nSCORE: [1-10]\nSTRENGTHS: [brief]\nGAPS: [brief]\nFIX_GPT4: [task or NONE]\nFIX_DEEPSEEK: [task or NONE]\nFIX_GEMINI: [task or NONE]\nFIX_PERPLEXITY: [task or NONE]\nFIX_DALLE: [task or NONE]\nSUGGESTION_1: [improvement]\nSUGGESTION_2: [improvement]\nSUGGESTION_3: [improvement]` }],
+          systemPrompt: `Quality reviewer, round ${round}/${this._councilMaxRounds}. Score honestly. Below 8 = assign FIX_ tasks. Be brief and structured.`,
+          options: {}
+        });
+      } catch (err) {
+        reviewResult = { error: true, message: err.message };
+      }
 
       clearInterval(revTimer);
-      let reviewText = '';
-      let suggestions = [];
-      score = 8; // default if review fails
+      let lastSuggestions = [];
+      score = 8;
 
-      if (!reviewResult.error) {
-        reviewText = reviewResult.text;
+      if (reviewResult.error) {
+        this._updateAgentCard(reviewerId, 'error', `Review failed: ${reviewResult.message} — proceeding with current draft`);
+      } else {
+        const reviewText = reviewResult.text;
         const scoreMatch = reviewText.match(/SCORE:\s*(\d+)/i);
         if (scoreMatch) score = parseInt(scoreMatch[1]);
         const suggMatches = reviewText.matchAll(/SUGGESTION_\d+:\s*(.+)/gi);
-        for (const m of suggMatches) suggestions.push(m[1].trim());
-      }
+        for (const m of suggMatches) lastSuggestions.push(m[1].trim());
 
-      const scoreColor = score >= 8 ? 'var(--accent-green)' : score >= 6 ? 'var(--accent-amber)' : 'var(--accent-red)';
-      this._updateAgentCard(reviewerId, 'done',
-        `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <span style="font-size:20px;font-weight:700;color:${scoreColor};">${score}/10</span>
-          <span style="font-size:11px;color:var(--text-secondary);">Round ${round}</span>
-        </div>` +
-        `<div style="font-size:12px;color:var(--text-secondary);">${this.renderMarkdown(reviewText)}</div>`);
+        const scoreColor = score >= 8 ? 'var(--accent-green)' : score >= 6 ? 'var(--accent-amber)' : 'var(--accent-red)';
+        this._updateAgentCard(reviewerId, 'done',
+          `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-size:20px;font-weight:700;color:${scoreColor};">${score}/10</span>
+            <span style="font-size:11px;color:var(--text-secondary);">Round ${round} — ${Math.round((Date.now() - revStart) / 1000)}s</span>
+          </div>` +
+          `<div style="font-size:12px;color:var(--text-secondary);">${this.renderMarkdown(reviewText)}</div>`);
 
-      this.terminalLog.push(`[COUNCIL] Round ${round} — Score: ${score}/10`);
-      this.updateTerminal();
+        this.terminalLog.push(`[COUNCIL] Round ${round} — Score: ${score}/10`);
+        this.updateTerminal();
 
-      // If score >= threshold or max rounds, break
-      if (score >= this._councilQualityThreshold || round >= this._councilMaxRounds) break;
+        // If score >= threshold or max rounds, break
+        if (score >= this._councilQualityThreshold || round >= this._councilMaxRounds) break;
 
-      // Parse FIX_ assignments for next round
-      assignments = {};
-      for (const line of reviewText.split('\n')) {
-        const match = line.match(/^FIX_(GPT4|DEEPSEEK|GEMINI|PERPLEXITY|DALLE):\s*(.+)/i);
-        if (match && match[2].trim().toUpperCase() !== 'NONE') {
-          assignments[match[1].toUpperCase()] = match[2].trim();
+        // Parse FIX_ assignments for next round
+        assignments = {};
+        for (const line of reviewText.split('\n')) {
+          const match = line.match(/^FIX_(GPT4|DEEPSEEK|GEMINI|PERPLEXITY|DALLE):\s*(.+)/i);
+          if (match && match[2].trim().toUpperCase() !== 'NONE') {
+            assignments[match[1].toUpperCase()] = match[2].trim();
+          }
         }
+
+        if (Object.keys(assignments).length === 0) break;
+        round++;
+        continue;
       }
 
-      if (Object.keys(assignments).length === 0) break; // nothing to fix
-
-      round++;
+      break; // review failed, exit loop with current draft
     }
 
     // ===== FINAL PRESENTATION =====
@@ -1383,20 +1384,31 @@ SUGGESTION_3: [optional improvement for user]` }],
     const aiNames = [...new Set(allResults.filter(r => !r.error).map(r => r.label))];
     const finalScoreColor = score >= 8 ? 'var(--accent-green)' : score >= 6 ? 'var(--accent-amber)' : 'var(--accent-red)';
 
-    // Gather suggestions from last review
-    let suggestions = [];
-    if (!allResults.error) {
-      // Re-parse from last review
-      const lastReviewEl = document.getElementById(`output-reviewer-r${round}`) || document.getElementById(`output-reviewer-r${round > 1 ? round : 1}`);
-      // Use stored suggestions from the loop
+    // Collect DALL-E images for gallery
+    const dalleImages = allResults.filter(r => !r.error && (r.imageData || r.imageUrl));
+    let imageGalleryHtml = '';
+    if (dalleImages.length > 0) {
+      imageGalleryHtml = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+        <div style="font-size:11px;font-weight:600;color:var(--accent-blue);margin-bottom:8px;">🎨 Generated Images:</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));gap:8px;">
+          ${dalleImages.map(img => {
+            const src = img.imageUrl || `data:image/png;base64,${img.imageData}`;
+            return `<div style="position:relative;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;" onclick="window.open('${src}','_blank')">
+              <img src="${src}" style="width:100%;display:block;">
+              <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:rgba(0,0,0,0.7);font-size:9px;color:#ccc;">${img.text?.substring(0, 60) || 'Image'}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
     }
 
-    // Final synthesis card with suggestions
+    // Use lastSuggestions from the final review round (declared in the loop, carried out)
     let suggestionsHtml = '';
-    // Re-extract suggestions from the review text on screen
+    // Collect suggestions from last reviewer output
     const reviewOutputs = document.querySelectorAll('[id^="output-reviewer-"]');
+    let suggestions = [];
     if (reviewOutputs.length > 0) {
-      const lastReview = reviewOutputs[reviewOutputs.length - 1].textContent || '';
+      const lastReview = reviewOutputs[reviewOutputs.length - 1].innerText || '';
       const suggMatches = lastReview.matchAll(/SUGGESTION_\d+:\s*(.+)/gi);
       suggestions = [];
       for (const m of suggMatches) suggestions.push(m[1].trim());
@@ -1416,6 +1428,7 @@ SUGGESTION_3: [optional improvement for user]` }],
         <span style="font-size:13px;font-weight:700;color:${finalScoreColor};">${score}/10</span>
       </div>` +
       `<div class="synthesis-output">${this.renderMarkdown(synthesisText)}</div>` +
+      imageGalleryHtml +
       suggestionsHtml +
       `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
         <div style="font-size:11px;font-weight:600;color:var(--accent-green);margin-bottom:8px;">📦 Ship It — Export Options:</div>
@@ -1754,14 +1767,7 @@ SUGGESTION_3: [optional improvement for user]` }],
       } catch (e) { /* fall through */ }
     }
 
-    // 2. Brave (if configured)
-    try {
-      if (statusEl) statusEl.textContent = 'Trying Brave Search...';
-      const braveResults = await window.avis.braveSearch(query);
-      if (braveResults?.length) { results = braveResults; source = 'Brave Search'; }
-    } catch (e) { /* fall through */ }
-
-    // 3. SearXNG (always available, no key — returns real diverse web results)
+    // 2. SearXNG (always available, no key — returns real diverse web results)
     if (!results) {
       try {
         if (statusEl) statusEl.textContent = 'Trying SearXNG...';
@@ -1826,7 +1832,6 @@ SUGGESTION_3: [optional improvement for user]` }],
       { key: 'mistral', label: 'Mistral', placeholder: 'API key...' },
       { key: 'perplexity', label: 'Perplexity', placeholder: 'pplx-...' },
       { key: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...' },
-      { key: 'brave', label: 'Brave Search', placeholder: 'BSA...' }
     ];
     document.getElementById('onboarding-steps').innerHTML = providers.map(p => `
       <div class="onboarding-step"><span class="provider-label">${p.label}</span>
@@ -1859,7 +1864,7 @@ SUGGESTION_3: [optional improvement for user]` }],
   },
 
   async finishOnboarding() {
-    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'brave']) {
+    for (const p of ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity']) {
       const input = document.getElementById(`onboard-${p}`);
       if (input?.value.trim()) await window.avis.setApiKey(p, input.value.trim());
     }

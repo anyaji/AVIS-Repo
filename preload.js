@@ -65,7 +65,6 @@ contextBridge.exposeInMainWorld('avis', {
 
   // Web fetch & search
   fetchUrl: (url) => ipcRenderer.invoke('fetch-url', url),
-  braveSearch: (query) => ipcRenderer.invoke('brave-search', query),
   ddgSearch: (query) => ipcRenderer.invoke('ddg-search', query),
   searxSearch: (query) => ipcRenderer.invoke('searx-search', query),
   browserNavigate: (url) => ipcRenderer.invoke('browser-navigate', url),
