@@ -1082,7 +1082,7 @@ const AVIS = {
         <div class="welcome-content">
           <div class="big-logo glow-text">${name}</div>
           <div class="welcome-tagline">Avel Intelligence Services</div>
-          <div class="welcome-version">v1.3.0</div>
+          <div class="welcome-version">v2.6.3</div>
           <div class="welcome-divider"></div>
           <div class="welcome-features">
             <div class="welcome-feature"><span class="wf-icon">&#129504;</span> Multi-AI Orchestration</div>
