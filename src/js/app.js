@@ -1561,7 +1561,7 @@ const AVIS = {
       const tierBadge = lic.tier === 'master' ? '&#9733; MASTER' : lic.tier === 'tester' ? '&#9881; TESTER' : '&#9679; STANDARD';
       const tierColor = lic.tier === 'master' ? 'var(--accent-amber)' : lic.tier === 'tester' ? 'var(--accent-blue)' : 'var(--text-secondary)';
       const statusColor = isActive ? 'var(--accent-green)' : 'var(--accent-red)';
-      const deviceInfo = lic.deviceId ? `Device: ${lic.deviceId.substring(0, 8)}...` : 'Not activated';
+      const deviceInfo = isMaster ? 'All devices' : lic.deviceId ? `Device: ${lic.deviceId.substring(0, 8)}...` : 'Not activated';
       const activatedAt = lic.activatedAt ? new Date(lic.activatedAt).toLocaleDateString() : '';
 
       return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg-card);border-radius:6px;margin-bottom:4px;border:1px solid var(--border);">
