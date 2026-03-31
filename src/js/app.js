@@ -974,11 +974,11 @@ const AVIS = {
     // Map selection to provider name and model
     const map = {
       'claude': { provider: 'claude', model: 'claude-sonnet-4-20250514' },
-      'claude-opus': { provider: 'claude', model: 'claude-opus-4-5-20250514' },
+      'claude-opus': { provider: 'claude', model: 'claude-opus-4-20250514' },
       'claude-haiku': { provider: 'claude', model: 'claude-haiku-4-5-20251001' },
       'openai': { provider: 'openai', model: 'gpt-4o' },
       'deepseek': { provider: 'deepseek', model: 'deepseek-chat' },
-      'gemini': { provider: 'gemini', model: 'gemini-2.0-flash' },
+      'gemini': { provider: 'gemini', model: 'gemini-2.5-flash' },
       'mistral': { provider: 'mistral', model: 'mistral-large-latest' },
       'perplexity': { provider: 'perplexity', model: 'sonar-pro' }
     };
@@ -1083,7 +1083,7 @@ const AVIS = {
   _councilProviderMap: {
     'GPT4': { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o', color: '#10a37f' },
     'DEEPSEEK': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek', color: '#4d6bfe' },
-    'GEMINI': { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini', color: '#4285f4' },
+    'GEMINI': { provider: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini', color: '#4285f4' },
     'PERPLEXITY': { provider: 'perplexity', model: 'sonar-pro', label: 'Perplexity', color: '#20b2aa' },
     'DALLE': { provider: 'openai', model: 'dall-e-3', label: 'DALL-E 3', color: '#ff6b6b' }
   },
@@ -1326,7 +1326,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       let reviewResult;
       try {
         reviewResult = await window.avis.apiCall({
-          provider: 'claude', model: 'claude-opus-4-5-20250514',
+          provider: 'claude', model: 'claude-opus-4-20250514',
           messages: [{ role: 'user', content: `Task: ${prompt}\n\nDraft (Round ${round}):\n${synthesisText.substring(0, 6000)}\n\nScore 1-10. If below 8, assign fixes.\n\nSCORE: [1-10]\nSTRENGTHS: [brief]\nGAPS: [brief]\nFIX_GPT4: [task or NONE]\nFIX_DEEPSEEK: [task or NONE]\nFIX_GEMINI: [task or NONE]\nFIX_PERPLEXITY: [task or NONE]\nFIX_DALLE: [task or NONE]\nSUGGESTION_1: [improvement]\nSUGGESTION_2: [improvement]\nSUGGESTION_3: [improvement]` }],
           systemPrompt: `Quality reviewer, round ${round}/${this._councilMaxRounds}. Score honestly. Below 8 = assign FIX_ tasks. Be brief and structured.`,
           options: {}
@@ -1432,25 +1432,14 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       suggestionsHtml +
       `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
         <div style="font-size:11px;font-weight:600;color:var(--accent-green);margin-bottom:8px;">📦 Ship It — Export Options:</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
-          <button onclick="AVIS.councilShip('pptx')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:18px;">📊</div>PowerPoint
-          </button>
-          <button onclick="AVIS.councilShip('docx')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:18px;">📄</div>Word Doc
-          </button>
-          <button onclick="AVIS.councilShip('xlsx')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:18px;">📈</div>Excel
-          </button>
-          <button onclick="AVIS.councilShip('md')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:18px;">📝</div>Markdown
-          </button>
-          <button onclick="AVIS.councilShip('txt')" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:18px;">📋</div>Plain Text
-          </button>
-          <button onclick="AVIS.councilCopyResult()" class="council-ship-btn" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="font-size:18px;">📎</div>Clipboard
-          </button>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;" id="ship-buttons">
+          ${['pptx|📊|PowerPoint','docx|📄|Word Doc','xlsx|📈|Excel','md|📝|Markdown','txt|📋|Plain Text','copy|📎|Clipboard'].map(s => {
+            const [fmt, icon, label] = s.split('|');
+            return `<div id="ship-${fmt}" style="padding:10px 8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;text-align:center;transition:border-color 0.2s;" onclick="AVIS.councilShip('${fmt}')" onmouseover="this.style.borderColor='var(--accent-green)'" onmouseout="this.style.borderColor='var(--border)'">
+              <div style="font-size:18px;">${icon}</div><div>${label}</div>
+              <div id="ship-status-${fmt}" style="font-size:9px;margin-top:2px;min-height:12px;"></div>
+            </div>`;
+          }).join('')}
         </div>
       </div>`);
 
@@ -1511,81 +1500,82 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
     this.stopCouncil();
   },
 
+  _shipStatus(fmt, status, msg) {
+    const el = document.getElementById(`ship-status-${fmt}`);
+    if (!el) return;
+    const colors = { working: 'var(--accent-blue)', done: 'var(--accent-green)', error: 'var(--accent-red)' };
+    el.style.color = colors[status] || 'var(--text-secondary)';
+    el.textContent = msg;
+    const card = document.getElementById(`ship-${fmt}`);
+    if (card) card.style.borderColor = status === 'done' ? 'var(--accent-green)' : status === 'error' ? 'var(--accent-red)' : '';
+  },
+
   async councilShip(format) {
     if (!this._councilLastResult) { this.showToast('No result to export'); return; }
+
+    if (format === 'copy') { this.councilCopyResult(); this._shipStatus('copy', 'done', 'Copied!'); return; }
 
     const title = (this._councilPrompt || 'Council Output').substring(0, 50).replace(/[^\w\s-]/g, '');
     const filename = `AVIS_Council_${title.replace(/\s+/g, '_')}`;
 
-    if (format === 'md') {
-      const blob = new Blob([this._councilLastResult], { type: 'text/markdown' });
+    if (format === 'md' || format === 'txt') {
+      this._shipStatus(format, 'working', 'Saving...');
+      const mime = format === 'md' ? 'text/markdown' : 'text/plain';
+      const blob = new Blob([this._councilLastResult], { type: mime });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `${filename}.md`; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = `${filename}.${format}`; a.click();
       URL.revokeObjectURL(url);
-      this.showToast('Exported as Markdown');
+      this._shipStatus(format, 'done', 'Saved!');
       return;
     }
 
-    if (format === 'txt') {
-      const blob = new Blob([this._councilLastResult], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `${filename}.txt`; a.click();
-      URL.revokeObjectURL(url);
-      this.showToast('Exported as Plain Text');
-      return;
-    }
+    // PPTX, DOCX, XLSX — Claude structures, then generates
+    this._shipStatus(format, 'working', 'AI structuring...');
 
-    // For PPTX, DOCX, XLSX — ask Claude to structure the content, then generate
-    this.showToast(`Building ${format.toUpperCase()}...`);
+    const formatPrompts = {
+      pptx: {
+        msg: `Convert to PowerPoint JSON. Return ONLY valid JSON.\n\nContent:\n${this._councilLastResult.substring(0, 8000)}\n\nFormat: {"slides":[{"elements":[{"type":"title","text":"...","x":0.5,"y":0.3,"fontSize":28,"color":"FFFFFF"},{"type":"text","text":"...","x":0.5,"y":1.2,"fontSize":14,"color":"CCCCCC"}],"background":{"fill":{"type":"solid","color":"0D1117"}}}],"options":{"title":"...","filename":"${filename}","author":"AVIS Council"}}`,
+        sys: 'Convert to PowerPoint JSON. Dark backgrounds (0D1117), white text. 5-10 slides. Title first, then content. Return ONLY valid JSON.',
+        gen: 'generatePptx'
+      },
+      docx: {
+        msg: `Convert to Word document JSON. Return ONLY valid JSON.\n\nContent:\n${this._councilLastResult.substring(0, 8000)}\n\nFormat: {"content":[{"type":"heading","text":"...","level":1},{"type":"paragraph","text":"..."},{"type":"table","rows":[["H1","H2"],["d1","d2"]]}],"options":{"title":"...","filename":"${filename}","author":"AVIS Council"}}`,
+        sys: 'Convert to Word JSON. Use headings, paragraphs, tables, page breaks. Include all content. Return ONLY valid JSON.',
+        gen: 'generateDocx'
+      },
+      xlsx: {
+        msg: `Convert to Excel JSON. Return ONLY valid JSON.\n\nContent:\n${this._councilLastResult.substring(0, 8000)}\n\nFormat: {"sheets":[{"name":"Sheet1","data":[["H1","H2"],["v1","v2"]],"colWidths":[20,30]}],"options":{"filename":"${filename}"}}`,
+        sys: 'Convert to Excel JSON. Extract tables, data, lists into sheets. First row = headers. Return ONLY valid JSON.',
+        gen: 'generateXlsx'
+      }
+    };
 
-    if (format === 'pptx') {
+    const fp = formatPrompts[format];
+    if (!fp) return;
+
+    try {
       const structResult = await window.avis.apiCall({
         provider: 'claude', model: 'claude-sonnet-4-20250514',
-        messages: [{ role: 'user', content: `Convert this content into a PowerPoint presentation structure. Return ONLY valid JSON, no markdown fences.\n\nContent:\n${this._councilLastResult}\n\nReturn JSON format:\n{"slides":[{"elements":[{"type":"title","text":"...","x":0.5,"y":0.3,"fontSize":28,"color":"FFFFFF"},{"type":"text","text":"...","x":0.5,"y":1.2,"fontSize":14,"color":"CCCCCC"}],"background":{"fill":{"type":"solid","color":"0D1117"}}}],"options":{"title":"...","filename":"${filename}","author":"AVIS Council"}}` }],
-        systemPrompt: 'Convert content to PowerPoint JSON. Use dark backgrounds (0D1117), white/light text. Create 5-10 slides. Title slide first, content slides with bullet points, data slides with tables. Return ONLY valid JSON.',
-        options: {}
+        messages: [{ role: 'user', content: fp.msg }],
+        systemPrompt: fp.sys, options: {}
       });
-      if (!structResult.error) {
-        try {
-          const data = JSON.parse(structResult.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
-          const result = await window.avis.generatePptx(data);
-          this.showToast(result.success ? `PowerPoint saved to Desktop` : `Failed: ${result.error}`);
-        } catch (e) { this.showToast(`Failed to parse structure: ${e.message}`); }
-      } else { this.showToast(`Failed: ${structResult.message}`); }
-      return;
-    }
 
-    if (format === 'docx') {
-      const structResult = await window.avis.apiCall({
-        provider: 'claude', model: 'claude-sonnet-4-20250514',
-        messages: [{ role: 'user', content: `Convert this content into a Word document structure. Return ONLY valid JSON, no markdown fences.\n\nContent:\n${this._councilLastResult}\n\nReturn JSON format:\n{"content":[{"type":"heading","text":"...","level":1},{"type":"paragraph","text":"..."},{"type":"table","rows":[["Header1","Header2"],["data1","data2"]]},{"type":"pagebreak"}],"options":{"title":"...","filename":"${filename}","author":"AVIS Council"}}` }],
-        systemPrompt: 'Convert content to Word document JSON. Use headings, paragraphs, tables, and page breaks. Be thorough — include all content. Return ONLY valid JSON.',
-        options: {}
-      });
-      if (!structResult.error) {
-        try {
-          const data = JSON.parse(structResult.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
-          const result = await window.avis.generateDocx(data);
-          this.showToast(result.success ? `Word doc saved to Desktop` : `Failed: ${result.error}`);
-        } catch (e) { this.showToast(`Failed to parse structure: ${e.message}`); }
-      } else { this.showToast(`Failed: ${structResult.message}`); }
-      return;
-    }
+      if (structResult.error) {
+        this._shipStatus(format, 'error', structResult.message.substring(0, 30));
+        return;
+      }
 
-    if (format === 'xlsx') {
-      const structResult = await window.avis.apiCall({
-        provider: 'claude', model: 'claude-sonnet-4-20250514',
-        messages: [{ role: 'user', content: `Convert this content into an Excel spreadsheet structure. Extract all data, comparisons, and lists into tabular format. Return ONLY valid JSON, no markdown fences.\n\nContent:\n${this._councilLastResult}\n\nReturn JSON format:\n{"sheets":[{"name":"Sheet1","data":[["Header1","Header2"],["val1","val2"]],"colWidths":[20,30]}],"options":{"filename":"${filename}"}}` }],
-        systemPrompt: 'Convert content to Excel JSON. Create meaningful sheets — extract tables, data, lists, comparisons into spreadsheet format. First row = headers. Return ONLY valid JSON.',
-        options: {}
-      });
-      if (!structResult.error) {
-        try {
-          const data = JSON.parse(structResult.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
-          const result = await window.avis.generateXlsx(data);
-          this.showToast(result.success ? `Excel saved to Desktop` : `Failed: ${result.error}`);
-        } catch (e) { this.showToast(`Failed to parse structure: ${e.message}`); }
-      } else { this.showToast(`Failed: ${structResult.message}`); }
+      this._shipStatus(format, 'working', 'Generating file...');
+      const data = JSON.parse(structResult.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
+      const result = await window.avis[fp.gen](data);
+
+      if (result.success) {
+        this._shipStatus(format, 'done', 'Saved to Desktop!');
+      } else {
+        this._shipStatus(format, 'error', (result.error || 'Failed').substring(0, 30));
+      }
+    } catch (e) {
+      this._shipStatus(format, 'error', e.message.substring(0, 30));
     }
   },
 

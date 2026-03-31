@@ -1853,7 +1853,7 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       case 'gemini': {
         const { GoogleGenerativeAI } = require('@google/generative-ai');
         const genAI = new GoogleGenerativeAI(apiKey);
-        const m = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const m = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
         await m.generateContent('Hi');
         return { success: true };
       }
@@ -2031,7 +2031,7 @@ async function callOpenAI(apiKey, model, messages, systemPrompt) {
 async function callGemini(apiKey, model, messages, systemPrompt) {
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(apiKey);
-  const modelId = model || 'gemini-2.0-flash';
+  const modelId = model || 'gemini-2.5-flash';
 
   // Use generateContent for simple single-turn, startChat for multi-turn
   const genModel = genAI.getGenerativeModel({ model: modelId });
