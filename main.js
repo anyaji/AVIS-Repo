@@ -44,7 +44,8 @@ let browserViewWindow = null;
 // License System — master key always works, others validated via GitHub
 // ====================================================================
 const MASTER_KEY_HASH = '7cff1ad44b9eec3b8917276d874c7776'; // MD5 of master key
-const LICENSE_URL = 'https://raw.githubusercontent.com/anyaji/AVIS-Repo/main/licenses.json';
+const LICENSE_URL = 'https://api.github.com/repos/anyaji/AVIS-Repo/contents/licenses.json';
+const LICENSE_TOKEN = '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'; // read-only for license fetch (repo is private)
 let licenseValid = false;
 let licenseTier = 'standard';
 let licenseOwner = '';
@@ -75,10 +76,13 @@ async function validateLicense(key) {
 
   const deviceId = getDeviceId();
 
-  // Check remote license file
+  // Check remote license file (private repo — requires auth)
   try {
     const axios = require('axios');
-    const response = await axios.get(LICENSE_URL, { timeout: 10000 });
+    const response = await axios.get(LICENSE_URL, {
+      timeout: 10000,
+      headers: { 'Authorization': `token ${LICENSE_TOKEN}`, 'Accept': 'application/vnd.github.v3.raw' }
+    });
     const data = response.data;
     const license = data.licenses?.[key.trim()];
 
@@ -112,11 +116,10 @@ async function validateLicense(key) {
 async function bindLicenseToDevice(key, deviceId, currentData) {
   try {
     const axios = require('axios');
-    const GH_TOKEN = store.get('github.token', '');
 
     // Get current file SHA (needed for GitHub API update)
     const fileInfo = await axios.get('https://api.github.com/repos/anyaji/AVIS-Repo/contents/licenses.json', {
-      headers: { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' },
+      headers: { 'Authorization': `token ${LICENSE_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' },
       timeout: 10000
     });
     const sha = fileInfo.data.sha;
@@ -133,7 +136,7 @@ async function bindLicenseToDevice(key, deviceId, currentData) {
       content,
       sha
     }, {
-      headers: { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' },
+      headers: { 'Authorization': `token ${LICENSE_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' },
       timeout: 10000
     });
 
@@ -467,10 +470,8 @@ app.whenReady().then(() => {
     createWindow();
   }
 
-  // Set GitHub token for license binding (master only, stored locally)
-  if (!store.get('github.token', '')) {
-    store.set('github.token', process.env.GH_TOKEN || '');
-  }
+  // GitHub token for releases is set via GH_TOKEN env var at build time
+  // License token is embedded in LICENSE_TOKEN constant
 
   // Validate stored license on startup
   const storedKey = store.get('license.key', '');
