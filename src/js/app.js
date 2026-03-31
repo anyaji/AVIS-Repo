@@ -978,7 +978,7 @@ const AVIS = {
       'claude-haiku': { provider: 'claude', model: 'claude-haiku-4-5-20251001' },
       'openai': { provider: 'openai', model: 'gpt-4o' },
       'deepseek': { provider: 'deepseek', model: 'deepseek-chat' },
-      'gemini': { provider: 'gemini', model: 'gemini-1.5-pro' },
+      'gemini': { provider: 'gemini', model: 'gemini-2.0-flash' },
       'mistral': { provider: 'mistral', model: 'mistral-large-latest' },
       'perplexity': { provider: 'perplexity', model: 'sonar-pro' }
     };
@@ -1083,7 +1083,7 @@ const AVIS = {
   _councilProviderMap: {
     'GPT4': { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o', color: '#10a37f' },
     'DEEPSEEK': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek', color: '#4d6bfe' },
-    'GEMINI': { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini', color: '#4285f4' },
+    'GEMINI': { provider: 'gemini', model: 'gemini-2.0-flash', label: 'Gemini', color: '#4285f4' },
     'PERPLEXITY': { provider: 'perplexity', model: 'sonar-pro', label: 'Perplexity', color: '#20b2aa' },
     'DALLE': { provider: 'openai', model: 'dall-e-3', label: 'DALL-E 3', color: '#ff6b6b' }
   },

@@ -108,25 +108,33 @@ const HotConfig = {
 
   renderSettings() {
     const providers = [
-      { key: 'claude', label: 'Anthropic (Claude)' },
-      { key: 'deepseek', label: 'DeepSeek' },
-      { key: 'openai', label: 'OpenAI' },
-      { key: 'gemini', label: 'Google Gemini' },
-      { key: 'mistral', label: 'Mistral' },
-      { key: 'perplexity', label: 'Perplexity' },
-      { key: 'brave', label: 'Brave Search' },
-      { key: 'firecrawl', label: 'Firecrawl' }
+      { key: 'claude', label: 'Anthropic (Claude)', hint: 'sk-ant-...' },
+      { key: 'deepseek', label: 'DeepSeek', hint: 'sk-...' },
+      { key: 'openai', label: 'OpenAI (GPT + DALL-E)', hint: 'sk-proj-...' },
+      { key: 'gemini', label: 'Google Gemini', hint: 'AI...' },
+      { key: 'mistral', label: 'Mistral', hint: 'API key...' },
+      { key: 'perplexity', label: 'Perplexity', hint: 'pplx-...' },
+      { key: 'brave', label: 'Brave Search', hint: 'BSA...' },
+      { key: 'firecrawl', label: 'Firecrawl', hint: 'fc-...' }
     ];
 
     let html = `
       <div class="settings-section">
         <h3>API Keys</h3>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button onclick="HotConfig.testAllKeys()" style="padding:6px 12px;font-size:11px;background:var(--accent-blue);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Test All Keys</button>
+          <button onclick="HotConfig.resetAllKeys()" style="padding:6px 12px;font-size:11px;background:transparent;color:var(--accent-red);border:1px solid var(--accent-red);border-radius:4px;cursor:pointer;font-weight:600;">Reset All Keys</button>
+        </div>
         ${providers.map(p => `
-          <div class="setting-row">
-            <label>${p.label}</label>
-            <input type="password" id="key-${p.key}" placeholder="Enter API key..." onchange="HotConfig.saveApiKey('${p.key}', this.value)">
+          <div class="setting-row" style="display:flex;align-items:center;gap:6px;">
+            <label style="min-width:140px;">${p.label}</label>
+            <input type="password" id="key-${p.key}" placeholder="${p.hint || 'Enter API key...'}" onchange="HotConfig.saveApiKey('${p.key}', this.value)" style="flex:1;">
+            <span id="key-status-${p.key}" style="font-size:10px;font-weight:600;min-width:50px;text-align:center;">—</span>
+            <button onclick="HotConfig.testKey('${p.key}')" style="padding:4px 8px;font-size:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);cursor:pointer;">Test</button>
+            <button onclick="HotConfig.clearKey('${p.key}')" style="padding:4px 8px;font-size:10px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--accent-red);cursor:pointer;">✕</button>
           </div>
         `).join('')}
+        <div style="font-size:10px;color:var(--text-secondary);margin-top:6px;">Note: OpenAI key is shared for GPT-4o and DALL-E 3 image generation.</div>
       </div>
 
       <div class="settings-section">
@@ -252,8 +260,53 @@ const HotConfig = {
     for (const p of providers) {
       const key = await window.avis.getApiKey(p);
       const input = document.getElementById(`key-${p}`);
+      const status = document.getElementById(`key-status-${p}`);
       if (input && key) input.value = key;
+      if (status) {
+        if (key) { status.textContent = 'SET'; status.style.color = 'var(--accent-green)'; }
+        else { status.textContent = 'EMPTY'; status.style.color = 'var(--text-secondary)'; }
+      }
     }
+  },
+
+  async testKey(provider) {
+    const input = document.getElementById(`key-${provider}`);
+    const status = document.getElementById(`key-status-${provider}`);
+    const key = input?.value?.trim();
+    if (!key) { if (status) { status.textContent = 'EMPTY'; status.style.color = 'var(--text-secondary)'; } return; }
+    if (status) { status.textContent = '...'; status.style.color = 'var(--accent-blue)'; }
+    try {
+      const result = await window.avis.testProvider(provider, key);
+      if (status) {
+        if (result.success) { status.textContent = '✓ OK'; status.style.color = 'var(--accent-green)'; }
+        else { status.textContent = '✗ FAIL'; status.style.color = 'var(--accent-red)'; status.title = result.error || ''; }
+      }
+    } catch (e) {
+      if (status) { status.textContent = '✗ ERR'; status.style.color = 'var(--accent-red)'; }
+    }
+  },
+
+  async testAllKeys() {
+    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'brave', 'firecrawl'];
+    for (const p of providers) {
+      const input = document.getElementById(`key-${p}`);
+      if (input?.value?.trim()) await this.testKey(p);
+    }
+  },
+
+  async clearKey(provider) {
+    await window.avis.setApiKey(provider, '');
+    const input = document.getElementById(`key-${provider}`);
+    const status = document.getElementById(`key-status-${provider}`);
+    if (input) input.value = '';
+    if (status) { status.textContent = 'EMPTY'; status.style.color = 'var(--text-secondary)'; }
+    this.saveApiKey(provider, '');
+  },
+
+  async resetAllKeys() {
+    if (!confirm('Clear ALL API keys? You will need to re-enter them.')) return;
+    const providers = ['claude', 'deepseek', 'openai', 'gemini', 'mistral', 'perplexity', 'brave', 'firecrawl'];
+    for (const p of providers) await this.clearKey(p);
   },
 
   async saveApiKey(provider, key) {

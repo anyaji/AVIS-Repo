@@ -1763,19 +1763,23 @@ ipcMain.on('abort-request', () => {
 // Provider API calls — now with 30s timeout on every call
 // ====================================================================
 ipcMain.handle('api-call', async (_, { provider, model, messages, systemPrompt, options }) => {
-  // DALL-E uses the OpenAI key
-  const keyName = provider === 'dalle' ? 'openai' : provider;
+  // DALL-E uses the OpenAI key — detect by provider name OR model name OR isDalle flag
+  const isDalle = provider === 'dalle' || model === 'dall-e-3' || options?.isDalle;
+  const keyName = (isDalle || provider === 'dalle') ? 'openai' : provider;
   const apiKey = store.get(`apiKeys.${keyName}`, '');
   if (!apiKey) throw new Error(`No API key configured for ${keyName}`);
 
   try {
     let callFn;
-    switch (provider) {
+
+    // Route DALL-E before the switch — catches all paths (provider='openai' with model='dall-e-3', provider='dalle', isDalle flag)
+    if (isDalle) {
+      callFn = callDalle(store.get('apiKeys.openai', ''), model, messages, options);
+    } else switch (provider) {
       case 'claude': callFn = callClaude(apiKey, model, messages, systemPrompt, options); break;
       case 'deepseek': callFn = callDeepSeek(apiKey, model, messages, systemPrompt, options); break;
       case 'openai': callFn = callOpenAI(apiKey, model, messages, systemPrompt, options); break;
       case 'gemini': callFn = callGemini(apiKey, model, messages, systemPrompt, options); break;
-
       case 'mistral': callFn = callMistral(apiKey, model, messages, systemPrompt, options); break;
       case 'perplexity': callFn = callPerplexity(apiKey, model, messages, systemPrompt, options); break;
       case 'dalle': callFn = callDalle(store.get('apiKeys.openai', ''), model, messages, options); break;
@@ -1870,7 +1874,7 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       case 'gemini': {
         const { GoogleGenerativeAI } = require('@google/generative-ai');
         const genAI = new GoogleGenerativeAI(apiKey);
-        const m = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const m = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
         await m.generateContent('Hi');
         return { success: true };
       }
@@ -2053,7 +2057,7 @@ async function callOpenAI(apiKey, model, messages, systemPrompt) {
 async function callGemini(apiKey, model, messages, systemPrompt) {
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(apiKey);
-  const modelId = model || 'gemini-1.5-flash';
+  const modelId = model || 'gemini-2.0-flash';
 
   // Use generateContent for simple single-turn, startChat for multi-turn
   const genModel = genAI.getGenerativeModel({ model: modelId });

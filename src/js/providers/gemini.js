@@ -2,11 +2,11 @@ const GeminiProvider = {
   name: 'gemini',
   displayName: 'Gemini',
   models: [
-    { id: 'gemini-1.5-pro', name: 'Pro 1.5', tier: 0 },
+    { id: 'gemini-2.0-flash', name: 'Flash 2.0', tier: 0 },
     { id: 'gemini-1.5-flash', name: 'Flash 1.5', tier: 1 }
   ],
   costs: {
-    'gemini-1.5-pro': { input: 1.25, output: 5.0 },
+    'gemini-2.0-flash': { input: 0.10, output: 0.40 },
     'gemini-1.5-flash': { input: 0.075, output: 0.3 }
   },
   currentModelIndex: 0,

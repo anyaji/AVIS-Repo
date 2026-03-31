@@ -229,7 +229,7 @@ For every user request:
     {
       name: "call_gemini", provider: "gemini",
       description: "Call Google Gemini for a task. Best for: multimodal analysis, long context, data analysis, Google ecosystem.",
-      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Gemini" }, model: { type: "string", enum: ["gemini-1.5-pro", "gemini-1.5-flash"], description: "Model to use (default: gemini-1.5-pro)" } }, required: ["prompt"] }
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to Gemini" }, model: { type: "string", enum: ["gemini-2.0-flash", "gemini-1.5-flash"], description: "Model to use (default: gemini-2.0-flash)" } }, required: ["prompt"] }
     },
     {
       name: "call_gpt4", provider: "openai",
