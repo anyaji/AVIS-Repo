@@ -29,7 +29,7 @@
       <div class="tab-separator"></div>
       <button class="nav-tab" data-tab="changelog">Changes</button>
       <div class="tab-separator"></div>
-      <button class="nav-tab" data-tab="council">Council</button>
+      <button class="nav-tab council-tab" data-tab="council">&#9733; Council</button>
       <button class="nav-tab" data-tab="developer" id="dev-tab-btn" style="display:none;">Dev</button>
     </div>
     <div class="titlebar-right">
@@ -82,10 +82,8 @@
                 <option value="gemini">Gemini</option>
                 <option value="mistral">Mistral</option>
                 <option value="perplexity">Perplexity</option>
-                <option value="council">&#9733; Council Mode</option>
               </select>
             </div>
-            <div id="council-info" style="display:none;font-size:10px;color:var(--accent-amber);padding:4px 0;font-family:'JetBrains Mono',monospace;">&#9733; Council: AIs collaborate to solve your task together</div>
             <div style="display:flex;gap:6px;">
               <input type="text" id="direct-chat-input" placeholder="Ask this provider directly..." class="search-box" style="flex:1;">
               <button onclick="AVIS.directChatSend()" class="panel-go-btn">Ask</button>
@@ -161,22 +159,11 @@
           </div>
         </div>
 
-        <!-- Council Workspace -->
+        <!-- Council — left panel just shows history of past council tasks -->
         <div class="panel-section" id="council-section">
-          <div class="terminal-toolbar" style="margin-bottom:8px;">
-            <span class="terminal-title">&#9733; AI Council Workspace</span>
-            <div class="terminal-actions">
-              <button onclick="AVIS.councilCopyResult()" title="Copy result">&#128203;</button>
-              <button onclick="AVIS.councilExportResult()" title="Export to file">&#128190;</button>
-              <button onclick="AVIS.councilClear()" title="Clear">&#128465;</button>
-            </div>
-          </div>
-          <div id="council-workspace" style="font-size:12px;color:var(--text-primary);overflow-y:auto;max-height:calc(100vh - 160px);line-height:1.6;">
-            <div style="color:var(--text-secondary);padding:20px;text-align:center;">
-              <div style="font-size:24px;margin-bottom:8px;">&#9733;</div>
-              <div>Council workspace is empty</div>
-              <div style="font-size:11px;margin-top:4px;">Use Council Mode in the Direct panel to start a collaborative AI task</div>
-            </div>
+          <div style="padding:8px;">
+            <div style="font-size:11px;font-weight:600;color:var(--accent-amber);margin-bottom:8px;">&#9733; Council History</div>
+            <div id="council-history-list" style="font-size:11px;color:var(--text-secondary);">No council tasks yet</div>
           </div>
         </div>
 
@@ -187,8 +174,32 @@
       </div>
     </div>
 
+    <!-- Council Center Panel (hidden by default, shown when Council tab active) -->
+    <div class="center-panel council-center" id="council-center" style="display:none;">
+      <!-- Agent Cards Grid -->
+      <div class="council-agents" id="council-agents">
+        <div class="council-welcome">
+          <div style="font-size:48px;margin-bottom:12px;">&#9733;</div>
+          <div style="font-size:20px;font-weight:700;color:var(--accent-amber);margin-bottom:8px;">AI Council</div>
+          <div style="font-size:13px;color:var(--text-secondary);max-width:400px;line-height:1.6;">
+            Multiple AIs collaborate in real-time to solve complex tasks.<br>
+            Watch each agent work, see their contributions, and get a synthesized result.
+          </div>
+        </div>
+      </div>
+
+      <!-- Council Input -->
+      <div class="input-area">
+        <div class="input-wrap">
+          <textarea id="council-input" rows="1" placeholder="Describe your task for the AI Council..."></textarea>
+          <button class="send-btn council-send" id="council-send-btn" onclick="AVIS.startCouncil()">COUNCIL</button>
+          <button class="stop-btn" id="council-stop-btn" style="display:none;" onclick="AVIS.stopCouncil()">&#9632; STOP</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Center Panel -->
-    <div class="center-panel">
+    <div class="center-panel" id="chat-center">
       <div class="chat-area" id="chat-area">
         <div class="welcome-msg" id="welcome-msg">
           <canvas id="welcome-particles" class="welcome-particles"></canvas>

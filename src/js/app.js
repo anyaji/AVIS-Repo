@@ -258,6 +258,8 @@ const AVIS = {
   setupTabs() {
     const allTabs = document.querySelectorAll('.nav-tab');
     const allSections = document.querySelectorAll('.panel-section');
+    const chatCenter = document.getElementById('chat-center');
+    const councilCenter = document.getElementById('council-center');
 
     allTabs.forEach(tab => {
       tab.addEventListener('click', (e) => {
@@ -271,6 +273,15 @@ const AVIS = {
         const targetId = `${tab.dataset.tab}-section`;
         const targetSection = document.getElementById(targetId);
         if (targetSection) { targetSection.classList.add('active'); targetSection.style.display = 'block'; }
+
+        // Toggle center panel: Council gets its own full center view
+        if (tab.dataset.tab === 'council') {
+          if (chatCenter) chatCenter.style.display = 'none';
+          if (councilCenter) councilCenter.style.display = 'flex';
+        } else {
+          if (chatCenter) chatCenter.style.display = '';
+          if (councilCenter) councilCenter.style.display = 'none';
+        }
       });
     });
   },
@@ -306,11 +317,9 @@ const AVIS = {
     document.getElementById('direct-chat-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.directChatSend();
     });
-    document.getElementById('direct-chat-provider')?.addEventListener('change', (e) => {
-      const info = document.getElementById('council-info');
-      const input = document.getElementById('direct-chat-input');
-      if (info) info.style.display = e.target.value === 'council' ? 'block' : 'none';
-      if (input) input.placeholder = e.target.value === 'council' ? 'Describe the task for the AI council...' : 'Ask this provider directly...';
+    // Council input — Enter to send
+    document.getElementById('council-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.startCouncil(); }
     });
     document.getElementById('browser-url-input')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -934,12 +943,6 @@ const AVIS = {
     if (!prompt) return;
 
     const selected = providerSelect?.value || 'claude';
-
-    // Council mode — route through agentic orchestrator
-    if (selected === 'council') {
-      return this.councilSend(prompt, statusEl, responseEl);
-    }
-
     if (statusEl) statusEl.textContent = `Asking ${selected}...`;
     if (responseEl) responseEl.innerHTML = '<span style="color:var(--text-secondary);">Thinking...</span>';
 
@@ -989,51 +992,101 @@ const AVIS = {
   },
 
   // ====================================================================
-  // Council Mode — AIs collaborate to solve a task
+  // Council Mode — Full center-panel multi-agent workspace
   // ====================================================================
-  async councilSend(prompt, statusEl, responseEl) {
-    if (statusEl) statusEl.textContent = '★ Council assembling...';
-    if (responseEl) responseEl.innerHTML = '<span style="color:var(--accent-amber);">★ Council is deliberating...</span>';
+  _councilRunning: false,
+
+  async startCouncil() {
+    const input = document.getElementById('council-input');
+    const prompt = input?.value?.trim();
+    if (!prompt || this._councilRunning) return;
+    this._councilRunning = true;
+    input.value = '';
+
+    const agents = document.getElementById('council-agents');
+    const sendBtn = document.getElementById('council-send-btn');
+    const stopBtn = document.getElementById('council-stop-btn');
+    if (sendBtn) sendBtn.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'inline-flex';
+
+    // Build the agent cards UI
+    agents.innerHTML = `
+      <div style="font-size:11px;color:var(--text-secondary);padding:4px 0;margin-bottom:4px;">
+        <strong style="color:var(--accent-amber);">★ Task:</strong> ${prompt}
+      </div>
+      <div class="agent-card coordinator" id="agent-coordinator">
+        <div class="agent-card-header">
+          <span class="agent-card-name">Claude (Coordinator)</span>
+          <span class="agent-card-status working" id="status-coordinator">PLANNING</span>
+        </div>
+        <div class="agent-card-output" id="output-coordinator">Analyzing task and assigning agents...</div>
+      </div>
+      <div id="agent-cards-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
+      <div class="agent-card synthesis" id="agent-synthesis" style="display:none;">
+        <div class="agent-card-header">
+          <span class="agent-card-name">★ Final Synthesis</span>
+          <span class="agent-card-status working" id="status-synthesis">WAITING</span>
+        </div>
+        <div class="synthesis-output" id="output-synthesis"></div>
+      </div>`;
 
     const start = Date.now();
-    const councilLog = [];
+    const statusEl = null; const responseEl = null; // not used in new UI
+    // Reuse councilSend logic but with live card updates
+    await this._runCouncilPipeline(prompt, start);
+  },
 
-    // Step 1: Claude analyzes the task and creates a plan
-    if (statusEl) statusEl.textContent = '★ Claude analyzing task...';
+  stopCouncil() {
+    this._councilRunning = false;
+    const sendBtn = document.getElementById('council-send-btn');
+    const stopBtn = document.getElementById('council-stop-btn');
+    if (sendBtn) sendBtn.style.display = '';
+    if (stopBtn) stopBtn.style.display = 'none';
+  },
+
+  _updateAgentCard(id, status, output) {
+    const statusEl = document.getElementById(`status-${id}`);
+    const outputEl = document.getElementById(`output-${id}`);
+    if (statusEl) { statusEl.className = `agent-card-status ${status}`; statusEl.textContent = status.toUpperCase(); }
+    if (outputEl && output !== undefined) outputEl.innerHTML = output;
+    const card = document.getElementById(`agent-${id}`);
+    if (card) { card.className = card.className.replace(/working|done|error/g, '').trim() + ` ${status}`; }
+  },
+
+  async _runCouncilPipeline(prompt, start) {
+    // Step 1: Claude plans
     const planResult = await window.avis.apiCall({
       provider: 'claude', model: 'claude-sonnet-4-20250514',
       messages: [{ role: 'user', content: prompt }],
-      systemPrompt: `You are the lead coordinator of an AI council. You have access to these AI specialists:
-- GPT-4o (OpenAI): Excellent at code generation, structured output, math, and creative writing
-- DeepSeek: Fast reasoning, strong at logic puzzles, analysis, and cheap bulk work
-- Gemini: Strong at multimodal tasks, long context analysis, and data processing
-- Perplexity: Has LIVE web access — use for anything requiring current/real-time information
+      systemPrompt: `You are the lead coordinator of an AI council. You have these AI specialists:
+- GPT-4o (OpenAI): Excellent at code generation, structured output, math, creative writing
+- DeepSeek: Fast reasoning, logic, analysis, cheap bulk work
+- Gemini: Multimodal, long context, data processing
+- Perplexity: LIVE web access — current/real-time information
 
-Analyze the user's task. Create a brief plan that assigns specific sub-tasks to the best-suited AIs.
-Format your response EXACTLY as:
+Analyze the task and assign sub-tasks. Format EXACTLY as:
 PLAN: [1-2 sentence overview]
-ASSIGN_GPT4: [specific sub-task for GPT-4o, or SKIP if not needed]
-ASSIGN_DEEPSEEK: [specific sub-task for DeepSeek, or SKIP if not needed]
-ASSIGN_GEMINI: [specific sub-task for Gemini, or SKIP if not needed]
-ASSIGN_PERPLEXITY: [specific sub-task for Perplexity, or SKIP if not needed]
+ASSIGN_GPT4: [task or SKIP]
+ASSIGN_DEEPSEEK: [task or SKIP]
+ASSIGN_GEMINI: [task or SKIP]
+ASSIGN_PERPLEXITY: [task or SKIP]
 
-Assign at least 2 AIs. Be specific about what each should do. Do NOT do the task yourself yet.`,
+Assign at least 2 AIs. Be specific. Do NOT do the task yourself yet.`,
       options: {}
     });
 
     if (planResult.error) {
-      if (statusEl) statusEl.textContent = '✗ Council failed to plan';
-      if (responseEl) responseEl.textContent = planResult.message;
+      this._updateAgentCard('coordinator', 'error', `Failed: ${planResult.message}`);
+      this.stopCouncil();
       return;
     }
 
     const plan = planResult.text;
-    councilLog.push({ ai: 'Claude (Coordinator)', role: 'Plan', text: plan });
+    this._updateAgentCard('coordinator', 'done', this.renderMarkdown(plan));
 
-    // Step 2: Parse assignments and call each AI in parallel
+    // Step 2: Parse assignments
     const assignments = {};
-    const lines = plan.split('\n');
-    for (const line of lines) {
+    for (const line of plan.split('\n')) {
       const match = line.match(/^ASSIGN_(GPT4|DEEPSEEK|GEMINI|PERPLEXITY):\s*(.+)/i);
       if (match && match[2].trim().toUpperCase() !== 'SKIP') {
         assignments[match[1].toUpperCase()] = match[2].trim();
@@ -1041,163 +1094,116 @@ Assign at least 2 AIs. Be specific about what each should do. Do NOT do the task
     }
 
     const providerMap = {
-      'GPT4': { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o' },
-      'DEEPSEEK': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek' },
-      'GEMINI': { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini' },
-      'PERPLEXITY': { provider: 'perplexity', model: 'sonar-pro', label: 'Perplexity' }
+      'GPT4': { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o', color: '#10a37f' },
+      'DEEPSEEK': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek', color: '#4d6bfe' },
+      'GEMINI': { provider: 'gemini', model: 'gemini-1.5-pro', label: 'Gemini', color: '#4285f4' },
+      'PERPLEXITY': { provider: 'perplexity', model: 'sonar-pro', label: 'Perplexity', color: '#20b2aa' }
     };
 
-    const assignedCount = Object.keys(assignments).length;
-    if (assignedCount === 0) {
-      // Claude didn't assign anyone — just use the plan as the answer
-      this._directChatResponse = plan;
-      if (statusEl) statusEl.textContent = `★ Council (Claude solo) — ${((Date.now() - start) / 1000).toFixed(1)}s`;
-      if (responseEl) responseEl.innerHTML = this.renderMarkdown(plan);
+    if (Object.keys(assignments).length === 0) {
+      document.getElementById('agent-synthesis').style.display = '';
+      this._updateAgentCard('synthesis', 'done', this.renderMarkdown(plan));
+      this.stopCouncil();
       return;
     }
 
-    // Show progress
-    if (responseEl) {
-      responseEl.innerHTML = `<div style="color:var(--accent-amber);">★ Plan created — calling ${assignedCount} AIs...</div><div style="margin-top:6px;font-size:11px;color:var(--text-secondary);white-space:pre-wrap;">${plan}</div>`;
+    // Create agent cards in the grid
+    const grid = document.getElementById('agent-cards-grid');
+    if (grid) {
+      grid.innerHTML = Object.entries(assignments).map(([key, task]) => {
+        const p = providerMap[key];
+        return `<div class="agent-card" id="agent-${key.toLowerCase()}">
+          <div class="agent-card-header">
+            <span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block;"></span>
+            <span class="agent-card-name">${p.label}</span>
+            <span class="agent-card-status waiting" id="status-${key.toLowerCase()}">WAITING</span>
+          </div>
+          <div style="font-size:10px;color:var(--text-secondary);margin-bottom:6px;font-style:italic;">${task}</div>
+          <div class="agent-card-output" id="output-${key.toLowerCase()}">Waiting for assignment...</div>
+        </div>`;
+      }).join('');
     }
 
-    // Call assigned AIs in parallel
+    // Step 3: Call all agents in parallel with live status updates
     const calls = Object.entries(assignments).map(async ([key, task]) => {
       const p = providerMap[key];
-      if (!p) return null;
-      if (statusEl) statusEl.textContent = `★ Waiting on ${Object.keys(assignments).map(k => providerMap[k]?.label).join(', ')}...`;
+      const id = key.toLowerCase();
+      this._updateAgentCard(id, 'working', '<span style="color:var(--accent-blue);">Working...</span>');
 
       try {
         const apiKey = await window.avis.getApiKey(p.provider);
-        if (!apiKey) return { key, label: p.label, text: `[${p.label} not configured — skipped]`, error: true };
+        if (!apiKey) {
+          this._updateAgentCard(id, 'error', `${p.label} not configured — skipped`);
+          return { key, label: p.label, text: `[${p.label} not configured]`, error: true };
+        }
 
         const result = await window.avis.apiCall({
           provider: p.provider, model: p.model,
-          messages: [{ role: 'user', content: `Original task: ${prompt}\n\nYour specific assignment: ${task}\n\nProvide your contribution. Be thorough but concise.` }],
-          systemPrompt: `You are ${p.label}, part of an AI council working together on a task. Focus on your specific assignment and provide your best contribution. Another AI will synthesize all contributions into a final answer.`,
+          messages: [{ role: 'user', content: `Original task: ${prompt}\n\nYour assignment: ${task}\n\nProvide your contribution. Be thorough but concise.` }],
+          systemPrompt: `You are ${p.label}, part of an AI council. Focus on your assignment and give your best work. Another AI will synthesize all contributions.`,
           options: {}
         });
 
-        if (result.error) return { key, label: p.label, text: `[Error: ${result.message}]`, error: true };
+        if (result.error) {
+          this._updateAgentCard(id, 'error', `Error: ${result.message}`);
+          return { key, label: p.label, text: `[Error: ${result.message}]`, error: true };
+        }
+
+        this._updateAgentCard(id, 'done', this.renderMarkdown(result.text));
         return { key, label: p.label, text: result.text, error: false };
       } catch (err) {
+        this._updateAgentCard(id, 'error', `Error: ${err.message}`);
         return { key, label: p.label, text: `[Error: ${err.message}]`, error: true };
       }
     });
 
     const results = (await Promise.allSettled(calls)).map(r => r.value).filter(Boolean);
 
-    for (const r of results) {
-      councilLog.push({ ai: r.label, role: 'Contribution', text: r.text });
-    }
+    // Step 4: Claude synthesizes
+    const synthCard = document.getElementById('agent-synthesis');
+    if (synthCard) synthCard.style.display = '';
+    this._updateAgentCard('synthesis', 'working', '<span style="color:var(--accent-blue);">Synthesizing contributions...</span>');
 
-    // Step 3: Claude synthesizes all contributions
-    if (statusEl) statusEl.textContent = '★ Claude synthesizing...';
-
-    const contributions = results.map(r =>
-      `=== ${r.label} ===\n${r.text}`
-    ).join('\n\n');
+    const contributions = results.filter(r => !r.error).map(r => `=== ${r.label} ===\n${r.text}`).join('\n\n');
 
     const synthesisResult = await window.avis.apiCall({
       provider: 'claude', model: 'claude-sonnet-4-20250514',
-      messages: [{ role: 'user', content: `Original task: ${prompt}\n\nHere are contributions from the AI council:\n\n${contributions}\n\nSynthesize these contributions into a single, cohesive, high-quality response. Credit which AI contributed what insight where relevant. If any AI's contribution was wrong or low quality, override it with the correct information.` }],
-      systemPrompt: 'You are the lead coordinator synthesizing contributions from multiple AI specialists into a final answer. Produce a polished, comprehensive response. Use markdown formatting.',
+      messages: [{ role: 'user', content: `Original task: ${prompt}\n\nAI Council contributions:\n\n${contributions}\n\nSynthesize into a single, polished, comprehensive response. Credit which AI contributed what. Override wrong info.` }],
+      systemPrompt: 'You are the lead coordinator synthesizing contributions from multiple AI specialists. Produce a polished, comprehensive response with markdown formatting.',
       options: {}
     });
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+    const aiNames = results.filter(r => !r.error).map(r => r.label);
 
     if (synthesisResult.error) {
-      // Fall back to showing raw contributions
-      const fallback = results.map(r => `### ${r.label}\n${r.text}`).join('\n\n---\n\n');
-      this._directChatResponse = fallback;
-      if (statusEl) statusEl.textContent = `★ Council (synthesis failed) — ${elapsed}s`;
-      if (responseEl) responseEl.innerHTML = this.renderMarkdown(fallback);
-      return;
+      const fallback = results.filter(r => !r.error).map(r => `### ${r.label}\n${r.text}`).join('\n\n---\n\n');
+      this._updateAgentCard('synthesis', 'error', this.renderMarkdown(fallback));
+    } else {
+      this._updateAgentCard('synthesis', 'done',
+        `<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">Claude + ${aiNames.join(' + ')} — ${elapsed}s</div>` +
+        `<div class="synthesis-output">${this.renderMarkdown(synthesisResult.text)}</div>`);
+      this._councilLastResult = synthesisResult.text;
     }
-
-    // Build final output with council summary header
-    const aiNames = results.filter(r => !r.error).map(r => r.label);
-    const header = `**★ AI Council** — Claude + ${aiNames.join(' + ')} (${elapsed}s)\n\n---\n\n`;
-    const finalText = header + synthesisResult.text;
-
-    this._directChatResponse = synthesisResult.text;
-    if (statusEl) statusEl.textContent = `★ Council: Claude + ${aiNames.join(' + ')} (${elapsed}s)`;
-    if (responseEl) responseEl.innerHTML = this.renderMarkdown(finalText);
 
     // Log to terminal
     this.terminalLog.push(`[COUNCIL] Task: ${prompt.substring(0, 80)}...`);
-    this.terminalLog.push(`[COUNCIL] Plan: ${plan.substring(0, 200)}...`);
-    for (const r of results) {
-      this.terminalLog.push(`[COUNCIL] ${r.label}: ${r.text.substring(0, 150)}...`);
-    }
+    for (const r of results) this.terminalLog.push(`[COUNCIL] ${r.label}: ${r.error ? 'ERROR' : 'Done'}`);
     this.terminalLog.push(`[COUNCIL] Synthesis complete — ${elapsed}s`);
     this.updateTerminal();
 
-    // Post to Council workspace tab
-    this.postToCouncilWorkspace(prompt, plan, results, synthesisResult.text, aiNames, elapsed);
-  },
-
-  postToCouncilWorkspace(task, plan, contributions, synthesis, aiNames, elapsed) {
-    const workspace = document.getElementById('council-workspace');
-    if (!workspace) return;
-
-    const timestamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const contributionsHtml = contributions.filter(r => !r.error).map(r =>
-      `<div style="margin:8px 0;padding:8px 10px;background:var(--bg-card);border-radius:6px;border-left:3px solid var(--accent-blue);">
-        <div style="font-size:11px;font-weight:600;color:var(--accent-blue);margin-bottom:4px;">${r.label}</div>
-        <div style="font-size:12px;color:var(--text-secondary);">${this.renderMarkdown(r.text.substring(0, 500))}</div>
-      </div>`
-    ).join('');
-
-    const entryHtml = `
-      <div class="council-entry" style="margin-bottom:16px;padding:12px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-size:14px;font-weight:700;color:var(--accent-amber);">&#9733; Council Result</span>
-          <span style="font-size:10px;color:var(--text-secondary);">${timestamp} &middot; ${elapsed}s</span>
-        </div>
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;padding:6px 8px;background:var(--bg-primary);border-radius:4px;">
-          <strong>Task:</strong> ${task}<br>
-          <strong>Team:</strong> Claude + ${aiNames.join(' + ')}
-        </div>
-        <details style="margin-bottom:8px;">
-          <summary style="font-size:11px;color:var(--accent-blue);cursor:pointer;user-select:none;">View plan &amp; contributions</summary>
-          <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;padding:6px;background:var(--bg-primary);border-radius:4px;white-space:pre-wrap;">${plan}</div>
-          ${contributionsHtml}
-        </details>
-        <div style="border-top:1px solid var(--border);padding-top:10px;">
-          ${this.renderMarkdown(synthesis)}
-        </div>
+    // Add to council history in left panel
+    const histList = document.getElementById('council-history-list');
+    if (histList) {
+      const ts = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      const entry = `<div style="padding:6px 8px;background:var(--bg-card);border-radius:4px;margin-bottom:4px;cursor:default;">
+        <div style="font-size:11px;color:var(--text-primary);font-weight:600;">${prompt.substring(0, 40)}${prompt.length > 40 ? '...' : ''}</div>
+        <div style="font-size:10px;color:var(--text-secondary);">${ts} — ${aiNames.join(', ')} — ${elapsed}s</div>
       </div>`;
-
-    workspace.innerHTML = entryHtml + workspace.innerHTML.replace(/Council workspace is empty[\s\S]*?<\/div>\s*<\/div>/, '');
-    this._councilLastResult = synthesis;
-  },
-
-  councilCopyResult() {
-    if (this._councilLastResult) {
-      navigator.clipboard.writeText(this._councilLastResult);
-      this.showToast('Council result copied');
+      histList.innerHTML = entry + (histList.innerHTML === 'No council tasks yet' ? '' : histList.innerHTML);
     }
-  },
 
-  councilExportResult() {
-    const workspace = document.getElementById('council-workspace');
-    if (workspace) {
-      const blob = new Blob([workspace.innerText], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'AVIS_Council_Result.txt'; a.click();
-      URL.revokeObjectURL(url);
-    }
-  },
-
-  councilClear() {
-    const workspace = document.getElementById('council-workspace');
-    if (workspace) {
-      workspace.innerHTML = '<div style="color:var(--text-secondary);padding:20px;text-align:center;"><div style="font-size:24px;margin-bottom:8px;">&#9733;</div><div>Council workspace is empty</div><div style="font-size:11px;margin-top:4px;">Use Council Mode in the Direct panel to start a collaborative AI task</div></div>';
-    }
-    this._councilLastResult = null;
+    this.stopCouncil();
   },
 
   directChatCopy() {
