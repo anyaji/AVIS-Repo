@@ -397,19 +397,21 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant �
 
     // Try Claude first (primary orchestrator with tool use)
     const hasClaude = await this.hasProvider('claude');
-    if (hasClaude && this.isProviderAvailable('claude') && this._claudeFailCount < 3) {
+    if (hasClaude && this.isProviderAvailable('claude')) {
       try {
-        const taskType = this.detectTaskType(userMessage);
-        if (taskType === 'simple_chat' && files.length === 0 && this.onStreamChunk) {
-          const result = await this.streamDirect(userMessage);
-          if (result && !result.error) { this._claudeFailCount = 0; this._activeOrchestrator = 'claude'; return result; }
-        } else {
-          const result = await this.agenticLoop(userMessage, files);
-          if (result && !result.error) { this._claudeFailCount = 0; this._activeOrchestrator = 'claude'; return result; }
-        }
+        // Always use agentic loop — streaming was causing silent failures
+        const result = await this.agenticLoop(userMessage, files);
+        if (result) { this._claudeFailCount = 0; this._activeOrchestrator = 'claude'; return result; }
       } catch (e) {
         this._claudeFailCount++;
-        this.emitStep('warn', `Claude failed (${this._claudeFailCount}/3) — trying backup orchestrator...`, 'warn');
+        this.emitStep('warn', `Claude failed (${this._claudeFailCount}/3) — trying backup...`, 'warn');
+        if (this._claudeFailCount < 3) {
+          // Retry once before failover
+          try {
+            const retry = await this.agenticLoop(userMessage, files);
+            if (retry) { this._claudeFailCount = 0; return retry; }
+          } catch (e2) {}
+        }
       }
     }
 
