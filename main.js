@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, screen, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const vm = require('vm');
@@ -475,7 +475,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => { app.quit(); });
 
 // Global hotkey: Alt+Space brings AVIS to front and focuses input
-const { globalShortcut } = require('electron');
 app.whenReady().then(() => {
   globalShortcut.register('Alt+Space', () => {
     if (mainWindow) {
