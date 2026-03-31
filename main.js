@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const vm = require('vm');
 const { exec, spawn } = require('child_process');
 const Store = require('electron-store');
