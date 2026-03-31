@@ -990,7 +990,7 @@ ipcMain.handle('firecrawl-verify', async () => {
   try {
     const FirecrawlApp = require('@mendable/firecrawl-js').default;
     const fcApp = new FirecrawlApp({ apiKey });
-    const result = await fcApp.scrapeUrl('https://example.com', { formats: ['markdown'] });
+    const result = await fcApp.v1.scrapeUrl('https://example.com', { formats: ['markdown'] });
     return { valid: result.success === true, error: result.success ? null : 'Scrape test failed' };
   } catch (err) {
     return { valid: false, error: err.message };
@@ -1003,7 +1003,7 @@ ipcMain.handle('firecrawl-scrape', async (_, url) => {
   try {
     const FirecrawlApp = require('@mendable/firecrawl-js').default;
     const app = new FirecrawlApp({ apiKey });
-    const result = await app.scrapeUrl(url, { formats: ['markdown'] });
+    const result = await app.v1.scrapeUrl(url, { formats: ['markdown'] });
     if (result.success) {
       return { success: true, content: result.markdown || result.content || '', metadata: result.metadata || {} };
     }
@@ -1019,7 +1019,7 @@ ipcMain.handle('firecrawl-crawl', async (_, url, limit) => {
   try {
     const FirecrawlApp = require('@mendable/firecrawl-js').default;
     const app = new FirecrawlApp({ apiKey });
-    const result = await app.crawlUrl(url, { limit: limit || 10, scrapeOptions: { formats: ['markdown'] } });
+    const result = await app.v1.crawlUrl(url, { limit: limit || 10, scrapeOptions: { formats: ['markdown'] } });
     if (result.success) {
       return { success: true, pages: (result.data || []).map(p => ({ url: p.metadata?.sourceURL || '', content: p.markdown || '' })) };
     }
@@ -1035,7 +1035,7 @@ ipcMain.handle('firecrawl-search', async (_, query, limit) => {
   try {
     const FirecrawlApp = require('@mendable/firecrawl-js').default;
     const app = new FirecrawlApp({ apiKey });
-    const result = await app.search(query, { limit: limit || 5, scrapeOptions: { formats: ['markdown'] } });
+    const result = await app.v1.search(query, { limit: limit || 5, scrapeOptions: { formats: ['markdown'] } });
     return { success: true, results: result.data || [] };
   } catch (err) {
     return { success: false, error: err.message };
@@ -1896,7 +1896,7 @@ ipcMain.handle('test-provider', async (_, provider, apiKey) => {
       case 'firecrawl': {
         const FirecrawlApp = require('@mendable/firecrawl-js').default;
         const fcApp = new FirecrawlApp({ apiKey });
-        await fcApp.scrapeUrl('https://example.com', { formats: ['markdown'] });
+        await fcApp.v1.scrapeUrl('https://example.com', { formats: ['markdown'] });
         return { success: true };
       }
       case 'brave': {
