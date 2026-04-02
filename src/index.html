@@ -54,6 +54,13 @@
       <div class="panel-content">
         <!-- Providers Section -->
         <div class="panel-section active" id="providers-section" style="display:block;">
+          <!-- Chrome Extension Status -->
+          <div class="chrome-status" id="chrome-status">
+            <div class="chrome-dot" id="chrome-dot"></div>
+            <span class="chrome-label">Chrome</span>
+            <span class="chrome-model" id="chrome-model">Haiku 4.5</span>
+            <span class="chrome-badge" id="chrome-badge">DISCONNECTED</span>
+          </div>
           <div class="provider-status" id="provider-status-list"></div>
         </div>
 
@@ -555,6 +562,8 @@
   <script src="js/cache.js"></script>
   <script src="js/delegationProtocol.js"></script>
   <script src="js/missionControl.js"></script>
+  <script src="js/browserAgent.js"></script>
+  <script src="js/workflowRecorder.js"></script>
   <script src="js/orchestrator.js"></script>
   <script src="js/app.js"></script>
 </body>

@@ -25,6 +25,7 @@ COMPUTER CONTROL WORKFLOW: 1) list_windows to find the app, 2) screenshot with w
 - generate_presentation — Create PowerPoint (.pptx) with slides, titles, text, images, tables, charts, shapes
 - generate_document — Create Word (.docx) with headings, paragraphs, tables, images, page breaks
 - generate_spreadsheet — Create Excel (.xlsx) with multiple sheets, headers, data, column widths
+- BROWSER AGENT — Detects browser tasks automatically (URLs, "go to", "fill out", "sign up", etc.) and routes to Chrome MCP extension for real browser automation. Falls back to Firecrawl if Chrome disconnected.
 
 ROUTING RULES:
 - "call claude code" or "build/fix [project]" → call_claude_code
@@ -550,6 +551,69 @@ DELEGATION RULES (follow these always):
     }
     if ((!userMessage || !userMessage.trim()) && files.length === 0) {
       return { text: 'Please type a message or attach a file.', provider: 'avis', model: 'system' };
+    }
+
+    // === BROWSER TASK CHECK: route to Chrome Agent if detected ===
+    if (files.length === 0 && DelegationProtocol.isBrowserTask(userMessage)) {
+      const chromeConnected = await window.avis.chromeIsConnected();
+      if (chromeConnected) {
+        this.emitStep('route', '\u{1F310} Browser task detected \u2192 Chrome Agent');
+        if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking('chrome', userMessage.substring(0, 40));
+        try {
+          // Check for saved workflow first
+          const savedWorkflow = await WorkflowRecorder.findMatchingWorkflow(userMessage);
+          let result;
+          if (savedWorkflow) {
+            result = await WorkflowRecorder.replayWorkflow(savedWorkflow);
+          } else {
+            result = await BrowserAgent.executeTask(userMessage);
+          }
+          if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('chrome');
+
+          // Show screenshot in chat if available
+          if (result.screenshot) {
+            AVIS.addImageToChat({
+              url: 'data:image/png;base64,' + result.screenshot,
+              originalPrompt: userMessage
+            }, 'chrome', 'Browser Agent');
+          }
+
+          // Offer to save successful workflows
+          if (result.success && !savedWorkflow) {
+            this.emitStep('browser', '\u2705 Task completed \u2014 use /save-workflow to save for reuse', 'done');
+            this._lastBrowserResult = result;
+            this._lastBrowserMessage = userMessage;
+          }
+
+          return { text: result.summary, provider: 'chrome', model: 'Browser Agent' };
+        } catch (err) {
+          if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('chrome');
+          this.emitStep('browser', 'Browser task failed: ' + err.message, 'error');
+          // Fall through to normal routing
+        }
+      } else {
+        // Fallback to Firecrawl when Chrome not connected
+        const url = DelegationProtocol.extractUrl(userMessage);
+        if (url) {
+          this.emitStep('route', '\u26A0\uFE0F Chrome not connected \u2014 using Firecrawl');
+          try {
+            const fc = await window.avis.firecrawlScrape(url);
+            if (fc.success) {
+              // Let Claude analyze the page content
+              const analysisResult = await window.avis.apiCallAgentic({
+                model: 'claude-sonnet-4-20250514',
+                messages: [{ role: 'user', content: `User wanted to do this browser task: ${userMessage}\nChrome extension not available.\nHere's the page content from Firecrawl:\n${fc.content?.substring(0, 8000)}\n\nHelp the user accomplish what they need based on this content. Tell them you couldn't automate it but here's the information.` }],
+                systemPrompt: this.SYSTEM_PROMPT,
+                tools: []
+              });
+              if (!analysisResult.error && analysisResult.content) {
+                const text = analysisResult.content.filter(b => b.type === 'text').map(b => b.text).join('');
+                return { text, provider: 'claude', model: 'Sonnet (Firecrawl fallback)' };
+              }
+            }
+          } catch (e) {}
+        }
+      }
     }
 
     // === RESPONSE CACHE: instant return for repeated prompts ===

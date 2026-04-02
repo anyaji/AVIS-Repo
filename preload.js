@@ -14,7 +14,6 @@ contextBridge.exposeInMainWorld('avis', {
   // API keys
   getApiKey: (provider) => ipcRenderer.invoke('get-api-key', provider),
   setApiKey: (provider, key) => ipcRenderer.invoke('set-api-key', provider, key),
-  getAllKeys: () => ipcRenderer.invoke('get-all-keys'),
 
   // Config
   getConfig: () => ipcRenderer.invoke('get-config'),
@@ -142,5 +141,22 @@ contextBridge.exposeInMainWorld('avis', {
   claudeCodeSetUnlock: (unlocked) => ipcRenderer.invoke('claude-code-set-unlock', unlocked),
 
   // BUG 3: Get AVIS install path so Claude can find its own source files
-  getAvisPath: () => ipcRenderer.invoke('get-avis-path')
+  getAvisPath: () => ipcRenderer.invoke('get-avis-path'),
+
+  // Chrome MCP extension — browser automation
+  chromeNavigate: (url) => ipcRenderer.invoke('chrome:navigate', url),
+  chromeScreenshot: () => ipcRenderer.invoke('chrome:screenshot'),
+  chromeClick: (sel) => ipcRenderer.invoke('chrome:click', sel),
+  chromeType: (sel, text) => ipcRenderer.invoke('chrome:type', sel, text),
+  chromeGetContent: () => ipcRenderer.invoke('chrome:getContent'),
+  chromeExecuteScript: (script) => ipcRenderer.invoke('chrome:executeScript', script),
+  chromeWaitFor: (sel, t) => ipcRenderer.invoke('chrome:waitFor', sel, t),
+  chromeScroll: (dir, amt) => ipcRenderer.invoke('chrome:scroll', dir, amt),
+  chromeIsConnected: () => ipcRenderer.invoke('chrome:isConnected'),
+
+  // Workflow recorder — save/load browser workflows
+  workflowSave: (name, desc, steps) => ipcRenderer.invoke('workflow:save', name, desc, steps),
+  workflowList: () => ipcRenderer.invoke('workflow:list'),
+  workflowLoad: (filename) => ipcRenderer.invoke('workflow:load', filename),
+  workflowFind: (message) => ipcRenderer.invoke('workflow:find', message)
 });

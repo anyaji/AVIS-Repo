@@ -79,6 +79,56 @@ const DelegationProtocol = {
     }
   },
 
+  // ====================================================================
+  // Browser Task Detection — auto-route to Chrome Agent
+  // ====================================================================
+  BROWSER_TASK_TRIGGERS: {
+    navigate: ['go to', 'navigate to', 'open', 'visit', 'load', 'browse to', 'take me to'],
+    fill: ['fill out', 'fill in', 'complete the form', 'submit', 'enter my', 'type in', 'put in'],
+    task: ['finish', 'complete', 'do my', 'handle', 'assignment', 'homework', 'apply for',
+           'sign up', 'register', 'log in', 'login', 'download from', 'upload to', 'buy',
+           'order', 'book', 'schedule', 'find on'],
+    research: ['search on', 'look up on', 'find on', 'check on', 'see on', 'read on']
+  },
+
+  isBrowserTask(message) {
+    const msg = message.toLowerCase();
+    const hasUrl = /https?:\/\/|www\.|\.com|\.gov|\.edu|\.org/.test(msg);
+    const hasTrigger = Object.values(this.BROWSER_TASK_TRIGGERS)
+      .flat()
+      .some(trigger => msg.includes(trigger));
+    const hasWebsite = /website|webpage|site|page|portal|platform/.test(msg);
+    return hasUrl || (hasTrigger && hasWebsite) || (hasTrigger && hasUrl);
+  },
+
+  extractUrl(message) {
+    const urlMatch = message.match(/https?:\/\/[^\s]+|www\.[^\s]+/);
+    if (urlMatch) return urlMatch[0];
+    const siteMatch = message.match(
+      /(?:go to|open|navigate to|visit)\s+([a-zA-Z0-9.-]+(?:\.[a-zA-Z]{2,}))/i
+    );
+    if (siteMatch) {
+      const site = siteMatch[1];
+      return site.startsWith('http') ? site : `https://${site}`;
+    }
+    return null;
+  },
+
+  classifyBrowserTask(message) {
+    const msg = message.toLowerCase();
+    if (this.BROWSER_TASK_TRIGGERS.fill.some(t => msg.includes(t))) return 'form_filling';
+    if (this.BROWSER_TASK_TRIGGERS.task.some(t => msg.includes(t))) return 'task_execution';
+    if (this.BROWSER_TASK_TRIGGERS.research.some(t => msg.includes(t))) return 'web_research';
+    return 'navigation';
+  },
+
+  selectBrowserModel(taskType, complexity) {
+    if (taskType === 'navigation' || complexity === 'simple') return 'claude-haiku-4-5-20251001';
+    if (taskType === 'form_filling' || taskType === 'web_research') return 'claude-sonnet-4-20250514';
+    if (taskType === 'task_execution' && complexity === 'complex') return 'claude-opus-4-5';
+    return 'claude-sonnet-4-20250514';
+  },
+
   // Provider failure tracker for rule 7 (escalate after 2 failures)
   _failCounts: {},
   // Cache for semantic classification to avoid repeated Haiku calls

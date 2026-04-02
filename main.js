@@ -4,6 +4,7 @@ const fs = require('fs');
 const vm = require('vm');
 const os = require('os');
 const { exec, execSync, spawn } = require('child_process');
+const WebSocket = require('ws');
 
 // ====================================================================
 // Real Desktop Path — OneDrive-aware
@@ -55,6 +56,89 @@ let mainWindow;
 let browserViewWindow = null;
 
 // ====================================================================
+// Chrome MCP Client — connects to Claude in Chrome extension
+// ====================================================================
+class ChromeMCPClient {
+  constructor() {
+    this.connected = false;
+    this.ws = null;
+    this.pendingRequests = new Map();
+    this.requestId = 0;
+    this._reconnectTimer = null;
+  }
+
+  async connect() {
+    return new Promise((resolve) => {
+      try {
+        this.ws = new WebSocket('ws://localhost:10235');
+
+        this.ws.on('open', () => {
+          this.connected = true;
+          log.info('Chrome MCP connected');
+          resolve(true);
+        });
+
+        this.ws.on('message', (data) => {
+          try {
+            const msg = JSON.parse(data);
+            if (msg.id && this.pendingRequests.has(msg.id)) {
+              const { resolve, reject } = this.pendingRequests.get(msg.id);
+              this.pendingRequests.delete(msg.id);
+              if (msg.error) reject(new Error(msg.error.message));
+              else resolve(msg.result);
+            }
+          } catch (err) {
+            log.error('Chrome MCP message error:', err);
+          }
+        });
+
+        this.ws.on('close', () => {
+          this.connected = false;
+          log.warn('Chrome MCP disconnected');
+          if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+          this._reconnectTimer = setTimeout(() => this.connect(), 5000);
+        });
+
+        this.ws.on('error', () => {
+          this.connected = false;
+          resolve(false);
+        });
+      } catch (err) {
+        log.error('Chrome MCP connection failed:', err);
+        resolve(false);
+      }
+    });
+  }
+
+  async call(method, params = {}) {
+    if (!this.connected) throw new Error('Chrome extension not connected');
+    return new Promise((resolve, reject) => {
+      const id = ++this.requestId;
+      this.pendingRequests.set(id, { resolve, reject });
+      setTimeout(() => {
+        if (this.pendingRequests.has(id)) {
+          this.pendingRequests.delete(id);
+          reject(new Error('Chrome MCP timeout'));
+        }
+      }, 60000);
+      this.ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params }));
+    });
+  }
+
+  async navigate(url) { return this.call('browser/navigate', { url }); }
+  async screenshot() { return this.call('browser/screenshot'); }
+  async click(selector) { return this.call('browser/click', { selector }); }
+  async type(selector, text) { return this.call('browser/type', { selector, text }); }
+  async getPageContent() { return this.call('browser/getContent'); }
+  async executeScript(script) { return this.call('browser/executeScript', { script }); }
+  async waitForElement(selector, timeout = 10000) { return this.call('browser/waitForElement', { selector, timeout }); }
+  async scroll(direction = 'down', amount = 300) { return this.call('browser/scroll', { direction, amount }); }
+  isConnected() { return this.connected; }
+}
+
+const chromeMCP = new ChromeMCPClient();
+
+// ====================================================================
 // License System — master key always works, others validated via GitHub
 // ====================================================================
 const MASTER_KEY_HASH = '7a0aea83059eb157e2eba32700fdec68ab3d4bd279c32c8b81b8b5ef72fab796'; // SHA256 of master key
@@ -77,7 +161,6 @@ function isMasterKey(key) {
 // Generate a unique device fingerprint — stable across restarts, unique per machine
 function getDeviceId() {
   const crypto = require('crypto');
-  const os = require('os');
   const raw = `${os.hostname()}-${os.userInfo().username}-${os.cpus()[0]?.model || ''}-${os.totalmem()}`;
   return crypto.createHash('sha256').update(raw).digest('hex').substring(0, 16);
 }
@@ -587,6 +670,11 @@ app.whenReady().then(() => {
   startLicenseChecks();
   startSentinel();
 
+  // Connect to Chrome MCP extension (non-blocking)
+  chromeMCP.connect().then(ok => {
+    log.info('Chrome MCP status:', ok ? 'connected' : 'unavailable');
+  });
+
   initAutoUpdater();
 });
 
@@ -613,7 +701,6 @@ ipcMain.handle('set-api-key', (_, provider, key) => {
   backupKeys(); // always backup after key change
   return true;
 });
-ipcMain.handle('get-all-keys', () => store.get('apiKeys', {}));
 
 // Config management
 ipcMain.handle('get-config', () => {
@@ -2364,6 +2451,75 @@ ipcMain.handle('journal-get-memories', () => {
   } catch (err) {
     return '';
   }
+});
+
+// ====================================================================
+// Chrome MCP IPC handlers — bridge renderer to Chrome extension
+// ====================================================================
+ipcMain.handle('chrome:navigate', (_, url) => chromeMCP.navigate(url));
+ipcMain.handle('chrome:screenshot', () => chromeMCP.screenshot());
+ipcMain.handle('chrome:click', (_, sel) => chromeMCP.click(sel));
+ipcMain.handle('chrome:type', (_, sel, text) => chromeMCP.type(sel, text));
+ipcMain.handle('chrome:getContent', () => chromeMCP.getPageContent());
+ipcMain.handle('chrome:executeScript', (_, script) => chromeMCP.executeScript(script));
+ipcMain.handle('chrome:waitFor', (_, sel, t) => chromeMCP.waitForElement(sel, t));
+ipcMain.handle('chrome:scroll', (_, dir, amt) => chromeMCP.scroll(dir, amt));
+ipcMain.handle('chrome:isConnected', () => chromeMCP.isConnected());
+
+// ====================================================================
+// Workflow Recorder IPC handlers — save/load browser workflows
+// ====================================================================
+const WORKFLOWS_DIR = path.join(os.homedir(), 'Documents', 'AVIS', 'Workflows');
+try { fs.mkdirSync(WORKFLOWS_DIR, { recursive: true }); } catch (e) {}
+
+ipcMain.handle('workflow:save', (_, name, taskDescription, steps) => {
+  try {
+    const workflow = {
+      name,
+      description: taskDescription,
+      steps: steps.filter(s => s.success).map(s => s.step),
+      savedAt: new Date().toISOString(),
+      timesUsed: 0
+    };
+    const filename = name.toLowerCase().replace(/\s+/g, '-') + '.json';
+    fs.writeFileSync(path.join(WORKFLOWS_DIR, filename), JSON.stringify(workflow, null, 2));
+    return { success: true, filename };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('workflow:list', () => {
+  try {
+    return fs.readdirSync(WORKFLOWS_DIR)
+      .filter(f => f.endsWith('.json'))
+      .map(f => {
+        const w = JSON.parse(fs.readFileSync(path.join(WORKFLOWS_DIR, f), 'utf8'));
+        return { filename: f, ...w };
+      });
+  } catch (e) { return []; }
+});
+
+ipcMain.handle('workflow:load', (_, filename) => {
+  try {
+    const p = path.join(WORKFLOWS_DIR, filename);
+    if (!fs.existsSync(p)) return null;
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (e) { return null; }
+});
+
+ipcMain.handle('workflow:find', (_, message) => {
+  try {
+    const workflows = fs.readdirSync(WORKFLOWS_DIR)
+      .filter(f => f.endsWith('.json'))
+      .map(f => JSON.parse(fs.readFileSync(path.join(WORKFLOWS_DIR, f), 'utf8')));
+    const msg = message.toLowerCase();
+    return workflows.find(w =>
+      w.description.toLowerCase().split(' ')
+        .filter(word => word.length > 4)
+        .some(word => msg.includes(word))
+    ) || null;
+  } catch (e) { return null; }
 });
 
 // ====================================================================

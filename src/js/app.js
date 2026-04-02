@@ -76,10 +76,12 @@ const AVIS = {
       if (welcomeVer) welcomeVer.textContent = `v${ver}`;
     } catch (e) {}
 
-    // Render changelog + init dev console + live clock
+    // Render changelog + init dev console + live clock + Chrome status
     this.renderChangelog();
     this.initDevConsole();
     this.startClock();
+    this.updateChromeStatus();
+    setInterval(() => this.updateChromeStatus(), 10000);
 
     // Listen for license revocation while app is running
     window.avis.onLicenseRevoked((data) => {
@@ -1131,10 +1133,38 @@ const AVIS = {
   startClock() {
     const update = () => {
       const el = document.getElementById('live-clock');
-      if (el) el.textContent = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      if (!el) return;
+      const now = new Date();
+      const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      el.innerHTML = `<span class="clock-date">${date}</span><span class="clock-time">${time}</span>`;
     };
     update();
-    setInterval(update, 30000);
+    setInterval(update, 15000);
+  },
+
+  // Chrome extension status polling
+  async updateChromeStatus() {
+    try {
+      const connected = await window.avis.chromeIsConnected();
+      const dot = document.getElementById('chrome-dot');
+      const badge = document.getElementById('chrome-badge');
+      if (!dot || !badge) return;
+      if (connected) {
+        dot.className = 'chrome-dot connected';
+        badge.textContent = 'CONNECTED';
+        badge.className = 'chrome-badge connected';
+      } else {
+        dot.className = 'chrome-dot';
+        badge.textContent = 'DISCONNECTED';
+        badge.className = 'chrome-badge';
+      }
+    } catch (e) {}
+  },
+
+  setBrowserWorking(isWorking) {
+    const dot = document.getElementById('chrome-dot');
+    if (dot) dot.className = isWorking ? 'chrome-dot working' : 'chrome-dot connected';
   },
 
   manualUpdateCheck() {
@@ -1894,15 +1924,15 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
 
       let synthResult;
       try {
-        const contributions = allResults.filter(r => !r.error).map(r => `=== ${r.label} ===\n${r.text.substring(0, 3000)}`).join('\n\n');
-        const prevContext = round > 1 ? `\n\nPrevious draft (improve upon this):\n${synthesisText.substring(0, 4000)}` : '';
+        const contributions = allResults.filter(r => !r.error && r.text && !r.text.startsWith('[Generated image')).map(r => `=== ${r.label} ===\n${r.text.substring(0, 3000)}`).join('\n\n');
+        const prevContext = round > 1 ? `\n\nPrevious draft (improve upon this — keep what works, fix what was flagged):\n${synthesisText.substring(0, 4000)}` : '';
 
         synthResult = await window.avis.apiCall({
           provider: 'claude', model: 'claude-sonnet-4-20250514',
-          messages: [{ role: 'user', content: `Original task: ${prompt}\n\nAll AI contributions:\n\n${contributions}${prevContext}\n\nSynthesize into a polished, comprehensive final response. Use markdown.` }],
+          messages: [{ role: 'user', content: `Task: ${prompt}\n\nSpecialist contributions:\n\n${contributions}${prevContext}\n\nSynthesize into a polished final response. Use markdown. Take the best from each contributor — don't repeat or pad. If contributors disagree, use the strongest-supported position.` }],
           systemPrompt: round > 1
-            ? 'You are improving a previous draft with new contributions from specialists who fixed identified gaps. Integrate their fixes seamlessly.'
-            : 'You are synthesizing contributions from multiple AI specialists into a final deliverable. Be concise but thorough.',
+            ? 'You are improving a draft. The review identified specific gaps — the new contributions address those gaps. Integrate fixes precisely without re-explaining unchanged sections. Be surgical.'
+            : 'Synthesize multiple AI contributions into one authoritative response. Eliminate redundancy, resolve conflicts, preserve unique insights from each contributor. Quality over length.',
           options: {}
         });
       } catch (err) {
@@ -1986,8 +2016,32 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
         }
 
         if (Object.keys(assignments).length === 0) break;
-        round++;
-        continue;
+
+        // Pause and let the user choose: auto-apply fixes or manually amend
+        const fixDescriptions = Object.entries(assignments).map(([k, v]) => `${k}: ${v}`);
+        this._councilPendingAssignments = assignments;
+        this._councilLoopState = { round, allResults, synthesisText, score, prompt, start };
+
+        // Show fix options with Apply/Amend/Skip buttons
+        const fixChoiceId = `fix-choice-r${round}`;
+        agents.insertAdjacentHTML('beforeend', `
+          <div class="agent-card" id="${fixChoiceId}" style="border-color:var(--accent-amber);background:rgba(255,180,0,0.04);">
+            <div class="agent-card-header">
+              <span class="agent-card-name" style="color:var(--accent-amber);">Fixes Recommended (${fixDescriptions.length})</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">
+              ${fixDescriptions.map(f => `<div style="padding:3px 0;">• ${f}</div>`).join('')}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button onclick="AVIS._councilContinueWithFixes()" style="flex:1;padding:10px;font-size:12px;font-weight:600;background:var(--accent-amber);color:#000;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;">APPLY FIXES</button>
+              <button onclick="AVIS.councilForceAmend()" style="flex:1;padding:10px;font-size:12px;font-weight:600;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;">FORCE AMEND</button>
+              <button onclick="AVIS._councilSkipFixes()" style="padding:10px 16px;font-size:12px;background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;">SKIP</button>
+            </div>
+          </div>`);
+
+        // Stop the loop — user must click a button to continue
+        this.stopCouncil();
+        return;
       }
 
       break; // review failed, exit loop with current draft
@@ -1998,42 +2052,56 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
     const aiNames = [...new Set(allResults.filter(r => !r.error).map(r => r.label))];
     const finalScoreColor = score >= 8 ? 'var(--accent-green)' : score >= 6 ? 'var(--accent-amber)' : 'var(--accent-red)';
 
-    // Collect DALL-E images for gallery
+    // Collect DALL-E images for gallery — with individual viewer
     const dalleImages = allResults.filter(r => !r.error && (r.imageData || r.imageUrl));
+    this._councilImages = dalleImages; // store for viewer
     let imageGalleryHtml = '';
     if (dalleImages.length > 0) {
       imageGalleryHtml = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
-        <div style="font-size:11px;font-weight:600;color:var(--accent-blue);margin-bottom:8px;">🎨 Generated Images:</div>
+        <div style="font-size:11px;font-weight:600;color:var(--accent-blue);margin-bottom:8px;">Generated Images (click to view/analyze):</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));gap:8px;">
-          ${dalleImages.map(img => {
+          ${dalleImages.map((img, i) => {
             const src = img.imageUrl || `data:image/png;base64,${img.imageData}`;
-            return `<div style="position:relative;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;" onclick="window.open('${src}','_blank')">
+            return `<div style="position:relative;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;transition:border-color 0.2s;" onclick="AVIS.councilViewImage(${i})" onmouseover="this.style.borderColor='var(--accent-blue)'" onmouseout="this.style.borderColor='var(--border)'">
               <img src="${src}" style="width:100%;display:block;">
-              <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:rgba(0,0,0,0.7);font-size:9px;color:#ccc;">${img.text?.substring(0, 60) || 'Image'}</div>
+              <div style="position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:rgba(0,0,0,0.8);display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:9px;color:#ccc;">${(img.text || 'Image').substring(0, 40)}</span>
+                <span style="font-size:9px;color:var(--accent-blue);">View</span>
+              </div>
             </div>`;
           }).join('')}
         </div>
       </div>`;
     }
 
-    // Use lastSuggestions from the final review round (declared in the loop, carried out)
-    let suggestionsHtml = '';
     // Collect suggestions from last reviewer output
     const reviewOutputs = document.querySelectorAll('[id^="output-reviewer-"]');
     let suggestions = [];
     if (reviewOutputs.length > 0) {
       const lastReview = reviewOutputs[reviewOutputs.length - 1].innerText || '';
       const suggMatches = lastReview.matchAll(/SUGGESTION_\d+:\s*(.+)/gi);
-      suggestions = [];
       for (const m of suggMatches) suggestions.push(m[1].trim());
     }
 
+    // Build action buttons: Apply Fixes (if suggestions exist) + Force Amend (always)
+    let actionButtonsHtml = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">`;
+
+    // Apply All Fixes button — sends all suggestions back to coordinator
     if (suggestions.length > 0) {
-      suggestionsHtml = `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
-        <div style="font-size:11px;font-weight:600;color:var(--accent-amber);margin-bottom:6px;">★ Want to refine further?</div>
-        ${suggestions.map((s, i) => `<button onclick="AVIS.councilRevise('${s.replace(/'/g, "\\'").substring(0, 200)}')" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 10px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;" onmouseover="this.style.borderColor='var(--accent-amber)'" onmouseout="this.style.borderColor='var(--border)'">${i+1}. ${s}</button>`).join('')}
-      </div>`;
+      this._councilPendingFixes = suggestions;
+      actionButtonsHtml += `
+        <div style="font-size:11px;font-weight:600;color:var(--accent-amber);margin-bottom:8px;">Recommended Fixes (${suggestions.length}):</div>
+        ${suggestions.map((s, i) => `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <button onclick="AVIS.councilRevise('${s.replace(/'/g, "\\'").substring(0, 200)}')" style="flex:1;text-align:left;padding:8px 10px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-amber)'" onmouseout="this.style.borderColor='var(--border)'">${i+1}. ${s}</div>`).join('')}
+        <button onclick="AVIS.councilApplyAllFixes()" style="width:100%;margin-top:8px;padding:10px;font-size:12px;font-weight:600;background:var(--accent-amber);color:#000;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;transition:opacity 0.2s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">APPLY ALL FIXES</button>`;
     }
+
+    // Force Amend button — always available
+    actionButtonsHtml += `
+      <button onclick="AVIS.councilForceAmend()" style="width:100%;margin-top:8px;padding:10px;font-size:12px;font-weight:600;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--accent-blue)'" onmouseout="this.style.borderColor='var(--border)'">FORCE AMEND</button>
+    </div>`;
+
+    const suggestionsHtml = actionButtonsHtml;
 
     this._updateAgentCard('synthesis', 'done',
       `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
@@ -2112,6 +2180,278 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       this._updateAgentCard('revision', 'error', `Failed: ${revResult.message}`);
     }
     this.stopCouncil();
+  },
+
+  // Resume council loop after user chose to apply fixes
+  async _councilContinueWithFixes() {
+    if (this._councilRunning) return;
+    const state = this._councilLoopState;
+    const assignments = this._councilPendingAssignments;
+    if (!state || !assignments) { this.showToast('No pending fixes'); return; }
+
+    this._councilRunning = true;
+    const sendBtn = document.getElementById('council-send-btn');
+    const stopBtn = document.getElementById('council-stop-btn');
+    if (sendBtn) sendBtn.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'inline-flex';
+
+    // Resume the pipeline from where we left off
+    let { round, allResults, synthesisText, score, prompt, start } = state;
+    round++;
+
+    const agents = document.getElementById('council-agents');
+
+    // Run fix round
+    agents.insertAdjacentHTML('beforeend', `
+      <div style="font-size:11px;font-weight:700;color:var(--accent-amber);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:8px;">
+        ROUND ${round} — APPLYING FIXES
+      </div>`);
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;';
+    agents.appendChild(grid);
+
+    const dispatchPromises = Object.entries(assignments).map(async ([key, task]) => {
+      const cardId = this._addAgentCard(grid, key, task, round);
+      this._updateAgentCard(cardId, 'working', '<span style="color:var(--accent-blue);">Working...</span>');
+      const result = await this._dispatchAgent(key, task, prompt);
+      if (result.error) {
+        this._updateAgentCard(cardId, 'error', result.text);
+      } else if (result.imageData) {
+        const src = `data:image/png;base64,${result.imageData}`;
+        this._updateAgentCard(cardId, 'done', `<img src="${src}" style="max-width:100%;border-radius:6px;"><div style="font-size:10px;color:var(--text-secondary);margin-top:4px;">${result.text}</div>`);
+      } else {
+        this._updateAgentCard(cardId, 'done', this.renderMarkdown(result.text));
+      }
+      return result;
+    });
+
+    const roundResults = (await Promise.allSettled(dispatchPromises)).map(r => r.value).filter(Boolean);
+    allResults = [...allResults, ...roundResults];
+
+    // Re-synthesize
+    const contributions = allResults.filter(r => !r.error && r.text && !r.text.startsWith('[Generated image')).map(r => `=== ${r.label} ===\n${r.text.substring(0, 3000)}`).join('\n\n');
+
+    const synthResult = await window.avis.apiCall({
+      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      messages: [{ role: 'user', content: `Task: ${prompt}\n\nSpecialist contributions:\n\n${contributions}\n\nPrevious draft (improve upon this — keep what works, fix what was flagged):\n${synthesisText.substring(0, 4000)}\n\nSynthesize into a polished final response. Use markdown.` }],
+      systemPrompt: 'You are improving a draft. Integrate fixes precisely without re-explaining unchanged sections. Be surgical. Quality over length.',
+      options: {}
+    });
+
+    if (!synthResult.error) {
+      synthesisText = synthResult.text;
+      this._councilLastResult = synthesisText;
+    }
+
+    // Show updated result with Force Amend option
+    agents.insertAdjacentHTML('beforeend', `
+      <div class="agent-card synthesis" id="agent-fix-result">
+        <div class="agent-card-header">
+          <span class="agent-card-name">Updated Synthesis (Round ${round})</span>
+          <span class="agent-card-status done">DONE</span>
+        </div>
+        <div class="synthesis-output">${this.renderMarkdown(synthesisText)}</div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <button onclick="AVIS.councilCopyResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Copy</button>
+          <button onclick="AVIS.councilForceAmend()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Force Amend</button>
+        </div>
+      </div>`);
+
+    agents.scrollTop = agents.scrollHeight;
+    this._councilLoopState = null;
+    this._councilPendingAssignments = null;
+    this.stopCouncil();
+  },
+
+  // Skip fixes — finalize with current draft
+  _councilSkipFixes() {
+    this._councilLoopState = null;
+    this._councilPendingAssignments = null;
+    this.showToast('Fixes skipped — using current draft');
+  },
+
+  // Apply all recommended fixes at once — sends all suggestions to coordinator
+  async councilApplyAllFixes() {
+    const fixes = this._councilPendingFixes;
+    if (!fixes || fixes.length === 0) { this.showToast('No fixes to apply'); return; }
+    if (this._councilRunning) return;
+    this._councilRunning = true;
+
+    const sendBtn = document.getElementById('council-send-btn');
+    const stopBtn = document.getElementById('council-stop-btn');
+    if (sendBtn) sendBtn.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'inline-flex';
+
+    const agents = document.getElementById('council-agents');
+    agents.insertAdjacentHTML('beforeend', `
+      <div style="font-size:11px;font-weight:700;color:var(--accent-amber);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:8px;">
+        APPLYING ALL FIXES (${fixes.length})
+      </div>
+      <div class="agent-card coordinator" id="agent-allfixes" style="border-color:var(--accent-amber);">
+        <div class="agent-card-header">
+          <span class="agent-card-name">Claude (Coordinator — Applying Fixes)</span>
+          <span class="agent-card-status working" id="status-allfixes">WORKING</span>
+        </div>
+        <div class="agent-card-output" id="output-allfixes"><span style="color:var(--accent-amber);">Integrating ${fixes.length} fixes...</span></div>
+      </div>`);
+
+    const fixList = fixes.map((f, i) => `${i + 1}. ${f}`).join('\n');
+    const result = await window.avis.apiCall({
+      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      messages: [{ role: 'user', content: `Original task: ${this._councilPrompt}\n\nCurrent output:\n${this._councilLastResult}\n\nApply ALL of the following fixes:\n${fixList}\n\nProduce the complete improved version.` }],
+      systemPrompt: 'You are revising a council output. Apply every fix listed. Produce the full corrected version in markdown. Do not skip any fix.',
+      options: {}
+    });
+
+    if (!result.error) {
+      this._councilLastResult = result.text;
+      this._councilPendingFixes = [];
+      this._updateAgentCard('allfixes', 'done', `<div class="synthesis-output">${this.renderMarkdown(result.text)}</div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <button onclick="AVIS.councilCopyResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Copy</button>
+          <button onclick="AVIS.councilForceAmend()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Amend Further</button>
+        </div>`);
+    } else {
+      this._updateAgentCard('allfixes', 'error', `Failed: ${result.message}`);
+    }
+    this.stopCouncil();
+  },
+
+  // Force Amend — user manually describes what to fix
+  async councilForceAmend() {
+    if (this._councilRunning) return;
+    if (!this._councilLastResult) { this.showToast('No council result to amend'); return; }
+
+    const input = document.getElementById('council-input');
+    const amendment = input?.value?.trim();
+    if (!amendment) {
+      this.showToast('Type your correction in the input bar, then click Force Amend');
+      input?.focus();
+      return;
+    }
+
+    this._councilRunning = true;
+    input.value = '';
+    const sendBtn = document.getElementById('council-send-btn');
+    const stopBtn = document.getElementById('council-stop-btn');
+    if (sendBtn) sendBtn.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'inline-flex';
+
+    const agents = document.getElementById('council-agents');
+    agents.insertAdjacentHTML('beforeend', `
+      <div style="font-size:11px;font-weight:700;color:var(--accent-blue);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:8px;">
+        FORCE AMEND
+      </div>
+      <div class="agent-card coordinator" id="agent-forceamend" style="border-color:var(--accent-blue);">
+        <div class="agent-card-header">
+          <span class="agent-card-name">Claude (Force Amendment)</span>
+          <span class="agent-card-status working" id="status-forceamend">AMENDING</span>
+        </div>
+        <div class="agent-card-output" id="output-forceamend"><span style="color:var(--accent-blue);">Applying: ${amendment.substring(0, 100)}...</span></div>
+      </div>`);
+
+    const result = await window.avis.apiCall({
+      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      messages: [{ role: 'user', content: `Original task: ${this._councilPrompt}\n\nCurrent output:\n${this._councilLastResult}\n\nUSER CORRECTION (must be applied exactly):\n${amendment}\n\nProduce the complete corrected version.` }],
+      systemPrompt: 'The user found mistakes in the council output. Apply their corrections exactly as described. Produce the full corrected version in markdown.',
+      options: {}
+    });
+
+    if (!result.error) {
+      this._councilLastResult = result.text;
+      this._updateAgentCard('forceamend', 'done', `<div class="synthesis-output">${this.renderMarkdown(result.text)}</div>
+        <div style="display:flex;gap:6px;margin-top:10px;">
+          <button onclick="AVIS.councilCopyResult()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Copy</button>
+          <button onclick="AVIS.councilForceAmend()" style="flex:1;padding:8px;font-size:11px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;">Amend Again</button>
+        </div>`);
+    } else {
+      this._updateAgentCard('forceamend', 'error', `Failed: ${result.message}`);
+    }
+    this.stopCouncil();
+  },
+
+  // View a single DALL-E image full-size with analyze option
+  councilViewImage(index) {
+    const images = this._councilImages;
+    if (!images || !images[index]) return;
+    const img = images[index];
+    const src = img.imageUrl || `data:image/png;base64,${img.imageData}`;
+    const prompt = img.text || 'Generated image';
+
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'council-image-viewer';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease;';
+    overlay.innerHTML = `
+      <div style="max-width:90vw;max-height:90vh;display:flex;flex-direction:column;align-items:center;gap:12px;">
+        <img src="${src}" style="max-width:85vw;max-height:70vh;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+        <div style="font-size:12px;color:var(--text-secondary);max-width:600px;text-align:center;line-height:1.5;">${this.escapeHtml(prompt)}</div>
+        <div style="display:flex;gap:8px;">
+          ${index > 0 ? `<button onclick="AVIS.councilViewImage(${index - 1})" style="padding:8px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;font-size:12px;">Prev</button>` : ''}
+          <button onclick="AVIS.councilAnalyzeImage(${index})" style="padding:8px 16px;background:var(--accent-blue);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:600;">Analyze</button>
+          <button onclick="AVIS.councilSaveImage(${index})" style="padding:8px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;font-size:12px;">Save</button>
+          ${index < images.length - 1 ? `<button onclick="AVIS.councilViewImage(${index + 1})" style="padding:8px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);cursor:pointer;font-size:12px;">Next</button>` : ''}
+          <button onclick="document.getElementById('council-image-viewer')?.remove()" style="padding:8px 16px;background:var(--accent-red);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;">Close</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-secondary);">${index + 1} of ${images.length}</div>
+      </div>`;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    // Replace existing viewer or add new
+    document.getElementById('council-image-viewer')?.remove();
+    document.body.appendChild(overlay);
+  },
+
+  // Analyze a single council image with Claude
+  async councilAnalyzeImage(index) {
+    const images = this._councilImages;
+    if (!images || !images[index]) return;
+    const img = images[index];
+
+    document.getElementById('council-image-viewer')?.remove();
+    this.showToast('Analyzing image...');
+
+    const result = await window.avis.apiCall({
+      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/png', data: img.imageData } },
+          { type: 'text', text: `This image was generated by DALL-E 3 for the task: "${this._councilPrompt}"\nOriginal prompt: "${img.text}"\n\nAnalyze this image: describe what you see, assess quality, note any issues, and suggest improvements if regenerating.` }
+        ]
+      }],
+      systemPrompt: 'You are an image analyst. Be specific and constructive.',
+      options: {}
+    });
+
+    const agents = document.getElementById('council-agents');
+    if (agents && !result.error) {
+      agents.insertAdjacentHTML('beforeend', `
+        <div class="agent-card" style="border-color:var(--accent-blue);">
+          <div class="agent-card-header">
+            <span class="agent-card-name">Image Analysis</span>
+            <span class="agent-card-status done">DONE</span>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <img src="data:image/png;base64,${img.imageData}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;flex-shrink:0;">
+            <div class="agent-card-output" style="max-height:none;">${this.renderMarkdown(result.text)}</div>
+          </div>
+        </div>`);
+      agents.scrollTop = agents.scrollHeight;
+    } else if (result.error) {
+      this.showToast('Analysis failed: ' + result.message);
+    }
+  },
+
+  // Save a council image
+  async councilSaveImage(index) {
+    const images = this._councilImages;
+    if (!images || !images[index]) return;
+    const filename = `AVIS_Council_Image_${Date.now()}.png`;
+    const savePath = `${this._paths?.desktop || ''}/${filename}`;
+    const result = await window.avis.saveImage({ base64: images[index].imageData, savePath });
+    this.showToast(result.success ? `Saved: ${filename}` : `Save failed: ${result.error}`);
   },
 
   _shipStatus(fmt, status, msg) {
@@ -2483,7 +2823,20 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
   // ====================================================================
   CHANGELOG: [
     {
-      version: '4.2.0', date: '2026-04-02', label: 'latest',
+      version: '4.3.0', date: '2026-04-02', label: 'latest',
+      items: [
+        'Chrome MCP integration — full browser automation via Claude in Chrome extension',
+        'Browser Agent — auto-detects browser tasks and executes step-by-step with recovery',
+        'Workflow Recorder — save and replay successful browser workflows',
+        'Smart model selection per browser task (Haiku/Sonnet/Opus)',
+        'Chrome status indicator in left panel with live connection polling',
+        'Firecrawl fallback when Chrome extension not connected',
+        'Improved titlebar clock — compact two-line date/time display',
+        'Delegation Protocol now routes URLs and web tasks to Chrome Agent first'
+      ]
+    },
+    {
+      version: '4.2.0', date: '2026-04-02',
       items: [
         'Claude Code: folder-only project picker — no file selection required',
         'Claude Code: fixed shell quoting and stdin issues for reliable task execution',

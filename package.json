@@ -1,6 +1,6 @@
 {
   "name": "avis",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "description": "AVIS - Avel Intelligence Services: Multi-AI Orchestration Platform",
   "main": "main.js",
   "author": "Avel Productions LLC",
@@ -46,12 +46,17 @@
       "icon": "assets/icon.ico"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "icon": "assets/icon.icns",
       "category": "public.app-category.productivity"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "assets/icon.png",
       "category": "Utility"
     },
@@ -80,6 +85,7 @@
     "openai": "^4.73.0",
     "pdf-parse": "^1.1.1",
     "pptxgenjs": "^4.0.1",
+    "ws": "^8.20.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
