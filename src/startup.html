@@ -161,10 +161,10 @@ function animateIcon() {
 }
 animateIcon();
 
-// Play startup sound at 0.8s
+// Play startup sound at 0.8s — path injected by main.js
 setTimeout(() => {
   try {
-    const audio = new Audio('../assets/sounds/startup.mp3');
+    const audio = new Audio('{SOUND_PATH}');
     audio.volume = 0.7;
     audio.play().catch(() => {});
   } catch (e) {}

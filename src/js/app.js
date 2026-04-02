@@ -342,9 +342,9 @@ const AVIS = {
 
   initSounds() {
     const soundFiles = {
-      send: 'assets/sounds/send.mp3',
-      receive: 'assets/sounds/startup.mp3',  // reuse startup as receive chime
-      error: 'assets/sounds/error.mp3'
+      send: '../assets/sounds/startup.mp3',
+      receive: '../assets/sounds/startup.mp3',
+      error: '../assets/sounds/startup.mp3'
     };
     for (const [name, path] of Object.entries(soundFiles)) {
       try {

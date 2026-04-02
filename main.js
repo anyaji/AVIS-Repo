@@ -631,6 +631,8 @@ app.whenReady().then(() => {
     let startupHtml = fs.readFileSync(startupPath, 'utf-8');
     const version = require('./package.json').version;
     startupHtml = startupHtml.replace('id="version-tag"></div>', `id="version-tag">v${version}</div>`);
+    const soundPath = path.join(__dirname, 'assets', 'sounds', 'startup.mp3').replace(/\\/g, '/');
+    startupHtml = startupHtml.replace('{SOUND_PATH}', `file:///${soundPath}`);
     const tmpStartup = path.join(APPDATA_DIR, '_startup.html');
     fs.writeFileSync(tmpStartup, startupHtml, 'utf-8');
     splash.loadFile(tmpStartup);
