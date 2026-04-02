@@ -121,6 +121,15 @@ contextBridge.exposeInMainWorld('avis', {
   // Hot-reload (AVIS edits itself then reloads)
   hotReload: () => ipcRenderer.send('hot-reload'),
 
+  // Session Journal
+  journalLog: (data) => ipcRenderer.invoke('journal-log', data),
+  journalGetRecent: (days) => ipcRenderer.invoke('journal-get-recent', days),
+  journalSaveMemory: (fact) => ipcRenderer.invoke('journal-save-memory', fact),
+  journalGetMemories: () => ipcRenderer.invoke('journal-get-memories'),
+
+  // Sentinel health reports
+  onSentinelReport: (cb) => ipcRenderer.on('sentinel-report', (_, data) => cb(data)),
+
   // BUG 3: Get AVIS install path so Claude can find its own source files
   getAvisPath: () => ipcRenderer.invoke('get-avis-path')
 });

@@ -50,6 +50,14 @@ const UsageMeter = {
       usage.monthCost += costIn + costOut;
     }
 
+    // Feed Mission Control with token/cost data
+    if (typeof MissionControl !== 'undefined') {
+      const model = providerObj.getCurrentModel().id;
+      const costs = providerObj.costs[model];
+      const callCost = costs ? (inputTokens / 1000000) * (costs.input || 0) + (outputTokens / 1000000) * (costs.output || 0) : 0;
+      MissionControl.recordTokens(providerName, inputTokens, outputTokens, callCost);
+    }
+
     this.persist();
     return this.checkThresholds(providerName);
   },

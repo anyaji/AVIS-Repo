@@ -553,6 +553,7 @@ app.whenReady().then(() => {
   }
 
   startLicenseChecks();
+  startSentinel();
 
   initAutoUpdater();
 });
@@ -2146,5 +2147,129 @@ async function callDalle(apiKey, model, messages, options) {
 
   const imageData = response.data.data[0];
   return { text: '', image: { data: imageData.b64_json, mimeType: 'image/png' }, inputTokens: 0, outputTokens: 0, model: 'dall-e-3', revisedPrompt: imageData.revised_prompt };
+}
+
+// ====================================================================
+// SESSION JOURNAL — Daily logs + pinned memories
+// ====================================================================
+const JOURNAL_DIR = path.join(app.getPath('documents'), 'AVIS', 'Journal');
+try { fs.mkdirSync(JOURNAL_DIR, { recursive: true }); } catch (e) {}
+
+function getJournalPath() {
+  const today = new Date().toISOString().split('T')[0];
+  return path.join(JOURNAL_DIR, `${today}.md`);
+}
+
+ipcMain.handle('journal-log', (_, data) => {
+  try {
+    const time = new Date().toLocaleTimeString();
+    const entry = `\n### ${time} \u2014 ${(data.taskType || 'general').toUpperCase()}
+**Agent:** ${data.agent || 'Claude'}
+**User:** ${(data.userMessage || '').substring(0, 150)}
+**Summary:** ${(data.summary || '').substring(0, 300)}
+**Cost:** $${(data.cost || 0).toFixed(4)}
+**Method:** ${data.method || 'direct'}
+---\n`;
+    fs.appendFileSync(getJournalPath(), entry, 'utf8');
+    return { success: true };
+  } catch (err) {
+    log.warn('Journal log failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('journal-get-recent', (_, days) => {
+  try {
+    const entries = [];
+    for (let i = 0; i < (days || 3); i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const p = path.join(JOURNAL_DIR, `${d.toISOString().split('T')[0]}.md`);
+      if (fs.existsSync(p)) {
+        entries.push(fs.readFileSync(p, 'utf8').substring(0, 1000));
+      }
+    }
+    return entries.join('\n');
+  } catch (err) {
+    return '';
+  }
+});
+
+ipcMain.handle('journal-save-memory', (_, fact) => {
+  try {
+    const p = path.join(JOURNAL_DIR, 'pinned-memories.md');
+    fs.appendFileSync(p, `- [${new Date().toLocaleDateString()}] ${fact}\n`, 'utf8');
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('journal-get-memories', () => {
+  try {
+    const p = path.join(JOURNAL_DIR, 'pinned-memories.md');
+    return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+  } catch (err) {
+    return '';
+  }
+});
+
+// ====================================================================
+// SENTINEL — Provider health monitor (runs every 2 hours)
+// ====================================================================
+async function pingProvider(providerName) {
+  const apiKey = store.get(`apiKeys.${providerName}`, '');
+  if (!apiKey) throw new Error('not configured');
+
+  const axios = require('axios');
+  const endpoints = {
+    claude: { url: 'https://api.anthropic.com/v1/messages', headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+              body: { model: 'claude-haiku-4-5-20251001', max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] } },
+    openai: { url: 'https://api.openai.com/v1/models', headers: { 'Authorization': `Bearer ${apiKey}` }, method: 'get' },
+    deepseek: { url: 'https://api.deepseek.com/v1/models', headers: { 'Authorization': `Bearer ${apiKey}` }, method: 'get' },
+    mistral: { url: 'https://api.mistral.ai/v1/models', headers: { 'Authorization': `Bearer ${apiKey}` }, method: 'get' },
+    perplexity: { url: 'https://api.perplexity.ai/chat/completions', headers: { 'Authorization': `Bearer ${apiKey}`, 'content-type': 'application/json' },
+                  body: { model: 'sonar', max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] } },
+    gemini: { url: `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, method: 'get' }
+  };
+
+  const cfg = endpoints[providerName];
+  if (!cfg) throw new Error('unknown provider');
+
+  if (cfg.method === 'get') {
+    await axios.get(cfg.url, { headers: cfg.headers || {}, timeout: 10000 });
+  } else {
+    await axios.post(cfg.url, cfg.body, { headers: cfg.headers, timeout: 10000 });
+  }
+}
+
+function startSentinel() {
+  const runCheck = async () => {
+    log.info('=== SENTINEL HEALTH CHECK ===');
+    const providers = ['claude', 'openai', 'deepseek', 'mistral', 'perplexity', 'gemini'];
+    const results = {};
+
+    for (const p of providers) {
+      try {
+        await pingProvider(p);
+        results[p] = 'healthy';
+      } catch (err) {
+        results[p] = `degraded: ${err.message?.substring(0, 60) || 'unknown'}`;
+        log.warn(`SENTINEL: ${p} degraded — ${err.message}`);
+      }
+    }
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('sentinel-report', {
+        timestamp: new Date().toISOString(),
+        results,
+        summary: Object.entries(results).filter(([_, v]) => v !== 'healthy').map(([k, v]) => `${k}: ${v}`)
+      });
+    }
+  };
+
+  // First check 30s after launch, then every 2 hours
+  setTimeout(runCheck, 30000);
+  setInterval(runCheck, 2 * 60 * 60 * 1000);
 }
 

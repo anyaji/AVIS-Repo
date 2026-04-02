@@ -2178,3 +2178,143 @@ body {
   color: var(--accent-amber);
   white-space: nowrap;
 }
+
+/* ====================================================================
+   MISSION CONTROL
+   ==================================================================== */
+#mission-control {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+.mc-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.mc-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent-blue);
+  font-family: 'JetBrains Mono', monospace;
+}
+.mc-count {
+  font-size: 11px;
+  color: var(--accent-green);
+  font-family: 'JetBrains Mono', monospace;
+}
+.mc-sub {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+}
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1px;
+  background: var(--border);
+}
+.agent-card {
+  background: var(--bg-secondary);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.agent-card.working {
+  background: #0d1a0d;
+  border-left: 3px solid var(--accent-green);
+}
+.agent-card.idle { opacity: 0.5; }
+.agent-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+}
+.agent-status {
+  font-size: 10px;
+  color: var(--accent-green);
+  letter-spacing: 1px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.agent-task {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-cost {
+  font-size: 10px;
+  color: #445566;
+  font-family: 'JetBrains Mono', monospace;
+}
+.agent-health.degraded {
+  font-size: 9px;
+  color: var(--accent-amber);
+  font-family: 'JetBrains Mono', monospace;
+}
+.activity-log {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+.activity-item {
+  display: grid;
+  grid-template-columns: 70px 80px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--bg-panel);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.activity-time { color: #445566; }
+.activity-agent { color: var(--accent-blue); font-weight: 700; }
+.activity-desc { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+}
+.stat-card {
+  background: var(--bg-secondary);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.stat-label {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #445566;
+  text-transform: uppercase;
+  font-family: 'JetBrains Mono', monospace;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+}

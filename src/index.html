@@ -29,6 +29,8 @@
       <div class="tab-separator"></div>
       <button class="nav-tab" data-tab="changelog">Changes</button>
       <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="control">Control</button>
+      <div class="tab-separator"></div>
       <button class="nav-tab council-tab" data-tab="council">&#9733; Council</button>
       <button class="nav-tab" data-tab="developer" id="dev-tab-btn" style="display:none;">Dev</button>
     </div>
@@ -156,6 +158,59 @@
               <button class="dev-filter-btn" onclick="AVIS.loadLicensePanel()" style="margin-left:auto;">Refresh</button>
             </div>
             <div id="license-mgmt-list" style="font-size:12px;color:var(--text-secondary);">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Mission Control Section -->
+        <div class="panel-section" id="control-section">
+          <div id="mission-control">
+            <div class="mc-section">
+              <div class="mc-header">
+                <span class="mc-title">ACTIVE AGENTS</span>
+                <span class="mc-count" id="active-count">0 active</span>
+              </div>
+              <div id="agent-grid" class="agent-grid"></div>
+            </div>
+            <div class="mc-section">
+              <div class="mc-header">
+                <span class="mc-title">RECENT ACTIVITY</span>
+                <span class="mc-sub">Last 10 actions</span>
+              </div>
+              <div id="activity-log" class="activity-log">
+                <div style="padding:12px;color:#445566;font-size:11px;font-family:'JetBrains Mono',monospace;">No activity yet</div>
+              </div>
+            </div>
+            <div class="mc-section">
+              <div class="mc-header">
+                <span class="mc-title">SESSION STATS</span>
+              </div>
+              <div id="session-stats" class="stats-grid">
+                <div class="stat-card">
+                  <span class="stat-label">Messages</span>
+                  <span class="stat-value" id="stat-messages">0</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-label">Providers Used</span>
+                  <span class="stat-value" id="stat-providers">0</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-label">Session Cost</span>
+                  <span class="stat-value" id="stat-cost">$0.00</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-label">Tokens In</span>
+                  <span class="stat-value" id="stat-tokens-in">0</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-label">Tokens Out</span>
+                  <span class="stat-value" id="stat-tokens-out">0</span>
+                </div>
+                <div class="stat-card">
+                  <span class="stat-label">Tasks Routed</span>
+                  <span class="stat-value" id="stat-routed">0</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -333,6 +388,8 @@
   <script src="js/fileHandler.js"></script>
   <script src="js/hotConfig.js"></script>
   <script src="js/cache.js"></script>
+  <script src="js/delegationProtocol.js"></script>
+  <script src="js/missionControl.js"></script>
   <script src="js/orchestrator.js"></script>
   <script src="js/app.js"></script>
 </body>

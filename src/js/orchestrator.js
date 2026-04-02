@@ -115,6 +115,11 @@ For every user request:
         required: ["action"]
       }
     },
+  ],
+
+  // Document generation tools â€” only included when user asks for docs/presentations/spreadsheets
+  // Kept separate to reduce token payload on normal chat calls
+  DOC_TOOLS: [
     {
       name: "generate_presentation",
       description: "Generate a PowerPoint (.pptx) presentation. Builds professional slides with titles, text, images, tables, charts, and shapes. Saves to Desktop. Use for corporate presentations, pitch decks, reports.",
@@ -369,8 +374,16 @@ For every user request:
 
   // Build tools list dynamically â€” only include provider tools for configured providers
   // FIX 4: Only include tools for available providers
-  async buildToolsList() {
+  isDocRequest(msg) {
+    return /presentat|powerpoint|pptx|slide|docx|word\s*doc|spreadsheet|xlsx|excel/i.test(msg || '');
+  },
+
+  async buildToolsList(userMessage) {
     const tools = [...this.BASE_TOOLS];
+    // Only include heavy doc generation schemas when the user actually asks for documents
+    if (this.isDocRequest(userMessage || this._lastTaskMessage)) {
+      tools.push(...this.DOC_TOOLS);
+    }
     for (const pt of this.PROVIDER_TOOLS) {
       if (pt.provider === null) {
         tools.push({ name: pt.name, description: pt.description, input_schema: pt.input_schema });
@@ -383,8 +396,9 @@ For every user request:
 
   // FIX 4: Build prompt with only truly available providers
   async buildSystemPrompt() {
+    const providerDisplayNames = { claude: 'Claude', deepseek: 'DeepSeek', openai: 'OpenAI/GPT-4o', gemini: 'Gemini', mistral: 'Mistral', perplexity: 'Perplexity' };
     const statuses = [];
-    for (const [key, name] of Object.entries(providerNames)) {
+    for (const [key, name] of Object.entries(providerDisplayNames)) {
       const hasKey = await this.hasProvider(key);
       if (!hasKey) {
         statuses.push(`- ${name}: NOT CONFIGURED`);
@@ -406,11 +420,48 @@ For every user request:
 - Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
 IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant â€” always use this as your temporal reference. For anything that may have changed since your training, use web_search or call_perplexity.`;
 
+    const avelContext = `
+
+OPERATOR CONTEXT:
+You are AVIS \u2014 Avel Intelligence Services
+Founder: Avel (Antwon-Anyaji N. Ross)
+Company: Avel Productions LLC
+Current date: ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+
+Active projects:
+- AVIS (this app) \u2014 multi-AI orchestration platform
+- Endurance Final Round \u2014 Unity 6 wargame
+- Niyatori Essentials (niyatori.com) \u2014 family business
+- Degrees: MBA + Aerospace Eng + Safety Engineering
+- Career: USAF SSgt, Egress shop, Moody AFB GA
+- EHS career transition in planning
+
+DELEGATION RULES (follow these always):
+1. Never answer with Claude when cheaper provider works
+2. Think before delegating \u2014 classify first
+3. Review all provider output before presenting
+4. Use multiple providers when it improves output
+5. Be transparent \u2014 always show who handled what
+6. Writing \u2192 Mistral first
+7. Research \u2192 Perplexity first
+8. Code \u2192 GPT-4o first
+9. Strategy \u2192 Claude handles directly
+10. If provider fails twice \u2192 Claude handles directly`;
+
+    // Get journal memories for context
+    let journalMemories = '';
+    try {
+      const memories = await window.avis.journalGetMemories();
+      if (memories) journalMemories = '\n\nJournal memories:\n' + memories.substring(0, 500);
+    } catch (e) {}
+
     return this.SYSTEM_PROMPT +
+      avelContext +
       dateContext +
       `\n\nCurrent provider status:\n${statuses.join('\n')}\n\nDO NOT attempt to call providers marked DISABLED or NOT CONFIGURED. Route only to ACTIVE providers.` +
       avisPathNote +
       MemoryManager.getMemoriesForPrompt() +
+      journalMemories +
       (HotConfig.get('customSystemPrompt') ? '\n\n' + HotConfig.get('customSystemPrompt') : '');
   },
 
@@ -484,24 +535,98 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant â
     if (!hasAnyKey) return { text: 'No API keys configured. Please open Settings and add at least one provider API key.', provider: 'avis', model: 'system' };
 
     if (this.isImageGenRequest(userMessage) && await this.hasProvider('openai')) {
-      // Route directly to DALL-E image generation
       const imgResult = await this.callProviderImage(userMessage);
       return { text: imgResult, provider: 'openai', model: 'DALL-E 3' };
     }
 
-    // Try Claude first (primary orchestrator with tool use)
+    // === DELEGATION PROTOCOL: classify and route before defaulting to Claude ===
+    const routing = DelegationProtocol.classifyAndRoute(userMessage);
+    this._lastRouting = routing;
+
+    // Emit routing decision to step panel
+    this.emitStep('route', `Task: ${routing.taskType} \u2192 ${routing.agent}`);
+
+    // Track in Mission Control
+    if (typeof MissionControl !== 'undefined') {
+      MissionControl.recordRouting(routing);
+    }
+
+    // Handle "remember X" commands â€” save to journal
+    if (/^remember\s+/i.test(userMessage)) {
+      const fact = userMessage.replace(/^remember\s+/i, '').trim();
+      if (typeof window.avis.journalSaveMemory === 'function') {
+        await window.avis.journalSaveMemory(fact);
+      }
+      MemoryManager.addMemory(fact);
+      return { text: `Got it. I'll remember: "${fact}"`, provider: 'avis', model: 'system' };
+    }
+
+    // If delegation says a non-Claude provider should handle it AND no files attached
+    // AND Claude is not required (strategy/computer/analysis), try direct delegation
+    if (routing.agentKey !== 'claude' && files.length === 0 && !DelegationProtocol.shouldEscalate(routing.agentKey)) {
+      const hasAgent = await this.hasProvider(routing.agentKey);
+      if (hasAgent && this.isProviderAvailable(routing.agentKey)) {
+        this.emitStep('route', `Delegating to ${routing.agent}: "${routing.brief.substring(0, 60)}..."`, 'running');
+
+        // Set agent working in Mission Control
+        if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking(routing.agentKey, routing.brief);
+
+        const delegatedResult = await this.callProvider(routing.agentKey, routing.brief);
+
+        if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle(routing.agentKey);
+
+        // Check if delegation failed
+        if (delegatedResult && !delegatedResult.includes('failed') && !delegatedResult.includes('error')) {
+          // Claude reviews the output before presenting (Rule 3: quality gate)
+          const hasClaude = await this.hasProvider('claude');
+          if (hasClaude && this.isProviderAvailable('claude')) {
+            this.emitStep('route', `Claude reviewing ${routing.agent} output...`, 'running');
+            if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking('claude', `Reviewing ${routing.agent} output`);
+
+            const reviewed = await this.claudeReview(delegatedResult, routing.taskType);
+
+            if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('claude');
+
+            // Log to journal
+            this._logJournalEntry(routing, userMessage, reviewed, 'delegated');
+
+            return { text: reviewed, provider: routing.agentKey, model: routing.agent, delegated: true, reviewedByClaude: true };
+          }
+          this._logJournalEntry(routing, userMessage, delegatedResult, 'delegated-unreviewed');
+          return { text: delegatedResult, provider: routing.agentKey, model: routing.agent, delegated: true };
+        } else {
+          // Delegation failed â€” record failure, fall through to Claude
+          DelegationProtocol.recordFailure(routing.agentKey);
+          this.emitStep('warn', `${routing.agent} delegation failed â€” falling back to Claude`, 'warn');
+        }
+      }
+    }
+
+    // Try Claude (primary orchestrator with tool use)
     const hasClaude = await this.hasProvider('claude');
     if (hasClaude && this.isProviderAvailable('claude') && this._claudeFailCount < 3) {
       try {
+        if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking('claude', userMessage.substring(0, 40));
         const taskType = this.detectTaskType(userMessage);
         if (taskType === 'simple_chat' && files.length === 0 && this.onStreamChunk) {
           const result = await this.streamDirect(userMessage);
-          if (result && !result.error) { this._claudeFailCount = 0; this._activeOrchestrator = 'claude'; return result; }
+          if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('claude');
+          if (result && !result.error) {
+            this._claudeFailCount = 0; this._activeOrchestrator = 'claude';
+            this._logJournalEntry(routing, userMessage, result.text, 'claude-direct');
+            return result;
+          }
         } else {
           const result = await this.agenticLoop(userMessage, files);
-          if (result && !result.error) { this._claudeFailCount = 0; this._activeOrchestrator = 'claude'; return result; }
+          if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('claude');
+          if (result && !result.error) {
+            this._claudeFailCount = 0; this._activeOrchestrator = 'claude';
+            this._logJournalEntry(routing, userMessage, result.text, 'claude-agentic');
+            return result;
+          }
         }
       } catch (e) {
+        if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('claude');
         this._claudeFailCount++;
         this.emitStep('warn', `Claude failed (${this._claudeFailCount}/3) â€” trying backup orchestrator...`, 'warn');
       }
@@ -533,6 +658,49 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant â
     }
 
     return { text: 'All AI providers are currently unavailable. Please check your API keys and try again.', provider: 'avis', model: 'system' };
+  },
+
+  // Claude reviews provider output before presenting to user (Rule 3: quality gate)
+  async claudeReview(providerOutput, taskType) {
+    try {
+      const result = await window.avis.apiCallAgentic({
+        model: ClaudeProvider.getCurrentModel().id,
+        messages: [{ role: 'user', content: `Review this ${taskType} output and present it cleanly to the user. Fix any issues. Be concise. Add your synthesis if valuable.\n\nOutput to review: ${providerOutput}` }],
+        systemPrompt: 'You are AVIS quality reviewer. Clean up the output, fix errors, present clearly. Do not add unnecessary commentary.',
+        tools: []
+      });
+      if (!result.error && result.content) {
+        const text = result.content.filter(b => b.type === 'text').map(b => b.text).join('');
+        if (text) {
+          UsageMeter.record('claude', result.inputTokens || 0, result.outputTokens || 0, ClaudeProvider);
+          return text;
+        }
+      }
+    } catch (e) {}
+    return providerOutput; // Return unreviewed if Claude review fails
+  },
+
+  // Log entry to session journal (async, non-blocking)
+  _logJournalEntry(routing, userMessage, response, method) {
+    try {
+      if (typeof window.avis.journalLog === 'function') {
+        const cost = this._estimateCost(routing.agentKey);
+        window.avis.journalLog({
+          taskType: routing.taskType,
+          agent: routing.agent,
+          userMessage: userMessage,
+          summary: (typeof response === 'string' ? response : '').substring(0, 300),
+          cost: cost,
+          method: method
+        });
+      }
+    } catch (e) {}
+  },
+
+  _estimateCost(providerKey) {
+    const usage = UsageMeter.providers[providerKey];
+    if (!usage) return 0;
+    return usage.sessionCost || 0;
   },
 
   // Stream a simple Claude response directly (no tools, real-time text)
@@ -597,7 +765,7 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant â
 
   async agenticLoop(userMessage, files = []) {
     const systemPrompt = await this.buildSystemPrompt();
-    const tools = await this.buildToolsList();
+    const tools = await this.buildToolsList(userMessage);
 
     const rawHistory = MemoryManager.getConversationMessages();
     const messages = [...this.trimContext(rawHistory)];
@@ -823,10 +991,13 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant â
   async callProvider(providerName, prompt, model) {
     // If this is an image generation request, reroute to DALL-E 3
     if (this.isImagePrompt(prompt) && await this.hasProvider('openai')) {
-      this.emitStep('route', `Image request detected â€” routing to DALL-E 3 (requested by ${providerName})`, 'done');
+      this.emitStep('route', `Image request detected \u2014 routing to DALL-E 3 (requested by ${providerName})`, 'done');
       return await this.callProviderImage(prompt);
     }
     if (!(await this.hasProvider(providerName))) return `${providerName} is not configured. Add its API key in Settings.`;
+
+    // Track in Mission Control
+    if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking(providerName, prompt.substring(0, 40));
 
     if (!this.isProviderAvailable(providerName)) {
       const reason = this.disabledProviders[providerName] || 'rate limited';
@@ -890,8 +1061,10 @@ IMPORTANT: This is the ACTUAL current date. Your training cutoff is irrelevant â
         ResponseCache.set(providerName, prompt, responseText);
       }
 
+      if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle(providerName);
       return responseText;
     } catch (err) {
+      if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle(providerName);
       this.classifyAndHandleError(providerName, err.message, err.status);
       return `${providerName} call failed: ${this.parseError(err.message)}`;
     }

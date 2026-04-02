@@ -32,6 +32,20 @@ const AVIS = {
     Orchestrator.onStep = (id, type, message, status) => this.handleStep(id, type, message, status);
     Orchestrator.onStreamChunk = (chunk, fullText) => this.handleStreamChunk(chunk, fullText);
 
+    // Wire Sentinel health reports to Mission Control
+    window.avis.onSentinelReport((report) => {
+      const degraded = Object.entries(report.results).filter(([_, v]) => v !== 'healthy');
+      if (degraded.length > 0) {
+        this.showToast(`SENTINEL: ${degraded.length} provider(s) degraded`, 'warning');
+      }
+      if (typeof MissionControl !== 'undefined') {
+        MissionControl.updateHealthIndicators(report.results);
+      }
+    });
+
+    // Render Mission Control initial state
+    if (typeof MissionControl !== 'undefined') MissionControl.render();
+
     const firstRun = await window.avis.isFirstRun();
     if (firstRun) this.showOnboarding();
 
@@ -632,6 +646,7 @@ const AVIS = {
     if (!retryText) {
       this.addMessageToChat('user', text, null, null, files);
       MemoryManager.addMessage('user', text);
+      if (typeof MissionControl !== 'undefined') MissionControl.recordMessage();
       input.value = '';
       input.style.height = 'auto';
     }
