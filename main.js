@@ -101,13 +101,22 @@ class ChromeMCPClient {
 
         this.ws.on('error', () => {
           this.connected = false;
+          this._scheduleReconnect();
           resolve(false);
         });
       } catch (err) {
         log.error('Chrome MCP connection failed:', err);
+        this._scheduleReconnect();
         resolve(false);
       }
     });
+  }
+
+  _scheduleReconnect() {
+    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    this._reconnectTimer = setTimeout(() => {
+      if (!this.connected) this.connect();
+    }, 10000);
   }
 
   async call(method, params = {}) {
