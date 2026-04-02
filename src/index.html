@@ -29,6 +29,8 @@
       <div class="tab-separator"></div>
       <button class="nav-tab" data-tab="changelog">Changes</button>
       <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="workflow">Workflow</button>
+      <div class="tab-separator"></div>
       <button class="nav-tab" data-tab="control">Control</button>
       <div class="tab-separator"></div>
       <button class="nav-tab council-tab" data-tab="council">&#9733; Council</button>
@@ -161,6 +163,59 @@
           </div>
         </div>
 
+        <!-- Workflow Builder Section -->
+        <div class="panel-section" id="workflow-section">
+          <div class="workflow-builder">
+            <div style="font-size:11px;font-weight:600;color:var(--accent-blue);letter-spacing:1px;font-family:'JetBrains Mono',monospace;">WORKFLOW BUILDER</div>
+            <div style="font-size:10px;color:var(--text-secondary);margin-bottom:4px;">Chain providers: each step feeds into the next.</div>
+
+            <div class="workflow-step" id="wf-step-1">
+              <div class="workflow-step-num">1</div>
+              <select class="workflow-select" id="wf-provider-1">
+                <option value="perplexity">Perplexity (Research)</option>
+                <option value="openai">GPT-4o (Code)</option>
+                <option value="deepseek">DeepSeek (Reasoning)</option>
+                <option value="mistral">Mistral (Writing)</option>
+                <option value="claude">Claude (Analysis)</option>
+                <option value="gemini">Gemini (Data)</option>
+              </select>
+              <input class="workflow-prompt" id="wf-prompt-1" placeholder="Step 1 prompt...">
+            </div>
+
+            <div class="workflow-arrow">&#8595;</div>
+
+            <div class="workflow-step" id="wf-step-2">
+              <div class="workflow-step-num">2</div>
+              <select class="workflow-select" id="wf-provider-2">
+                <option value="claude">Claude (Analysis)</option>
+                <option value="openai">GPT-4o (Code)</option>
+                <option value="deepseek">DeepSeek (Reasoning)</option>
+                <option value="mistral">Mistral (Writing)</option>
+                <option value="perplexity">Perplexity (Research)</option>
+                <option value="gemini">Gemini (Data)</option>
+              </select>
+              <input class="workflow-prompt" id="wf-prompt-2" placeholder="Step 2 prompt (uses Step 1 output)...">
+            </div>
+
+            <div class="workflow-arrow">&#8595;</div>
+
+            <div class="workflow-step" id="wf-step-3">
+              <div class="workflow-step-num">3</div>
+              <select class="workflow-select" id="wf-provider-3">
+                <option value="">Skip (2 steps only)</option>
+                <option value="claude">Claude (Analysis)</option>
+                <option value="mistral">Mistral (Writing)</option>
+                <option value="openai">GPT-4o (Code)</option>
+                <option value="deepseek">DeepSeek (Reasoning)</option>
+              </select>
+              <input class="workflow-prompt" id="wf-prompt-3" placeholder="Step 3 prompt (optional)...">
+            </div>
+
+            <button class="workflow-run-btn" onclick="AVIS.runWorkflow()">&#9654; RUN WORKFLOW</button>
+            <div class="workflow-output" id="wf-output" style="display:none;"></div>
+          </div>
+        </div>
+
         <!-- Mission Control Section -->
         <div class="panel-section" id="control-section">
           <div id="mission-control">
@@ -209,6 +264,14 @@
                   <span class="stat-label">Tasks Routed</span>
                   <span class="stat-value" id="stat-routed">0</span>
                 </div>
+              </div>
+            </div>
+            <div class="mc-section">
+              <div class="mc-header">
+                <span class="mc-title">COST BY PROVIDER</span>
+              </div>
+              <div id="cost-chart" style="min-height:80px;">
+                <div style="padding:12px;color:#445566;font-size:11px;font-family:'JetBrains Mono',monospace;">No cost data yet</div>
               </div>
             </div>
           </div>
@@ -289,6 +352,11 @@
       </div>
 
       <div class="input-area">
+        <div id="context-indicator" class="context-indicator" style="display:none;">
+          <span id="context-label">Context:</span>
+          <div class="context-bar"><div class="context-fill low" id="context-fill" style="width:0%"></div></div>
+          <span id="context-pct">0%</span>
+        </div>
         <div id="file-preview-area" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
         <div class="input-wrap">
           <div class="input-actions">

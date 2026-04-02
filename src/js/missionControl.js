@@ -123,6 +123,36 @@ const MissionControl = {
       const el = document.getElementById(id);
       if (el) el.textContent = val;
     }
+
+    this.renderCostChart();
+  },
+
+  renderCostChart() {
+    const container = document.getElementById('cost-chart');
+    if (!container) return;
+
+    const costs = Object.entries(this.AGENT_STATE)
+      .filter(([_, a]) => a.cost > 0)
+      .sort((a, b) => b[1].cost - a[1].cost);
+
+    if (costs.length === 0) {
+      container.innerHTML = '<div style="padding:12px;color:#445566;font-size:11px;font-family:\'JetBrains Mono\',monospace;">No cost data yet</div>';
+      return;
+    }
+
+    const maxCost = Math.max(...costs.map(([_, a]) => a.cost));
+    const colors = {
+      claude: '#00a8ff', openai: '#00ff88', deepseek: '#ffb400',
+      mistral: '#ff6b6b', perplexity: '#48cae4', gemini: '#ff00ff', dalle: '#ffd166'
+    };
+
+    container.innerHTML = `<div class="cost-chart">${costs.map(([key, agent]) => {
+      const height = Math.max(4, (agent.cost / maxCost) * 50);
+      const color = colors[key] || '#00a8ff';
+      return `<div class="cost-bar" style="height:${height}px;background:${color};">
+        <div class="cost-bar-label">${agent.name}<br>$${agent.cost.toFixed(3)}</div>
+      </div>`;
+    }).join('')}</div>`;
   },
 
   _formatNum(n) {

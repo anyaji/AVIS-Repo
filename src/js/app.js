@@ -87,8 +87,9 @@ const AVIS = {
       }
     });
 
-    // Ctrl+Shift+D toggles Dev tab visibility
+    // Global keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+      // Ctrl+Shift+D: toggle Dev tab
       if (e.ctrlKey && e.shiftKey && e.key === 'D') {
         const devBtn = document.getElementById('dev-tab-btn');
         if (devBtn) {
@@ -96,11 +97,210 @@ const AVIS = {
           devBtn.style.display = visible ? 'none' : '';
           if (!visible) this.showToast('Dev panel enabled');
         }
+        return;
+      }
+      // Ctrl+K: command palette
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        this.toggleCommandPalette();
+        return;
+      }
+      // Ctrl+N: new chat
+      if (e.ctrlKey && e.key === 'n') {
+        e.preventDefault();
+        this.newConversation();
+        return;
+      }
+      // Ctrl+E: export chat
+      if (e.ctrlKey && e.key === 'e') {
+        e.preventDefault();
+        this.exportConversation();
+        return;
+      }
+      // Ctrl+1-9: switch tabs
+      if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const tabs = document.querySelectorAll('.nav-tab:not([style*="display:none"])');
+        const idx = parseInt(e.key) - 1;
+        if (tabs[idx]) tabs[idx].click();
+        return;
+      }
+      // Escape: close command palette or settings
+      if (e.key === 'Escape') {
+        this.closeCommandPalette();
+        return;
       }
     });
 
     // Welcome particle animation
     this.initParticles();
+
+    // Save session on window close
+    window.addEventListener('beforeunload', () => {
+      MemoryManager.saveLastSessionInfo();
+    });
+
+    // Check for resumable session
+    this.checkResumableSession();
+  },
+
+  async checkResumableSession() {
+    const lastSession = await MemoryManager.getLastSession();
+    if (!lastSession || !lastSession.conversationId || lastSession.messageCount === 0) return;
+
+    // Show resume banner in welcome area
+    const welcome = document.getElementById('welcome-msg');
+    if (!welcome) return;
+
+    const resumeBar = document.createElement('div');
+    resumeBar.className = 'resume-bar';
+    resumeBar.innerHTML = `
+      <span class="resume-text">Resume "${this.escapeHtml((lastSession.title || 'Last conversation').substring(0, 50))}" (${lastSession.messageCount} messages)?</span>
+      <button class="resume-btn resume-yes" onclick="AVIS.resumeSession()">Resume</button>
+      <button class="resume-btn resume-no" onclick="this.parentElement.remove()">New Chat</button>
+    `;
+    welcome.querySelector('.welcome-content')?.appendChild(resumeBar);
+  },
+
+  async resumeSession() {
+    const conv = await MemoryManager.resumeLastConversation();
+    if (!conv) { this.showToast('Could not restore session'); return; }
+
+    const welcome = document.getElementById('welcome-msg');
+    if (welcome) welcome.remove();
+
+    const chatArea = document.getElementById('chat-area');
+    chatArea.innerHTML = '';
+
+    // Replay messages into UI
+    for (const msg of conv.messages) {
+      if (msg.role === 'user') {
+        this.addMessageToChat('user', msg.content);
+      } else if (msg.role === 'assistant') {
+        this.addMessageToChat('assistant', msg.content, msg.provider, msg.model);
+      }
+    }
+
+    this.showToast(`Resumed: ${conv.messages.length} messages loaded`);
+  },
+
+  // ====================================================================
+  // Command Palette (Ctrl+K)
+  // ====================================================================
+  _cmdPaletteOpen: false,
+
+  COMMANDS: [
+    { icon: '\u2795', label: 'New Chat', shortcut: 'Ctrl+N', action: () => AVIS.newConversation() },
+    { icon: '\u2B07', label: 'Export Conversation', shortcut: 'Ctrl+E', action: () => AVIS.exportConversation() },
+    { icon: '\u2699', label: 'Settings', action: () => AVIS.openSettings() },
+    { icon: '\uD83D\uDCCB', label: 'Copy Chat', action: () => AVIS.copyChatHistory() },
+    { icon: '\u26A1', label: 'Switch to Status', shortcut: 'Ctrl+1', action: () => AVIS.switchToTab('providers') },
+    { icon: '\uD83D\uDD0D', label: 'Switch to Search', shortcut: 'Ctrl+3', action: () => AVIS.switchToTab('search') },
+    { icon: '\uD83C\uDFAF', label: 'Switch to Control', shortcut: 'Ctrl+7', action: () => AVIS.switchToTab('control') },
+    { icon: '\u2B50', label: 'Switch to Council', shortcut: 'Ctrl+8', action: () => AVIS.switchToTab('council') },
+    { icon: '\uD83D\uDCBB', label: 'Switch to Terminal', shortcut: 'Ctrl+5', action: () => AVIS.switchToTab('terminal') },
+    { icon: '\u23F0', label: 'Switch to History', shortcut: 'Ctrl+2', action: () => AVIS.switchToTab('history') },
+    { icon: '\uD83D\uDD04', label: 'Check for Updates', action: () => AVIS.manualUpdateCheck() },
+    { icon: '\uD83C\uDFA8', label: 'Direct Chat', shortcut: 'Ctrl+4', action: () => AVIS.switchToTab('browser') },
+    { icon: '\uD83D\uDCC4', label: 'Workflow Builder', shortcut: 'Ctrl+6', action: () => AVIS.switchToTab('workflow') },
+  ],
+
+  toggleCommandPalette() {
+    if (this._cmdPaletteOpen) { this.closeCommandPalette(); return; }
+    this._cmdPaletteOpen = true;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'cmd-overlay';
+    overlay.id = 'cmd-overlay';
+    overlay.onclick = (e) => { if (e.target === overlay) this.closeCommandPalette(); };
+
+    const palette = document.createElement('div');
+    palette.className = 'cmd-palette';
+
+    const input = document.createElement('input');
+    input.className = 'cmd-input';
+    input.placeholder = 'Type a command...';
+    input.id = 'cmd-search';
+
+    const results = document.createElement('div');
+    results.className = 'cmd-results';
+    results.id = 'cmd-results';
+
+    palette.appendChild(input);
+    palette.appendChild(results);
+    overlay.appendChild(palette);
+    document.body.appendChild(overlay);
+
+    this._renderCommands('');
+    input.focus();
+
+    input.addEventListener('input', () => this._renderCommands(input.value));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { this.closeCommandPalette(); return; }
+      if (e.key === 'Enter') {
+        const active = results.querySelector('.cmd-item.active') || results.querySelector('.cmd-item');
+        if (active) active.click();
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const items = results.querySelectorAll('.cmd-item');
+        let idx = Array.from(items).findIndex(i => i.classList.contains('active'));
+        items.forEach(i => i.classList.remove('active'));
+        if (e.key === 'ArrowDown') idx = (idx + 1) % items.length;
+        else idx = (idx - 1 + items.length) % items.length;
+        items[idx]?.classList.add('active');
+      }
+    });
+  },
+
+  _renderCommands(query) {
+    const results = document.getElementById('cmd-results');
+    if (!results) return;
+    const q = query.toLowerCase();
+    const filtered = this.COMMANDS.filter(c => !q || c.label.toLowerCase().includes(q));
+    results.innerHTML = filtered.map((c, i) => `
+      <div class="cmd-item${i === 0 ? ' active' : ''}" onclick="AVIS.COMMANDS.find(x=>x.label==='${c.label.replace(/'/g, "\\'")}')?.action(); AVIS.closeCommandPalette();">
+        <span class="cmd-icon">${c.icon}</span>
+        <span class="cmd-label">${c.label}</span>
+        ${c.shortcut ? `<span class="cmd-shortcut">${c.shortcut}</span>` : ''}
+      </div>
+    `).join('');
+  },
+
+  closeCommandPalette() {
+    this._cmdPaletteOpen = false;
+    const overlay = document.getElementById('cmd-overlay');
+    if (overlay) overlay.remove();
+  },
+
+  // Notification sound (Web Audio API — no file needed)
+  playNotificationSound() {
+    if (!HotConfig.get('notificationSound')) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.3);
+      // Second tone (pleasant two-note chime)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.frequency.value = 1320;
+      osc2.type = 'sine';
+      gain2.gain.setValueAtTime(0.1, ctx.currentTime + 0.15);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc2.start(ctx.currentTime + 0.15);
+      osc2.stop(ctx.currentTime + 0.5);
+    } catch (e) {}
   },
 
   handleUpdateStatus(data) {
@@ -598,6 +798,111 @@ const AVIS = {
     this.showToast(`Chat copied (${messages.length} messages)`);
   },
 
+  // Export conversation to markdown file
+  // ====================================================================
+  // Workflow Builder
+  // ====================================================================
+  async runWorkflow() {
+    const output = document.getElementById('wf-output');
+    if (!output) return;
+    output.style.display = 'block';
+    output.textContent = 'Starting workflow...\n';
+
+    const steps = [];
+    for (let i = 1; i <= 3; i++) {
+      const provider = document.getElementById(`wf-provider-${i}`)?.value;
+      const prompt = document.getElementById(`wf-prompt-${i}`)?.value?.trim();
+      if (provider && prompt) steps.push({ provider, prompt });
+    }
+
+    if (steps.length === 0) { output.textContent = 'Add at least one step with a prompt.'; return; }
+
+    let previousOutput = '';
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const stepNum = i + 1;
+      const fullPrompt = previousOutput
+        ? `${step.prompt}\n\nContext from previous step:\n${previousOutput}`
+        : step.prompt;
+
+      output.textContent += `\n--- Step ${stepNum}: ${step.provider.toUpperCase()} ---\n`;
+      output.textContent += `Prompt: ${step.prompt.substring(0, 80)}...\n`;
+      output.textContent += 'Working...\n';
+
+      try {
+        if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking(step.provider, step.prompt.substring(0, 40));
+
+        const result = await Orchestrator.callProvider(step.provider, fullPrompt);
+
+        if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle(step.provider);
+
+        previousOutput = result || '';
+        output.textContent += previousOutput.substring(0, 2000) + '\n';
+      } catch (err) {
+        if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle(step.provider);
+        output.textContent += `Error: ${err.message}\n`;
+        break;
+      }
+    }
+
+    output.textContent += '\n=== WORKFLOW COMPLETE ===\n';
+
+    // Also add final result to chat
+    if (previousOutput) {
+      this.addMessageToChat('ai', `**Workflow Result (${steps.length} steps):**\n\n${previousOutput}`, steps[steps.length - 1].provider, 'workflow');
+    }
+  },
+
+  // Context window indicator
+  updateContextIndicator() {
+    const conv = MemoryManager.currentConversation;
+    if (!conv) return;
+    const totalChars = conv.messages.reduce((sum, m) => sum + (m.content || '').length, 0);
+    // Rough token estimate: ~4 chars per token, Claude context ~200k tokens
+    const estimatedTokens = Math.round(totalChars / 4);
+    const maxTokens = 200000;
+    const pct = Math.min(100, Math.round((estimatedTokens / maxTokens) * 100));
+
+    const indicator = document.getElementById('context-indicator');
+    const fill = document.getElementById('context-fill');
+    const label = document.getElementById('context-pct');
+    if (!indicator || !fill || !label) return;
+
+    indicator.style.display = pct > 5 ? 'flex' : 'none';
+    fill.style.width = pct + '%';
+    fill.className = 'context-fill ' + (pct < 50 ? 'low' : pct < 80 ? 'medium' : 'high');
+    label.textContent = pct + '%';
+
+    if (pct >= 80) {
+      label.textContent = pct + '% (consider New Chat)';
+    }
+  },
+
+  async exportConversation() {
+    const conv = MemoryManager.currentConversation;
+    if (!conv || conv.messages.length === 0) { this.showToast('No conversation to export'); return; }
+
+    const title = conv.title || 'AVIS Conversation';
+    const date = new Date().toISOString().slice(0, 10);
+    let md = `# ${title}\n**Date:** ${date}\n**Messages:** ${conv.messages.length}\n\n---\n\n`;
+
+    for (const msg of conv.messages) {
+      const role = msg.role === 'user' ? 'You' : `AVIS (${msg.provider || 'claude'} / ${msg.model || ''})`;
+      const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '';
+      md += `### ${role}${time ? ' \u2014 ' + time : ''}\n\n${msg.content}\n\n---\n\n`;
+    }
+
+    md += `\n*Exported from AVIS v${await window.avis.getAppVersion()} by Avel Productions LLC*\n`;
+
+    // Save to Desktop
+    const paths = await window.avis.getPaths();
+    const filename = `AVIS-Chat-${date}-${Date.now().toString(36)}.md`;
+    const savePath = `${paths.desktop}/${filename}`;
+    await window.avis.toolWriteFile(savePath, md);
+    this.showToast(`Exported: ${filename}`);
+  },
+
   startClock() {
     const update = () => {
       const el = document.getElementById('live-clock');
@@ -696,6 +1001,8 @@ const AVIS = {
 
       MemoryManager.addMessage('assistant', result.text || '[No response]', result.provider, result.model);
       await MemoryManager.saveCurrentConversation();
+      this.updateContextIndicator();
+      this.playNotificationSound();
 
     } catch (err) {
       typingEl.remove();
@@ -725,6 +1032,25 @@ const AVIS = {
     if (this.lastUserMessage) {
       this.sendMessage(this.lastUserMessage);
     }
+  },
+
+  async retryWithProvider(providerName) {
+    if (!this.lastUserMessage || this.isProcessing) return;
+    this.isProcessing = true;
+    this.showStopButton(true);
+    this.emitStep && Orchestrator.emitStep('route', `Retrying with ${providerName}...`);
+
+    try {
+      const result = await Orchestrator.callProvider(providerName, this.lastUserMessage);
+      this.addMessageToChat('ai', result, providerName, providerName);
+      MemoryManager.addMessage('assistant', result, providerName, providerName);
+      await MemoryManager.saveCurrentConversation();
+    } catch (err) {
+      this.addMessageToChat('ai', `Error: ${err.message}`, 'avis', 'system');
+    }
+
+    this.isProcessing = false;
+    this.showStopButton(false);
   },
 
   // BUG 4: Continue card for paused tasks
@@ -813,6 +1139,18 @@ const AVIS = {
       html += '</div>';
     }
     html += role === 'ai' ? this.renderMarkdown(content) : this.escapeHtml(content);
+
+    // Add retry-with-provider buttons on AI responses
+    if (role === 'ai' && provider && provider !== 'avis') {
+      const others = ['claude', 'openai', 'deepseek', 'mistral', 'perplexity'].filter(p => p !== provider);
+      const names = { claude: 'Claude', openai: 'GPT-4o', deepseek: 'DeepSeek', mistral: 'Mistral', perplexity: 'Perplexity' };
+      html += `<div class="retry-provider-bar">`;
+      html += others.map(p =>
+        `<button class="retry-provider-btn" onclick="AVIS.retryWithProvider('${p}')" title="Retry with ${names[p]}">${names[p]}</button>`
+      ).join('');
+      html += `</div>`;
+    }
+
     html += '</div>';
     msgDiv.innerHTML = html;
     chatArea.appendChild(msgDiv);

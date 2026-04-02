@@ -746,9 +746,15 @@ ipcMain.handle('save-image', async (_, { base64, savePath }) => {
 });
 
 ipcMain.handle('set-wallpaper', async (_, imagePath) => {
-  const absPath = path.resolve(imagePath).replace(/\//g, '\\');
-  const psFile = path.join(APPDATA_DIR, '_wp.ps1');
-  fs.writeFileSync(psFile, `
+  const absPath = path.resolve(imagePath);
+  const platform = process.platform;
+
+  return new Promise((resolve) => {
+    let cmd;
+    if (platform === 'win32') {
+      const winPath = absPath.replace(/\//g, '\\');
+      const psFile = path.join(APPDATA_DIR, '_wp.ps1');
+      fs.writeFileSync(psFile, `
 Add-Type -TypeDefinition @"
 using System.Runtime.InteropServices;
 public class WP {
@@ -756,13 +762,22 @@ public class WP {
   public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 }
 "@
-[WP]::SystemParametersInfo(20, 0, "${absPath}", 3)
+[WP]::SystemParametersInfo(20, 0, "${winPath}", 3)
 `, 'utf-8');
-  return new Promise((resolve) => {
-    exec(`powershell -ExecutionPolicy Bypass -File "${psFile}"`, (err) => {
-      try { fs.unlinkSync(psFile); } catch (e) {}
-      resolve({ success: !err, error: err?.message });
-    });
+      cmd = `powershell -ExecutionPolicy Bypass -File "${psFile}"`;
+      exec(cmd, (err) => {
+        try { fs.unlinkSync(psFile); } catch (e) {}
+        resolve({ success: !err, error: err?.message });
+      });
+    } else if (platform === 'darwin') {
+      cmd = `osascript -e 'tell application "Finder" to set desktop picture to POSIX file "${absPath}"'`;
+      exec(cmd, (err) => resolve({ success: !err, error: err?.message }));
+    } else {
+      // Linux — try common desktop environments
+      exec(`gsettings set org.gnome.desktop.background picture-uri "file://${absPath}" 2>/dev/null || feh --bg-fill "${absPath}" 2>/dev/null`, (err) => {
+        resolve({ success: !err, error: err?.message });
+      });
+    }
   });
 });
 

@@ -70,6 +70,33 @@ const MemoryManager = {
     };
   },
 
+  // Persistence: save last conversation ID so we can resume on launch
+  async saveLastSessionInfo() {
+    if (!this.currentConversation || this.currentConversation.messages.length === 0) return;
+    await this.saveCurrentConversation();
+    await window.avis.storeSet('lastSession', {
+      date: new Date().toISOString().slice(0, 10),
+      conversationId: this.currentConversation.id,
+      title: this.currentConversation.title,
+      messageCount: this.currentConversation.messages.length
+    });
+  },
+
+  async getLastSession() {
+    return await window.avis.storeGet('lastSession', null);
+  },
+
+  async resumeLastConversation() {
+    const info = await this.getLastSession();
+    if (!info) return null;
+    const dayData = await window.avis.loadHistory(info.date);
+    if (!dayData) return null;
+    const conv = dayData.conversations.find(c => c.id === info.conversationId);
+    if (!conv || conv.messages.length === 0) return null;
+    this.currentConversation = conv;
+    return conv;
+  },
+
   async listHistory() {
     return await window.avis.listHistory();
   },

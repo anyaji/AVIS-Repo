@@ -2318,3 +2318,255 @@ body {
   color: var(--text-primary);
   font-family: 'JetBrains Mono', monospace;
 }
+
+/* Resume Session Bar */
+.resume-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 12px 18px;
+  background: rgba(0, 168, 255, 0.08);
+  border: 1px solid var(--accent-blue);
+  border-radius: 8px;
+  animation: fadeIn 0.4s ease;
+}
+.resume-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+}
+.resume-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  transition: opacity 0.2s;
+}
+.resume-btn:hover { opacity: 0.85; }
+.resume-yes { background: var(--accent-blue); color: #fff; }
+.resume-no { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border); }
+
+/* Command Palette */
+.cmd-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  padding-top: 15vh;
+  animation: fadeIn 0.15s ease;
+}
+.cmd-palette {
+  width: 500px;
+  max-height: 400px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.cmd-input {
+  width: 100%;
+  padding: 14px 18px;
+  background: var(--bg-panel);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: 'JetBrains Mono', monospace;
+  outline: none;
+}
+.cmd-input::placeholder { color: var(--text-secondary); }
+.cmd-results {
+  max-height: 340px;
+  overflow-y: auto;
+}
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.cmd-item:hover, .cmd-item.active { background: var(--bg-card); }
+.cmd-icon { font-size: 16px; width: 24px; text-align: center; }
+.cmd-label { font-size: 13px; color: var(--text-primary); flex: 1; }
+.cmd-shortcut { font-size: 10px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
+
+/* Context Window Indicator */
+.context-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-secondary);
+}
+.context-bar {
+  width: 60px;
+  height: 4px;
+  background: var(--bg-card);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.context-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s, background 0.3s;
+}
+.context-fill.low { background: var(--accent-green); }
+.context-fill.medium { background: var(--accent-amber); }
+.context-fill.high { background: var(--accent-red); }
+
+/* Retry Provider Buttons */
+.retry-provider-bar {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.retry-provider-btn {
+  padding: 3px 8px;
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+.retry-provider-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+/* Workflow Builder */
+.workflow-builder {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+.workflow-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.workflow-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+}
+.workflow-arrow {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+.workflow-select, .workflow-prompt {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.workflow-run-btn {
+  padding: 10px;
+  background: var(--accent-blue);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+.workflow-run-btn:hover { opacity: 0.9; }
+.workflow-output {
+  padding: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Theme Editor */
+.theme-editor {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 10px 0;
+}
+.theme-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.theme-color-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+  font-family: 'JetBrains Mono', monospace;
+}
+.theme-color-input {
+  width: 32px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  padding: 0;
+}
+
+/* Cost Chart */
+.cost-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 60px;
+  padding: 8px 16px;
+}
+.cost-bar {
+  flex: 1;
+  min-width: 20px;
+  border-radius: 2px 2px 0 0;
+  position: relative;
+  transition: height 0.3s;
+}
+.cost-bar-label {
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  white-space: nowrap;
+}
+}

@@ -13,6 +13,8 @@ const HotConfig = {
     showLeftPanel: true,
     showRightPanel: true,
     compactMode: false,
+    notificationSound: false,
+    customThemeColors: null,
     budgets: {
       claude: 50, openai: 50, gemini: 30, mistral: 20, perplexity: 20
     }
@@ -75,6 +77,13 @@ const HotConfig = {
       document.body.classList.add('compact-mode');
     } else {
       document.body.classList.remove('compact-mode');
+    }
+
+    // Apply custom theme colors
+    if (c.customThemeColors) {
+      for (const [cssVar, value] of Object.entries(c.customThemeColors)) {
+        if (value) document.documentElement.style.setProperty(cssVar, value);
+      }
     }
 
     // Apply budget limits to usage meters
@@ -182,6 +191,26 @@ const HotConfig = {
       </div>
 
       <div class="settings-section">
+        <h3>Custom Theme Editor</h3>
+        <div style="font-size:10px;color:var(--text-secondary);margin-bottom:8px;">Create your own color scheme. Overrides theme presets.</div>
+        <div class="theme-editor" id="theme-editor-grid"></div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button onclick="HotConfig.saveCustomTheme()" style="padding:6px 12px;font-size:11px;background:var(--accent-blue);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:600;">Save Theme</button>
+          <button onclick="HotConfig.resetThemeColors()" style="padding:6px 12px;font-size:11px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:4px;cursor:pointer;">Reset Colors</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Notification Sounds</h3>
+        <div class="setting-row">
+          <div class="toggle-wrap">
+            <label>Play sound when task completes</label>
+            <div class="toggle ${this.get('notificationSound') ? 'active' : ''}" onclick="this.classList.toggle('active'); HotConfig.update('notificationSound', this.classList.contains('active'))"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <h3>Layout</h3>
         <div class="setting-row">
           <label>Left Panel Width: <span id="left-w-val">${this.get('leftPanelWidth') || 260}px</span></label>
@@ -252,6 +281,7 @@ const HotConfig = {
     document.getElementById('settings-body').innerHTML = html;
     this.loadApiKeys();
     this.renderMemories();
+    this.renderThemeEditor();
   },
 
   async loadApiKeys() {
@@ -360,5 +390,60 @@ const HotConfig = {
   async removeMemory(id) {
     await MemoryManager.removeMemory(id);
     this.renderMemories();
+  },
+
+  renderThemeEditor() {
+    const grid = document.getElementById('theme-editor-grid');
+    if (!grid) return;
+    const colors = [
+      { v: '--bg-primary', label: 'Background', d: '#080c10' },
+      { v: '--bg-secondary', label: 'Panel BG', d: '#0d1117' },
+      { v: '--bg-panel', label: 'Header BG', d: '#111820' },
+      { v: '--accent-blue', label: 'Accent Blue', d: '#00a8ff' },
+      { v: '--accent-green', label: 'Accent Green', d: '#00ff88' },
+      { v: '--accent-amber', label: 'Accent Amber', d: '#ffb400' },
+      { v: '--accent-red', label: 'Accent Red', d: '#ff3333' },
+      { v: '--text-primary', label: 'Text Primary', d: '#e8f0fe' },
+      { v: '--text-secondary', label: 'Text Secondary', d: '#8899aa' },
+      { v: '--border', label: 'Border', d: '#1e2d3d' },
+    ];
+    grid.innerHTML = colors.map(c => {
+      const current = getComputedStyle(document.documentElement).getPropertyValue(c.v).trim() || c.d;
+      return '<div class="theme-color-row">' +
+        '<span class="theme-color-label">' + c.label + '</span>' +
+        '<input type="color" class="theme-color-input" value="' + current + '" onchange="HotConfig.setThemeColor(\'' + c.v + '\', this.value)">' +
+        '</div>';
+    }).join('');
+  },
+
+  // Theme editor methods
+  setThemeColor(cssVar, value) {
+    document.documentElement.style.setProperty(cssVar, value);
+  },
+
+  saveCustomTheme() {
+    const vars = ['--bg-primary', '--bg-secondary', '--bg-panel', '--accent-blue', '--accent-green',
+      '--accent-amber', '--accent-red', '--text-primary', '--text-secondary', '--border'];
+    const theme = {};
+    for (const v of vars) {
+      theme[v] = getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    }
+    this.set('customThemeColors', theme);
+    this.save();
+    if (typeof AVIS !== 'undefined') AVIS.showToast('Custom theme saved');
+  },
+
+  resetThemeColors() {
+    const defaults = {
+      '--bg-primary': '#080c10', '--bg-secondary': '#0d1117', '--bg-panel': '#111820',
+      '--accent-blue': '#00a8ff', '--accent-green': '#00ff88', '--accent-amber': '#ffb400',
+      '--accent-red': '#ff3333', '--text-primary': '#e8f0fe', '--text-secondary': '#8899aa', '--border': '#1e2d3d'
+    };
+    for (const [v, val] of Object.entries(defaults)) {
+      document.documentElement.style.setProperty(v, val);
+    }
+    this.set('customThemeColors', null);
+    this.save();
+    this.renderSettings();
   }
 };

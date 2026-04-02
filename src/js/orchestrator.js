@@ -571,12 +571,14 @@ DELEGATION RULES (follow these always):
         // Set agent working in Mission Control
         if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking(routing.agentKey, routing.brief);
 
-        const delegatedResult = await this.callProvider(routing.agentKey, routing.brief);
+        const delegatedResult = await this.callProviderDelegated(routing.agentKey, routing.brief, routing.systemPrompt);
 
         if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle(routing.agentKey);
 
-        // Check if delegation failed
-        if (delegatedResult && !delegatedResult.includes('failed') && !delegatedResult.includes('error')) {
+        // Check if delegation failed (only match error patterns, not content words)
+        const isDelegationError = !delegatedResult ||
+          /^.{0,30}(not configured|unavailable|call failed|Tool error|API key)/i.test(delegatedResult);
+        if (!isDelegationError) {
           // Claude reviews the output before presenting (Rule 3: quality gate)
           const hasClaude = await this.hasProvider('claude');
           if (hasClaude && this.isProviderAvailable('claude')) {
@@ -701,6 +703,66 @@ DELEGATION RULES (follow these always):
     const usage = UsageMeter.providers[providerKey];
     if (!usage) return 0;
     return usage.sessionCost || 0;
+  },
+
+  // Delegated provider call with provider-specific system prompt and streaming
+  async callProviderDelegated(providerName, prompt, delegationSystemPrompt) {
+    if (!(await this.hasProvider(providerName))) return `${providerName} is not configured.`;
+    if (!this.isProviderAvailable(providerName)) return `${providerName} is currently unavailable.`;
+
+    const providerObj = this.providerMap[providerName]?.();
+    if (!providerObj) return `Provider ${providerName} not found.`;
+
+    const systemPrompt = delegationSystemPrompt || 'You are a helpful AI assistant. Answer directly and concisely.';
+
+    // Try streaming if available
+    if (this.onStreamChunk && ['claude', 'openai', 'deepseek', 'mistral'].includes(providerName)) {
+      try {
+        let fullText = '';
+        const chunkHandler = (chunk) => {
+          fullText += chunk;
+          if (this.onStreamChunk) this.onStreamChunk(chunk, fullText);
+        };
+        window.avis.onStreamChunk(chunkHandler);
+
+        const result = await window.avis.apiCallStream({
+          provider: providerName,
+          model: providerObj.getCurrentModel().id,
+          messages: [{ role: 'user', content: prompt }],
+          systemPrompt
+        });
+
+        window.avis.offStreamChunk();
+
+        if (!result.error) {
+          UsageMeter.record(providerName, result.inputTokens || 0, result.outputTokens || 0, providerObj);
+          providerObj.status = 'active';
+          return fullText || result.text || '';
+        }
+        // Stream failed — fall through to non-streaming
+      } catch (e) {
+        try { window.avis.offStreamChunk(); } catch (_) {}
+      }
+    }
+
+    // Non-streaming fallback
+    try {
+      const result = await window.avis.apiCall({
+        provider: providerName,
+        model: providerObj.getCurrentModel().id,
+        messages: [{ role: 'user', content: prompt }],
+        systemPrompt,
+        options: {}
+      });
+
+      if (result.error) return `${providerObj.displayName}: ${this.parseError(result.message)}`;
+
+      UsageMeter.record(providerName, result.inputTokens || 0, result.outputTokens || 0, providerObj);
+      providerObj.status = 'active';
+      return `[${providerObj.displayName}]\n\n${result.text}`;
+    } catch (err) {
+      return `${providerName} call failed: ${this.parseError(err.message)}`;
+    }
   },
 
   // Stream a simple Claude response directly (no tools, real-time text)

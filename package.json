@@ -1,6 +1,6 @@
 {
   "name": "avis",
-  "version": "3.9.0",
+  "version": "4.0.0",
   "description": "AVIS - Avel Intelligence Services: Multi-AI Orchestration Platform",
   "main": "main.js",
   "author": "Avel Productions LLC",
@@ -9,6 +9,9 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --mac --linux",
     "pack": "electron-builder --win --dir",
     "release": "electron-builder --win --publish always"
   },
@@ -41,6 +44,16 @@
         }
       ],
       "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "assets/icon.png",
+      "category": "Utility"
     },
     "nsis": {
       "oneClick": true,
