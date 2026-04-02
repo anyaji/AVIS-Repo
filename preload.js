@@ -130,6 +130,9 @@ contextBridge.exposeInMainWorld('avis', {
   // Sentinel health reports
   onSentinelReport: (cb) => ipcRenderer.on('sentinel-report', (_, data) => cb(data)),
 
+  // Claude rate limit monitoring
+  onClaudeRateLimits: (cb) => ipcRenderer.on('claude-rate-limits', (_, data) => cb(data)),
+
   // BUG 3: Get AVIS install path so Claude can find its own source files
   getAvisPath: () => ipcRenderer.invoke('get-avis-path')
 });

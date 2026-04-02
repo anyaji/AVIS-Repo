@@ -46,6 +46,11 @@ const AVIS = {
     // Render Mission Control initial state
     if (typeof MissionControl !== 'undefined') MissionControl.render();
 
+    // Claude rate limit monitoring
+    window.avis.onClaudeRateLimits((data) => {
+      this.updateRateLimits(data);
+    });
+
     const firstRun = await window.avis.isFirstRun();
     if (firstRun) this.showOnboarding();
 
@@ -272,6 +277,55 @@ const AVIS = {
     this._cmdPaletteOpen = false;
     const overlay = document.getElementById('cmd-overlay');
     if (overlay) overlay.remove();
+  },
+
+  // Claude rate limit display
+  updateRateLimits(data) {
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+    if (data.requestLimit > 0) {
+      setEl('rl-req-remaining', data.requestsRemaining);
+      setEl('rl-req-limit', data.requestLimit);
+      const reqPct = (data.requestsRemaining / data.requestLimit) * 100;
+      const reqBar = document.getElementById('rl-req-bar');
+      if (reqBar) {
+        reqBar.style.width = reqPct + '%';
+        reqBar.className = 'context-fill ' + (reqPct > 50 ? 'low' : reqPct > 20 ? 'medium' : 'high');
+      }
+      setEl('rl-req-reset', data.requestReset || '--');
+    }
+
+    if (data.tokenLimit > 0) {
+      const tokRemaining = data.tokensRemaining >= 1000 ? Math.round(data.tokensRemaining / 1000) + 'K' : data.tokensRemaining;
+      const tokLimit = data.tokenLimit >= 1000 ? Math.round(data.tokenLimit / 1000) + 'K' : data.tokenLimit;
+      setEl('rl-tok-remaining', tokRemaining);
+      setEl('rl-tok-limit', tokLimit);
+      const tokPct = (data.tokensRemaining / data.tokenLimit) * 100;
+      const tokBar = document.getElementById('rl-tok-bar');
+      if (tokBar) {
+        tokBar.style.width = tokPct + '%';
+        tokBar.className = 'context-fill ' + (tokPct > 50 ? 'low' : tokPct > 20 ? 'medium' : 'high');
+      }
+      setEl('rl-tok-reset', data.tokenReset || '--');
+    }
+
+    setEl('rl-updated', new Date().toLocaleTimeString());
+
+    // Show warning if running low
+    const warning = document.getElementById('rl-warning');
+    if (warning) {
+      const reqPct = data.requestLimit > 0 ? (data.requestsRemaining / data.requestLimit) * 100 : 100;
+      const tokPct = data.tokenLimit > 0 ? (data.tokensRemaining / data.tokenLimit) * 100 : 100;
+      if (data.retryAfter) {
+        warning.style.display = 'block';
+        warning.textContent = 'RATE LIMITED — retry after ' + data.retryAfter + 's';
+      } else if (reqPct < 20 || tokPct < 20) {
+        warning.style.display = 'block';
+        warning.textContent = 'Approaching rate limit — consider spacing requests or stepping down to Haiku';
+      } else {
+        warning.style.display = 'none';
+      }
+    }
   },
 
   // Notification sound (Web Audio API — no file needed)
@@ -799,6 +853,112 @@ const AVIS = {
   },
 
   // Export conversation to markdown file
+  // ====================================================================
+  // Claude Code Panel
+  // ====================================================================
+  _ccRunning: false,
+  _ccHistory: [],
+
+  async browseProjectFolder() {
+    const result = await window.avis.openFileDialog();
+    if (result) {
+      // openFileDialog returns a file, but we want the directory
+      const dir = result.replace(/[/\\][^/\\]+$/, '');
+      document.getElementById('cc-project-path').value = dir;
+    }
+  },
+
+  async runClaudeCode() {
+    if (this._ccRunning) { this.showToast('Claude Code already running'); return; }
+
+    const projectPath = document.getElementById('cc-project-path')?.value?.trim();
+    const task = document.getElementById('cc-task-input')?.value?.trim();
+    const flags = document.getElementById('cc-flags')?.value || '--dangerously-skip-permissions';
+
+    if (!projectPath) { this.showToast('Set a project path first'); return; }
+    if (!task) { this.showToast('Describe what Claude Code should do'); return; }
+
+    this._ccRunning = true;
+    const statusEl = document.getElementById('cc-status');
+    const output = document.getElementById('cc-output');
+    const runBtn = document.getElementById('cc-run-btn');
+
+    if (statusEl) { statusEl.textContent = 'RUNNING'; statusEl.style.color = 'var(--accent-green)'; statusEl.style.background = 'rgba(0,255,136,0.1)'; }
+    if (runBtn) runBtn.textContent = 'Running...';
+    if (output) output.textContent = `$ claude ${flags} -p "${task}"\nProject: ${projectPath}\n\n`;
+
+    // Track in Mission Control
+    if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking('claude', 'Claude Code: ' + task.substring(0, 30));
+
+    // Set up live streaming
+    const chunkHandler = (chunk) => {
+      if (output) {
+        output.textContent += chunk;
+        output.scrollTop = output.scrollHeight;
+      }
+    };
+    window.avis.onClaudeCodeChunk(chunkHandler);
+
+    try {
+      const result = await window.avis.runClaudeCode({ task, projectPath, flags });
+
+      if (result.error) {
+        output.textContent += '\n\nSTDERR:\n' + result.error;
+      }
+      output.textContent += '\n\n' + (result.success ? '=== COMPLETED ===' : '=== FAILED (exit ' + result.exitCode + ') ===');
+
+      // Save to history
+      this._ccHistory.unshift({
+        task,
+        project: projectPath,
+        time: new Date().toLocaleTimeString(),
+        success: result.success
+      });
+      if (this._ccHistory.length > 10) this._ccHistory.pop();
+      this.renderClaudeCodeHistory();
+
+    } catch (err) {
+      if (output) output.textContent += '\n\nError: ' + err.message;
+    }
+
+    // Cleanup
+    window.avis.offStreamChunk && window.avis.offStreamChunk();
+    if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('claude');
+    if (statusEl) { statusEl.textContent = 'IDLE'; statusEl.style.color = 'var(--text-secondary)'; statusEl.style.background = 'var(--bg-card)'; }
+    if (runBtn) runBtn.textContent = 'Run';
+    this._ccRunning = false;
+    this.playNotificationSound();
+  },
+
+  copyClaudeCodeOutput() {
+    const output = document.getElementById('cc-output');
+    if (output) { navigator.clipboard.writeText(output.textContent); this.showToast('Output copied'); }
+  },
+
+  clearClaudeCodeOutput() {
+    const output = document.getElementById('cc-output');
+    if (output) output.textContent = 'Ready. Set a project path and describe your task.';
+  },
+
+  sendClaudeCodeToChat() {
+    const output = document.getElementById('cc-output');
+    if (!output || !output.textContent.trim()) return;
+    this.addMessageToChat('ai', '**Claude Code Output:**\n```\n' + output.textContent.substring(0, 5000) + '\n```', 'claude', 'Claude Code');
+  },
+
+  renderClaudeCodeHistory() {
+    const container = document.getElementById('cc-history');
+    if (!container) return;
+    if (this._ccHistory.length === 0) { container.textContent = 'No tasks yet'; return; }
+    container.innerHTML = this._ccHistory.map(h =>
+      '<div style="padding:4px 8px;background:var(--bg-panel);border-radius:4px;margin-bottom:4px;display:flex;gap:8px;align-items:center;">' +
+        '<span style="color:' + (h.success ? 'var(--accent-green)' : 'var(--accent-red)') + ';">' + (h.success ? '\u2713' : '\u2717') + '</span>' +
+        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + h.task + '">' + h.task.substring(0, 40) + '</span>' +
+        '<span style="color:#445566;font-size:9px;">' + h.time + '</span>' +
+      '</div>'
+    ).join('');
+  },
+
   // ====================================================================
   // Workflow Builder
   // ====================================================================

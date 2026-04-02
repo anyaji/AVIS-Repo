@@ -1830,10 +1830,28 @@ ipcMain.handle('api-call-agentic', async (_, { model, messages, systemPrompt, to
       params.tools = tools;
     }
 
-    const apiPromise = client.messages.create(params);
-    const response = await withTimeout(apiPromise, 120000, 'Claude agentic call'); // 2 min per agentic iteration
+    const apiPromise = client.messages.create(params).withResponse();
+    const { data: response, response: rawResponse } = await withTimeout(apiPromise, 120000, 'Claude agentic call');
 
     if (signal.aborted) return { error: true, message: 'Request cancelled', code: 'ABORT' };
+
+    // Capture rate limit headers and send to renderer
+    try {
+      const headers = rawResponse?.headers;
+      if (headers && mainWindow && !mainWindow.isDestroyed()) {
+        const rateLimits = {
+          requestLimit: parseInt(headers.get('x-ratelimit-limit-requests') || '0'),
+          requestsRemaining: parseInt(headers.get('x-ratelimit-remaining-requests') || '0'),
+          requestReset: headers.get('x-ratelimit-reset-requests') || '',
+          tokenLimit: parseInt(headers.get('x-ratelimit-limit-tokens') || '0'),
+          tokensRemaining: parseInt(headers.get('x-ratelimit-remaining-tokens') || '0'),
+          tokenReset: headers.get('x-ratelimit-reset-tokens') || '',
+          retryAfter: headers.get('retry-after') || null,
+          timestamp: Date.now()
+        };
+        mainWindow.webContents.send('claude-rate-limits', rateLimits);
+      }
+    } catch (e) { /* rate limit parsing is non-critical */ }
 
     return {
       content: response.content,
@@ -2010,12 +2028,29 @@ async function callClaude(apiKey, model, messages, systemPrompt) {
     return { error: true, message: 'No valid message content to send.', code: 'EMPTY_CONTENT' };
   }
 
-  const response = await client.messages.create({
+  const { data: response, response: rawResponse } = await client.messages.create({
     model: model || 'claude-sonnet-4-20250514',
     max_tokens: 4096,
     system: systemPrompt || '',
     messages: claudeMessages
-  });
+  }).withResponse();
+
+  // Capture rate limit headers
+  try {
+    const headers = rawResponse?.headers;
+    if (headers && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('claude-rate-limits', {
+        requestLimit: parseInt(headers.get('x-ratelimit-limit-requests') || '0'),
+        requestsRemaining: parseInt(headers.get('x-ratelimit-remaining-requests') || '0'),
+        requestReset: headers.get('x-ratelimit-reset-requests') || '',
+        tokenLimit: parseInt(headers.get('x-ratelimit-limit-tokens') || '0'),
+        tokensRemaining: parseInt(headers.get('x-ratelimit-remaining-tokens') || '0'),
+        tokenReset: headers.get('x-ratelimit-reset-tokens') || '',
+        retryAfter: headers.get('retry-after') || null,
+        timestamp: Date.now()
+      });
+    }
+  } catch (e) {}
 
   const text = response.content.map(b => b.text || '').join('');
   return { text, inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens, model: response.model };
