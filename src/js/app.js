@@ -1747,12 +1747,13 @@ const AVIS = {
     if (key === 'DALLE') {
       try {
         const result = await window.avis.apiCall({
-          provider: 'openai', model: 'dall-e-3',
+          provider: 'dalle', model: 'dall-e-3',
           messages: [{ role: 'user', content: task }],
           systemPrompt: '', options: { isDalle: true, prompt: task }
         });
         if (result.error) return { key, label: p.label, text: `[Image failed: ${result.message}]`, error: true };
-        return { key, label: p.label, text: `[Generated image: ${result.revisedPrompt || task}]`, imageData: result.base64, imageUrl: result.imageUrl, error: false };
+        const b64 = result.image?.data || result.base64;
+        return { key, label: p.label, text: `[Generated image: ${result.revisedPrompt || task}]`, imageData: b64, error: false };
       } catch (err) { return { key, label: p.label, text: `[Error: ${err.message}]`, error: true }; }
     }
 
