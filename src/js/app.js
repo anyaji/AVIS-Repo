@@ -2482,7 +2482,32 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
   // ====================================================================
   CHANGELOG: [
     {
-      version: '3.1.0', date: '2026-03-31', label: 'latest',
+      version: '4.2.0', date: '2026-04-02', label: 'latest',
+      items: [
+        'Claude Code: folder-only project picker — no file selection required',
+        'Claude Code: fixed shell quoting and stdin issues for reliable task execution',
+        'OneDrive-aware desktop path resolution for file operations',
+        'Beautified Claude Code panel with proper styling and gradient accents',
+        'Theme-aware glow animation on Send and Council buttons',
+        'Response cache wired up — repeated questions answered instantly (1hr TTL)',
+        'Smart tool selection by task type — 60-80% smaller tool payloads',
+        'Stream rendering throttled to 60fps for smoother output',
+        'Stop button now instantly kills streaming responses',
+        'Single-instance lock — duplicate app launches auto-close',
+        'Removed unused dependencies (dayjs, uuid)',
+        'Council input bar now matches main chat style'
+      ]
+    },
+    {
+      version: '4.1.1', date: '2026-03-31',
+      items: [
+        'Claude Code permission lock system',
+        'Master key controls for standard user permissions',
+        'Claude rate limit monitoring'
+      ]
+    },
+    {
+      version: '3.1.0', date: '2026-03-31',
       items: [
         'Fixed tab navigation (History, Search, Direct, Terminal, Changes)',
         'Fixed blank UI on startup (license race condition)',
