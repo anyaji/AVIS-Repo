@@ -1794,6 +1794,91 @@ body {
 .compact-mode .step-panel { font-size: 11px; }
 .compact-mode .update-bar { height: 24px; font-size: 9px; }
 
+/* ====================================================================
+   SEND / COUNCIL GLOW ANIMATION — theme-aware
+   ==================================================================== */
+
+/* Glow ring on .input-wrap when sending */
+.input-wrap.glow-active {
+  border-color: var(--accent-blue);
+  box-shadow:
+    0 0 0 2px var(--glow),
+    0 0 15px rgba(0, 168, 255, 0.15),
+    0 0 30px rgba(0, 168, 255, 0.08);
+  animation: sendGlow 1.2s ease-out forwards;
+}
+
+@keyframes sendGlow {
+  0% {
+    box-shadow:
+      0 0 0 2px var(--glow),
+      0 0 15px rgba(0, 168, 255, 0.25),
+      0 0 40px rgba(0, 168, 255, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px var(--glow),
+      0 0 20px rgba(0, 168, 255, 0.2),
+      0 0 50px rgba(0, 168, 255, 0.1);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px var(--glow),
+      0 0 8px rgba(0, 168, 255, 0.08);
+  }
+}
+
+/* Council-specific glow uses accent-amber */
+.council-center .input-wrap.glow-active {
+  border-color: var(--accent-amber);
+  box-shadow:
+    0 0 0 2px rgba(255, 180, 0, 0.15),
+    0 0 15px rgba(255, 180, 0, 0.15),
+    0 0 30px rgba(255, 180, 0, 0.08);
+  animation: councilGlow 1.2s ease-out forwards;
+}
+
+@keyframes councilGlow {
+  0% {
+    box-shadow:
+      0 0 0 2px rgba(255, 180, 0, 0.2),
+      0 0 15px rgba(255, 180, 0, 0.25),
+      0 0 40px rgba(255, 180, 0, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(255, 180, 0, 0.15),
+      0 0 20px rgba(255, 180, 0, 0.2),
+      0 0 50px rgba(255, 180, 0, 0.1);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(255, 180, 0, 0.1),
+      0 0 8px rgba(255, 180, 0, 0.08);
+  }
+}
+
+/* Button press glow — send button flashes on click */
+.send-btn.glow-pulse {
+  animation: btnGlow 0.4s ease-out;
+}
+
+@keyframes btnGlow {
+  0% { box-shadow: 0 0 0 0 var(--accent-blue); }
+  50% { box-shadow: 0 0 12px 4px var(--accent-blue); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.council-send.glow-pulse {
+  animation: btnGlowAmber 0.4s ease-out;
+}
+
+@keyframes btnGlowAmber {
+  0% { box-shadow: 0 0 0 0 var(--accent-amber); }
+  50% { box-shadow: 0 0 12px 4px var(--accent-amber); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
 /* Streaming cursor */
 .stream-cursor {
   color: var(--accent-blue);
@@ -2445,6 +2530,288 @@ body {
   transition: border-color 0.2s, color 0.2s;
 }
 .retry-provider-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+/* ====================================================================
+   CLAUDE CODE PANEL
+   ==================================================================== */
+.cc-panel {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.cc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.cc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cc-logo {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  letter-spacing: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  text-shadow: 0 0 12px rgba(0, 168, 255, 0.3);
+}
+
+.cc-header-glow {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+  opacity: 0.4;
+}
+
+.cc-status-badge {
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+}
+
+.cc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cc-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.cc-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.cc-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.cc-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(0, 168, 255, 0.1);
+}
+
+.cc-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.cc-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.cc-btn-browse {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.cc-btn-browse:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: rgba(0, 168, 255, 0.05);
+}
+
+.cc-btn-run {
+  background: linear-gradient(135deg, var(--accent-blue), #0088cc);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 168, 255, 0.25);
+}
+.cc-btn-run:hover {
+  box-shadow: 0 4px 16px rgba(0, 168, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.cc-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cc-select {
+  flex: 1;
+  padding: 6px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  outline: none;
+  cursor: pointer;
+}
+.cc-select:focus { border-color: var(--accent-blue); }
+
+.cc-lock-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.cc-master-controls {
+  display: none;
+}
+
+.cc-master-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 180, 0, 0.04);
+  border: 1px solid rgba(255, 180, 0, 0.2);
+  border-radius: 6px;
+}
+
+.cc-master-label {
+  font-size: 10px;
+  color: var(--accent-amber);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.cc-btn-unlock {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.cc-btn-unlock:hover {
+  border-color: var(--accent-amber);
+  color: var(--accent-amber);
+}
+
+.cc-master-hint {
+  font-size: 9px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.cc-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: 2px 0;
+}
+
+.cc-output-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cc-output-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.cc-btn-sm {
+  padding: 3px 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cc-btn-sm:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.cc-btn-sm-accent {
+  border-color: rgba(0, 168, 255, 0.3);
+  color: var(--accent-blue);
+}
+.cc-btn-sm-accent:hover {
+  background: rgba(0, 168, 255, 0.08);
+}
+
+.cc-output {
+  flex: 1;
+  min-height: 180px;
+  max-height: 500px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent-green);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  position: relative;
+}
+
+.cc-output::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-green), var(--accent-blue));
+  border-radius: 8px 8px 0 0;
+  opacity: 0.4;
+}
+
+.cc-history {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-height: 32px;
+}
 
 /* Workflow Builder */
 .workflow-builder {

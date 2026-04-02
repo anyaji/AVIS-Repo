@@ -167,48 +167,66 @@
 
         <!-- Claude Code Panel -->
         <div class="panel-section" id="claudecode-section">
-          <div style="padding:12px;display:flex;flex-direction:column;gap:10px;height:100%;overflow-y:auto;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:11px;font-weight:700;color:var(--accent-blue);letter-spacing:1px;font-family:'JetBrains Mono',monospace;">CLAUDE CODE</span>
-              <span id="cc-status" style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--bg-card);color:var(--text-secondary);font-family:'JetBrains Mono',monospace;">IDLE</span>
+          <div class="cc-panel">
+            <div class="cc-header">
+              <div class="cc-header-left">
+                <span class="cc-logo">CLAUDE CODE</span>
+                <span id="cc-status" class="cc-status-badge">IDLE</span>
+              </div>
+              <div class="cc-header-glow"></div>
             </div>
 
-            <div style="display:flex;gap:6px;">
-              <input type="text" id="cc-project-path" placeholder="Project path (e.g. C:/Users/anyaj/my-project)" class="search-box" style="flex:1;font-size:11px;">
-              <button onclick="AVIS.browseProjectFolder()" class="panel-go-btn" style="font-size:10px;">Browse</button>
-            </div>
-
-            <div style="display:flex;gap:6px;">
-              <input type="text" id="cc-task-input" placeholder="What should Claude Code do? (build, fix, refactor...)" class="search-box" style="flex:1;font-size:11px;">
-              <button onclick="AVIS.runClaudeCode()" class="panel-go-btn" id="cc-run-btn" style="font-size:10px;">Run</button>
-            </div>
-
-            <div style="font-size:9px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;">
-              Mode: <select id="cc-flags" class="search-box" style="font-size:10px;width:auto;display:inline;">
-                <option value="--dangerously-skip-permissions">Full Autonomy (skip permissions)</option>
-                <option value="">Safe Mode (permissions required)</option>
-              </select>
-              <span id="cc-lock-badge" style="margin-left:6px;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;"></span>
-            </div>
-            <div id="cc-master-controls" style="display:none;margin-top:4px;">
-              <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,180,0,0.06);border:1px solid var(--accent-amber);border-radius:4px;">
-                <span style="font-size:10px;color:var(--accent-amber);font-family:'JetBrains Mono',monospace;">MASTER:</span>
-                <button id="cc-unlock-btn" onclick="AVIS.toggleClaudeCodeUnlock()" style="padding:3px 10px;font-size:10px;font-family:'JetBrains Mono',monospace;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg-card);color:var(--text-primary);">Loading...</button>
-                <span style="font-size:9px;color:var(--text-secondary);">for standard users on this device</span>
+            <div class="cc-section">
+              <label class="cc-label">Project Folder</label>
+              <div class="cc-input-row">
+                <input type="text" id="cc-project-path" placeholder="Select a project folder..." class="cc-input" readonly>
+                <button onclick="AVIS.browseProjectFolder()" class="cc-btn cc-btn-browse">Browse</button>
               </div>
             </div>
 
-            <div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-top:4px;">Live Output</div>
-            <pre id="cc-output" style="flex:1;min-height:200px;max-height:500px;overflow-y:auto;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--accent-green);white-space:pre-wrap;word-break:break-word;">Ready. Set a project path and describe your task.</pre>
-
-            <div style="display:flex;gap:6px;">
-              <button onclick="AVIS.copyClaudeCodeOutput()" class="panel-go-btn" style="font-size:10px;flex:1;">Copy Output</button>
-              <button onclick="AVIS.clearClaudeCodeOutput()" class="panel-go-btn" style="font-size:10px;flex:1;">Clear</button>
-              <button onclick="AVIS.sendClaudeCodeToChat()" class="panel-go-btn" style="font-size:10px;flex:1;">Send to Chat</button>
+            <div class="cc-section">
+              <label class="cc-label">Task</label>
+              <div class="cc-input-row">
+                <input type="text" id="cc-task-input" placeholder="Build, fix, refactor..." class="cc-input">
+                <button onclick="AVIS.runClaudeCode()" class="cc-btn cc-btn-run" id="cc-run-btn">Run</button>
+              </div>
             </div>
 
-            <div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-top:4px;">Recent Tasks</div>
-            <div id="cc-history" style="font-size:11px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;">No tasks yet</div>
+            <div class="cc-section">
+              <label class="cc-label">Mode</label>
+              <div class="cc-mode-row">
+                <select id="cc-flags" class="cc-select">
+                  <option value="--dangerously-skip-permissions">Full Autonomy</option>
+                  <option value="">Safe Mode</option>
+                </select>
+                <span id="cc-lock-badge" class="cc-lock-badge"></span>
+              </div>
+            </div>
+
+            <div id="cc-master-controls" class="cc-master-controls">
+              <div class="cc-master-inner">
+                <span class="cc-master-label">MASTER:</span>
+                <button id="cc-unlock-btn" onclick="AVIS.toggleClaudeCodeUnlock()" class="cc-btn cc-btn-unlock">Loading...</button>
+                <span class="cc-master-hint">for standard users on this device</span>
+              </div>
+            </div>
+
+            <div class="cc-divider"></div>
+
+            <div class="cc-output-header">
+              <span class="cc-label">Live Output</span>
+              <div class="cc-output-actions">
+                <button onclick="AVIS.copyClaudeCodeOutput()" class="cc-btn-sm" title="Copy">Copy</button>
+                <button onclick="AVIS.clearClaudeCodeOutput()" class="cc-btn-sm" title="Clear">Clear</button>
+                <button onclick="AVIS.sendClaudeCodeToChat()" class="cc-btn-sm cc-btn-sm-accent" title="Send to Chat">Chat</button>
+              </div>
+            </div>
+            <pre id="cc-output" class="cc-output">Ready. Select a project folder and describe your task.</pre>
+
+            <div class="cc-section">
+              <label class="cc-label">Recent Tasks</label>
+              <div id="cc-history" class="cc-history">No tasks yet</div>
+            </div>
           </div>
         </div>
 
@@ -385,15 +403,15 @@
         </div>
       </div>
 
-      <!-- Council Input -->
+      <!-- Council Input — same layout as main chat -->
       <div class="input-area">
         <div id="council-file-preview" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
-        <div class="input-wrap">
+        <div class="input-wrap" id="council-input-wrap">
           <div class="input-actions">
             <button id="council-attach-btn" title="Attach file" onclick="AVIS.councilAttachFile()">&#128206;</button>
             <button id="council-paste-btn" title="Paste image (Ctrl+V)" onclick="AVIS.showToast('Press Ctrl+V to paste an image')">&#128444;</button>
           </div>
-          <textarea id="council-input" rows="1" placeholder="Describe your task for the AI Council..."></textarea>
+          <textarea id="council-input" rows="1" placeholder="Type your message..."></textarea>
           <button class="send-btn council-send" id="council-send-btn" onclick="AVIS.startCouncil()">COUNCIL</button>
           <button class="stop-btn" id="council-stop-btn" style="display:none;" onclick="AVIS.stopCouncil()">&#9632; STOP</button>
         </div>

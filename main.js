@@ -2,7 +2,21 @@ const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, screen } = requ
 const path = require('path');
 const fs = require('fs');
 const vm = require('vm');
-const { exec, spawn } = require('child_process');
+const os = require('os');
+const { exec, execSync, spawn } = require('child_process');
+
+// ====================================================================
+// Real Desktop Path — OneDrive-aware
+// ====================================================================
+const REAL_DESKTOP = path.join(os.homedir(), 'Desktop');
+
+function resolveDesktopInTask(task) {
+  return task
+    .replace(/my desktop/gi, `"${REAL_DESKTOP}"`)
+    .replace(/the desktop/gi, `"${REAL_DESKTOP}"`)
+    .replace(/C:\\Users\\anyaj\\Desktop/gi, REAL_DESKTOP)
+    .replace(/C:\/Users\/anyaj\/Desktop/gi, REAL_DESKTOP.replace(/\\/g, '/'));
+}
 const Store = require('electron-store');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
@@ -463,6 +477,24 @@ if (!gotLock) {
   });
 }
 
+// Single instance — second launch kills the first and takes over
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  // We are the second instance — the first will receive 'second-instance' and quit
+  // Wait briefly for the first to die, then relaunch ourselves
+  const { spawn: spawnProc } = require('child_process');
+  setTimeout(() => {
+    spawnProc(process.argv[0], process.argv.slice(1), { detached: true, stdio: 'ignore' }).unref();
+    app.quit();
+  }, 1500);
+} else {
+  app.on('second-instance', () => {
+    // First instance receives this — release lock and quit so the new one can take over
+    app.releaseSingleInstanceLock();
+    app.quit();
+  });
+}
+
 app.whenReady().then(() => {
   ensureDirs();
   migrateKeys();
@@ -670,6 +702,15 @@ ipcMain.handle('read-file', async (_, filePath) => {
   }
 
   return { type: 'text', data: fs.readFileSync(filePath, 'utf-8'), name: path.basename(filePath), sizeMB };
+});
+
+ipcMain.handle('open-folder-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: 'Select Project Folder'
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0];
 });
 
 ipcMain.handle('open-file-dialog', async () => {
@@ -1255,6 +1296,8 @@ function isClaudeCodeUnlocked() {
   return store.get('claudeCode.unlocked', false);
 }
 
+ipcMain.handle('get-real-desktop', () => REAL_DESKTOP);
+
 ipcMain.handle('claude-code-check-unlock', () => ({
   unlocked: isClaudeCodeUnlocked(),
   tier: licenseTier,
@@ -1285,13 +1328,21 @@ ipcMain.handle('run-claude-code', async (_, { task, projectPath, flags }) => {
       }
     }
 
-    const args = cliFlags ? [cliFlags, '-p', task] : ['-p', task];
+    // Resolve "my desktop" / "the desktop" to real OneDrive-aware path
+    const resolvedTask = resolveDesktopInTask(task);
 
-    const proc = spawn('claude', args, {
+    // Build full shell command — must quote the task to preserve multi-word strings
+    const escapedTask = resolvedTask.replace(/"/g, '\\"');
+    const cmd = cliFlags
+      ? `claude ${cliFlags} -p "${escapedTask}"`
+      : `claude -p "${escapedTask}"`;
+
+    const proc = spawn(cmd, [], {
       cwd: projectPath || process.cwd(),
       timeout: 1800000, // 30 min for full builds
       shell: true,
-      env: { ...process.env }
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe']
     });
 
     let stdout = '';
@@ -2001,6 +2052,9 @@ ipcMain.handle('api-call-stream-start', async (_, { model, messages, systemPromp
   const apiKey = store.get('apiKeys.claude', '');
   if (!apiKey) return { error: true, message: 'No Claude API key' };
 
+  activeAbortController = new AbortController();
+  const signal = activeAbortController.signal;
+
   try {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
@@ -2018,12 +2072,18 @@ ipcMain.handle('api-call-stream-start', async (_, { model, messages, systemPromp
 
     if (claudeMessages.length === 0) return { error: true, message: 'Empty message' };
 
+    if (signal.aborted) return { error: true, message: 'Request cancelled', code: 'ABORT' };
+
     const stream = client.messages.stream({
       model: model || 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: systemPrompt || '',
       messages: claudeMessages
     });
+
+    // Force-abort the stream when signal fires
+    const onAbort = () => { try { stream.abort(); } catch (_) {} };
+    signal.addEventListener('abort', onAbort, { once: true });
 
     let inputTokens = 0, outputTokens = 0;
 
@@ -2033,14 +2093,23 @@ ipcMain.handle('api-call-stream-start', async (_, { model, messages, systemPromp
       }
     });
 
-    const finalMessage = await stream.finalMessage();
-    inputTokens = finalMessage.usage?.input_tokens || 0;
-    outputTokens = finalMessage.usage?.output_tokens || 0;
-    const fullText = finalMessage.content.map(b => b.text || '').join('');
-
-    return { error: false, text: fullText, inputTokens, outputTokens, model: finalMessage.model };
+    try {
+      const finalMessage = await stream.finalMessage();
+      inputTokens = finalMessage.usage?.input_tokens || 0;
+      outputTokens = finalMessage.usage?.output_tokens || 0;
+      const fullText = finalMessage.content.map(b => b.text || '').join('');
+      return { error: false, text: fullText, inputTokens, outputTokens, model: finalMessage.model };
+    } catch (streamErr) {
+      if (signal.aborted) return { error: true, message: 'Request cancelled', code: 'ABORT' };
+      throw streamErr;
+    } finally {
+      signal.removeEventListener('abort', onAbort);
+    }
   } catch (err) {
+    if (signal.aborted) return { error: true, message: 'Request cancelled', code: 'ABORT' };
     return { error: true, message: err.message };
+  } finally {
+    activeAbortController = null;
   }
 });
 

@@ -634,10 +634,19 @@ const AVIS = {
   stopRequest() {
     Orchestrator.cancelled = true;
     window.avis.abortRequest();
+    window.avis.offStreamChunk();  // stop listening for stream chunks
     this.showStopButton(false);
 
     // Remove typing indicator
     document.querySelectorAll('.typing-indicator').forEach(el => el.closest('.message')?.remove());
+
+    // Finalize any active stream bubble
+    if (this._streamBubble) {
+      const cursor = this._streamBubble.querySelector('.stream-cursor');
+      if (cursor) cursor.remove();
+      this._streamBubble = null;
+      this._streamRafPending = false;
+    }
 
     // Update step panel
     if (this.activeStepPanel) {
@@ -912,11 +921,9 @@ const AVIS = {
   },
 
   async browseProjectFolder() {
-    const result = await window.avis.openFileDialog();
+    const result = await window.avis.openFolderDialog();
     if (result) {
-      // openFileDialog returns a file, but we want the directory
-      const dir = result.replace(/[/\\][^/\\]+$/, '');
-      document.getElementById('cc-project-path').value = dir;
+      document.getElementById('cc-project-path').value = result;
     }
   },
 
@@ -1146,6 +1153,26 @@ const AVIS = {
     setTimeout(() => toast.remove(), 2600);
   },
 
+  // Trigger theme-aware glow on input wrap when sending
+  _triggerSendGlow(mode) {
+    const wrapId = mode === 'council' ? 'council-input-wrap' : null;
+    const wrap = wrapId ? document.getElementById(wrapId) : document.querySelector('#chat-center .input-wrap');
+    const btn = mode === 'council' ? document.getElementById('council-send-btn') : document.getElementById('send-btn');
+
+    if (wrap) {
+      wrap.classList.remove('glow-active');
+      void wrap.offsetWidth; // force reflow to restart animation
+      wrap.classList.add('glow-active');
+      setTimeout(() => wrap.classList.remove('glow-active'), 1300);
+    }
+    if (btn) {
+      btn.classList.remove('glow-pulse');
+      void btn.offsetWidth;
+      btn.classList.add('glow-pulse');
+      setTimeout(() => btn.classList.remove('glow-pulse'), 500);
+    }
+  },
+
   // ====================================================================
   // Send message — with STOP button + retry support
   // ====================================================================
@@ -1155,6 +1182,9 @@ const AVIS = {
     const input = document.getElementById('chat-input');
     const text = retryText || input.value.trim();
     if (!text && !FileHandler.hasFiles()) return;
+
+    // Trigger send glow animation
+    this._triggerSendGlow('chat');
 
     this.isProcessing = true;
     this.showStopButton(true);
@@ -1480,19 +1510,27 @@ const AVIS = {
 
   handleStreamChunk(chunk, fullText) {
     if (!this._streamBubble) this.createStreamBubble('claude');
-    const contentEl = this._streamBubble.querySelector('.stream-content');
-    if (contentEl) {
-      contentEl.innerHTML = this.renderMarkdown(fullText);
-      // Syntax highlight any code blocks
-      this._streamBubble.querySelectorAll('pre code').forEach(block => {
-        if (typeof hljs !== 'undefined' && !block.dataset.highlighted) {
-          hljs.highlightElement(block);
-          block.dataset.highlighted = 'true';
-        }
-      });
-    }
-    const chatArea = document.getElementById('chat-area');
-    chatArea.scrollTop = chatArea.scrollHeight;
+
+    // Throttle DOM updates to ~60fps — batch rapid chunks into one render frame
+    this._streamFullText = fullText;
+    if (this._streamRafPending) return;
+    this._streamRafPending = true;
+
+    requestAnimationFrame(() => {
+      this._streamRafPending = false;
+      const contentEl = this._streamBubble?.querySelector('.stream-content');
+      if (contentEl) {
+        contentEl.innerHTML = this.renderMarkdown(this._streamFullText);
+        this._streamBubble.querySelectorAll('pre code').forEach(block => {
+          if (typeof hljs !== 'undefined' && !block.dataset.highlighted) {
+            hljs.highlightElement(block);
+            block.dataset.highlighted = 'true';
+          }
+        });
+      }
+      const chatArea = document.getElementById('chat-area');
+      chatArea.scrollTop = chatArea.scrollHeight;
+    });
   },
 
   finalizeStreamBubble(provider, model) {
@@ -1596,6 +1634,10 @@ const AVIS = {
     const input = document.getElementById('council-input');
     const prompt = input?.value?.trim();
     if (!prompt || this._councilRunning) return;
+
+    // Trigger council glow animation
+    this._triggerSendGlow('council');
+
     this._councilRunning = true;
     input.value = '';
 

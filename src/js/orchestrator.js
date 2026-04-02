@@ -379,11 +379,36 @@ For every user request:
   },
 
   async buildToolsList(userMessage) {
-    const tools = [...this.BASE_TOOLS];
+    const msg = userMessage || this._lastTaskMessage || '';
+    const taskType = this.detectTaskType(msg);
+
+    // Simple chat doesn't need any tools — Claude answers directly
+    if (taskType === 'simple_chat') return [];
+
+    const tools = [];
+
+    // Only include base tools relevant to the task type
+    const baseToolNames = this.BASE_TOOLS.map(t => t.name);
+    const taskToolMap = {
+      web_task: ['web_search', 'fetch_url', 'firecrawl_crawl', 'read_file', 'write_file', 'open_app'],
+      file_task: ['read_file', 'write_file', 'open_app', 'run_code'],
+      computer_control: ['computer_action', 'launch_steam_game', 'open_app', 'read_file'],
+      claude_code: ['read_file', 'write_file', 'run_code', 'web_search', 'fetch_url', 'open_app'],
+    };
+
+    const allowedBase = taskToolMap[taskType];
+    if (allowedBase) {
+      tools.push(...this.BASE_TOOLS.filter(t => allowedBase.includes(t.name)));
+    } else {
+      tools.push(...this.BASE_TOOLS); // default: all base tools
+    }
+
     // Only include heavy doc generation schemas when the user actually asks for documents
-    if (this.isDocRequest(userMessage || this._lastTaskMessage)) {
+    if (this.isDocRequest(msg)) {
       tools.push(...this.DOC_TOOLS);
     }
+
+    // Only include provider tools for configured + available providers
     for (const pt of this.PROVIDER_TOOLS) {
       if (pt.provider === null) {
         tools.push({ name: pt.name, description: pt.description, input_schema: pt.input_schema });
@@ -525,6 +550,15 @@ DELEGATION RULES (follow these always):
     }
     if ((!userMessage || !userMessage.trim()) && files.length === 0) {
       return { text: 'Please type a message or attach a file.', provider: 'avis', model: 'system' };
+    }
+
+    // === RESPONSE CACHE: instant return for repeated prompts ===
+    if (files.length === 0 && typeof ResponseCache !== 'undefined') {
+      const cached = ResponseCache.get('any', userMessage);
+      if (cached) {
+        this.emitStep('done', 'Cache hit — instant response', 'done');
+        return { text: cached, provider: 'cache', model: 'cached', cached: true };
+      }
     }
 
     if (!this.avisPath) {
@@ -790,10 +824,17 @@ DELEGATION RULES (follow these always):
 
       window.avis.offStreamChunk();
 
+      // Check if user cancelled — don't fall back, just return what we have
+      if (this.cancelled || (result.error && result.code === 'ABORT')) {
+        const elapsed = ((Date.now() - this._loopStart) / 1000).toFixed(1);
+        this.emitStep('done', `Stopped at ${elapsed}s`, 'error');
+        return { text: fullText || 'Request cancelled.', provider: 'claude', model: 'cancelled', streamed: true };
+      }
+
       if (result.error) {
         const elapsed = ((Date.now() - this._loopStart) / 1000).toFixed(1);
         this.emitStep('done', `Error: ${this.parseError(result.message)}`, 'error');
-        // Fall back to agentic loop on stream error
+        // Fall back to agentic loop on stream error (not cancellation)
         return await this.agenticLoop(userMessage, []);
       }
 
@@ -813,7 +854,11 @@ DELEGATION RULES (follow these always):
       };
     } catch (err) {
       window.avis.offStreamChunk();
-      // Fall back to agentic loop
+      // If cancelled, return partial text — don't start a new request
+      if (this.cancelled) {
+        return { text: fullText || 'Request cancelled.', provider: 'claude', model: 'cancelled', streamed: true };
+      }
+      // Fall back to agentic loop only on real errors
       return await this.agenticLoop(userMessage, []);
     }
   },
@@ -893,6 +938,10 @@ DELEGATION RULES (follow these always):
         ClaudeProvider.status = 'active';
         const elapsed = ((Date.now() - this._loopStart) / 1000).toFixed(1);
         this.emitStep('done', `Done in ${elapsed}s`, 'done');
+        // Cache successful responses (only non-tool results, short enough to be reusable)
+        if (finalText && toolUseLog.length === 0 && typeof ResponseCache !== 'undefined') {
+          ResponseCache.set('any', userMessage, finalText);
+        }
         return { text: finalText || '(No text in response)', provider: 'claude', model: response.model || ClaudeProvider.getCurrentModel().name, toolUseLog };
       }
 

@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('avis', {
   // Files
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   openFileDialog: () => ipcRenderer.invoke('open-file-dialog'),
+  openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
 
   // API calls
   apiCall: (params) => ipcRenderer.invoke('api-call', params),
@@ -73,6 +74,9 @@ contextBridge.exposeInMainWorld('avis', {
 
   // Code execution
   runCode: (params) => ipcRenderer.invoke('run-code', params),
+
+  // Desktop path (OneDrive-aware)
+  getRealDesktop: () => ipcRenderer.invoke('get-real-desktop'),
 
   // Claude Code CLI integration
   runClaudeCode: (params) => ipcRenderer.invoke('run-claude-code', params),
