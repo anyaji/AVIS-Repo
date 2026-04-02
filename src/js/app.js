@@ -76,10 +76,11 @@ const AVIS = {
       if (welcomeVer) welcomeVer.textContent = `v${ver}`;
     } catch (e) {}
 
-    // Render changelog + init dev console + live clock + Chrome status
+    // Render changelog + init dev console + live clock + Chrome status + sounds
     this.renderChangelog();
     this.initDevConsole();
     this.startClock();
+    this.initSounds();
     this.updateChromeStatus();
     setInterval(() => this.updateChromeStatus(), 10000);
 
@@ -333,8 +334,86 @@ const AVIS = {
     }
   },
 
+  // ====================================================================
+  // Sound System — file-based with fallback to Web Audio
+  // ====================================================================
+  _sounds: {},
+  _soundsLoaded: false,
+
+  initSounds() {
+    const soundFiles = {
+      send: 'assets/sounds/send.mp3',
+      receive: 'assets/sounds/startup.mp3',  // reuse startup as receive chime
+      error: 'assets/sounds/error.mp3'
+    };
+    for (const [name, path] of Object.entries(soundFiles)) {
+      try {
+        const audio = new Audio(path);
+        audio.volume = 0.3;
+        audio.preload = 'auto';
+        this._sounds[name] = audio;
+      } catch (e) {}
+    }
+    this._soundsLoaded = true;
+  },
+
+  playSound(name) {
+    if (!HotConfig.get('notificationSound')) return;
+    const s = this._sounds[name];
+    if (s) {
+      try { s.currentTime = 0; s.play().catch(() => {}); } catch (e) {}
+      return;
+    }
+    // Fallback to Web Audio API
+    this._playTone(name === 'error' ? 220 : name === 'send' ? 660 : 880);
+  },
+
+  _playTone(freq) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq; osc.type = 'sine';
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.start(); osc.stop(ctx.currentTime + 0.3);
+    } catch (e) {}
+  },
+
   // Notification sound (Web Audio API — no file needed)
   playNotificationSound() {
+    if (!HotConfig.get('notificationSound')) return;
+    this.playSound('receive');
+  },
+
+  // ====================================================================
+  // GSAP UI Micro-Animations
+  // ====================================================================
+  animateMessageIn(el) {
+    if (typeof gsap === 'undefined') return;
+    gsap.from(el, { opacity: 0, y: 14, duration: 0.35, ease: 'power2.out' });
+  },
+
+  animateSendPress() {
+    if (typeof gsap === 'undefined') return;
+    const btn = document.getElementById('send-btn');
+    if (!btn) return;
+    gsap.to(btn, { scale: 0.88, duration: 0.1, yoyo: true, repeat: 1, ease: 'power2.inOut' });
+  },
+
+  animateStepsIn(panel) {
+    if (typeof gsap === 'undefined') return;
+    gsap.from(panel, { height: 0, opacity: 0, duration: 0.4, ease: 'power2.out' });
+  },
+
+  animateTabSwitch(incoming) {
+    if (typeof gsap === 'undefined') return;
+    gsap.from(incoming, { opacity: 0, x: 8, duration: 0.2, ease: 'power2.out' });
+  },
+
+  // Kept for backward compat — old Web Audio path
+  _legacyNotificationSound() {
     if (!HotConfig.get('notificationSound')) return;
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -545,7 +624,7 @@ const AVIS = {
         tab.classList.add('active');
         const targetId = `${tab.dataset.tab}-section`;
         const targetSection = document.getElementById(targetId);
-        if (targetSection) { targetSection.classList.add('active'); targetSection.style.display = 'block'; }
+        if (targetSection) { targetSection.classList.add('active'); targetSection.style.display = 'block'; AVIS.animateTabSwitch(targetSection); }
 
         // Toggle center panel: Council gets its own full center view
         if (tab.dataset.tab === 'council') {
@@ -682,6 +761,7 @@ const AVIS = {
       <div class="step-panel-body" id="step-panel-body"></div>
     `;
     chatArea.appendChild(panel);
+    this.animateStepsIn(panel);
     chatArea.scrollTop = chatArea.scrollHeight;
 
     this.activeStepPanel = panel;
@@ -1213,8 +1293,10 @@ const AVIS = {
     const text = retryText || input.value.trim();
     if (!text && !FileHandler.hasFiles()) return;
 
-    // Trigger send glow animation
+    // Trigger send glow + GSAP press animation + sound
     this._triggerSendGlow('chat');
+    this.animateSendPress();
+    this.playSound('send');
 
     this.isProcessing = true;
     this.showStopButton(true);
@@ -1443,6 +1525,7 @@ const AVIS = {
       pre.style.position = 'relative'; pre.appendChild(btn);
     });
     msgDiv.querySelectorAll('pre code').forEach(block => { if (typeof hljs !== 'undefined') hljs.highlightElement(block); });
+    this.animateMessageIn(msgDiv);
     chatArea.scrollTop = chatArea.scrollHeight;
   },
 
@@ -2823,7 +2906,18 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
   // ====================================================================
   CHANGELOG: [
     {
-      version: '4.3.0', date: '2026-04-02', label: 'latest',
+      version: '4.4.0', date: '2026-04-02', label: 'latest',
+      items: [
+        'GSAP-animated startup sequence with neural network icon and boot lines',
+        'Startup sound (AVIS Echoes) plays during boot animation',
+        'Sound system — send whoosh, receive chime, error tone with Web Audio fallback',
+        'GSAP micro-animations — message slide-in, send button press, tab transitions, step panels',
+        'Animated GIF indicators — connection, calendar, internet, dollar, settings',
+        'Lottie.js + GSAP loaded for future animation expansion'
+      ]
+    },
+    {
+      version: '4.3.0', date: '2026-04-02',
       items: [
         'Chrome MCP integration — full browser automation via Claude in Chrome extension',
         'Browser Agent — auto-detects browser tasks and executes step-by-step with recovery',
