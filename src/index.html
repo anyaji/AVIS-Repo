@@ -184,10 +184,18 @@
             </div>
 
             <div style="font-size:9px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;">
-              Flags: <select id="cc-flags" class="search-box" style="font-size:10px;width:auto;display:inline;">
-                <option value="--dangerously-skip-permissions">Auto (skip permissions)</option>
-                <option value="">Interactive (with permissions)</option>
+              Mode: <select id="cc-flags" class="search-box" style="font-size:10px;width:auto;display:inline;">
+                <option value="--dangerously-skip-permissions">Full Autonomy (skip permissions)</option>
+                <option value="">Safe Mode (permissions required)</option>
               </select>
+              <span id="cc-lock-badge" style="margin-left:6px;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;"></span>
+            </div>
+            <div id="cc-master-controls" style="display:none;margin-top:4px;">
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,180,0,0.06);border:1px solid var(--accent-amber);border-radius:4px;">
+                <span style="font-size:10px;color:var(--accent-amber);font-family:'JetBrains Mono',monospace;">MASTER:</span>
+                <button id="cc-unlock-btn" onclick="AVIS.toggleClaudeCodeUnlock()" style="padding:3px 10px;font-size:10px;font-family:'JetBrains Mono',monospace;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:var(--bg-card);color:var(--text-primary);">Loading...</button>
+                <span style="font-size:9px;color:var(--text-secondary);">for standard users on this device</span>
+              </div>
             </div>
 
             <div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-top:4px;">Live Output</div>

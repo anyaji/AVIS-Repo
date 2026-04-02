@@ -46,6 +46,9 @@ const AVIS = {
     // Render Mission Control initial state
     if (typeof MissionControl !== 'undefined') MissionControl.render();
 
+    // Claude Code lock status
+    this.refreshClaudeCodeLock();
+
     // Claude rate limit monitoring
     window.avis.onClaudeRateLimits((data) => {
       this.updateRateLimits(data);
@@ -859,6 +862,55 @@ const AVIS = {
   _ccRunning: false,
   _ccHistory: [],
 
+  // Check and display Claude Code permission status
+  async refreshClaudeCodeLock() {
+    try {
+      const status = await window.avis.claudeCodeCheckUnlock();
+      const badge = document.getElementById('cc-lock-badge');
+      const flagSelect = document.getElementById('cc-flags');
+      const masterControls = document.getElementById('cc-master-controls');
+      const unlockBtn = document.getElementById('cc-unlock-btn');
+
+      if (badge) {
+        if (status.unlocked) {
+          badge.textContent = 'UNLOCKED';
+          badge.style.background = 'rgba(0,255,136,0.15)';
+          badge.style.color = 'var(--accent-green)';
+        } else {
+          badge.textContent = 'LOCKED';
+          badge.style.background = 'rgba(255,51,51,0.15)';
+          badge.style.color = 'var(--accent-red)';
+          // Force safe mode selection for locked users
+          if (flagSelect) flagSelect.value = '';
+        }
+      }
+
+      // Disable the autonomy option for locked non-master users
+      if (flagSelect && !status.unlocked && !status.isMaster) {
+        const autoOption = flagSelect.querySelector('option[value="--dangerously-skip-permissions"]');
+        if (autoOption) autoOption.disabled = true;
+      }
+
+      // Show master controls only for master license
+      if (masterControls && status.isMaster) {
+        masterControls.style.display = 'block';
+        if (unlockBtn) {
+          unlockBtn.textContent = status.unlocked ? 'Lock Safe Mode' : 'Unlock Full Autonomy';
+          unlockBtn.style.borderColor = status.unlocked ? 'var(--accent-red)' : 'var(--accent-green)';
+          unlockBtn.style.color = status.unlocked ? 'var(--accent-red)' : 'var(--accent-green)';
+        }
+      }
+    } catch (e) {}
+  },
+
+  async toggleClaudeCodeUnlock() {
+    const status = await window.avis.claudeCodeCheckUnlock();
+    const result = await window.avis.claudeCodeSetUnlock(!status.unlocked);
+    if (result.error) { this.showToast(result.error); return; }
+    this.showToast(result.unlocked ? 'Claude Code: Full Autonomy UNLOCKED' : 'Claude Code: Locked to Safe Mode');
+    this.refreshClaudeCodeLock();
+  },
+
   async browseProjectFolder() {
     const result = await window.avis.openFileDialog();
     if (result) {
@@ -873,7 +925,13 @@ const AVIS = {
 
     const projectPath = document.getElementById('cc-project-path')?.value?.trim();
     const task = document.getElementById('cc-task-input')?.value?.trim();
-    const flags = document.getElementById('cc-flags')?.value || '--dangerously-skip-permissions';
+    let flags = document.getElementById('cc-flags')?.value || '--dangerously-skip-permissions';
+
+    // Check unlock status — main process will also enforce this, but update UI
+    const unlockStatus = await window.avis.claudeCodeCheckUnlock();
+    if (!unlockStatus.unlocked && flags.includes('--dangerously-skip-permissions')) {
+      flags = ''; // force safe mode
+    }
 
     if (!projectPath) { this.showToast('Set a project path first'); return; }
     if (!task) { this.showToast('Describe what Claude Code should do'); return; }

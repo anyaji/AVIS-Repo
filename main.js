@@ -1248,13 +1248,46 @@ ipcMain.handle('searx-search', async (_, query) => {
 // ====================================================================
 // FIX 2: Claude Code integration — launch claude CLI as subprocess
 // ====================================================================
+// Claude Code permission enforcement — master key always has full access,
+// standard users locked to safe mode unless explicitly unlocked
+function isClaudeCodeUnlocked() {
+  if (licenseTier === 'master') return true;
+  return store.get('claudeCode.unlocked', false);
+}
+
+ipcMain.handle('claude-code-check-unlock', () => ({
+  unlocked: isClaudeCodeUnlocked(),
+  tier: licenseTier,
+  isMaster: licenseTier === 'master'
+}));
+
+// Master-only: unlock/lock Claude Code dangerous mode for this device
+ipcMain.handle('claude-code-set-unlock', (_, unlocked) => {
+  if (licenseTier !== 'master') return { error: 'Only master license can change this setting' };
+  store.set('claudeCode.unlocked', !!unlocked);
+  log.info(`Claude Code dangerous mode ${unlocked ? 'UNLOCKED' : 'LOCKED'} by master`);
+  return { success: true, unlocked: !!unlocked };
+});
+
 ipcMain.handle('run-claude-code', async (_, { task, projectPath, flags }) => {
   return new Promise((resolve) => {
-    const cliFlags = flags || '--dangerously-skip-permissions';
-    const escapedTask = task.replace(/"/g, '\\"');
-    const command = `claude ${cliFlags} -p "${escapedTask}"`;
+    // SECURITY: enforce safe mode for locked users — strip dangerous flags
+    let cliFlags = flags || '--dangerously-skip-permissions';
+    if (!isClaudeCodeUnlocked()) {
+      // Strip dangerous flag — force safe/interactive mode
+      cliFlags = cliFlags.replace(/--dangerously-skip-permissions/g, '').trim();
+      log.info('Claude Code: dangerous mode LOCKED — running in safe mode');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('claude-code-chunk',
+          '[AVIS] Claude Code running in SAFE MODE (permissions required).\n' +
+          '[AVIS] Contact admin to unlock full autonomy.\n\n'
+        );
+      }
+    }
 
-    const proc = spawn('claude', [cliFlags, '-p', task], {
+    const args = cliFlags ? [cliFlags, '-p', task] : ['-p', task];
+
+    const proc = spawn('claude', args, {
       cwd: projectPath || process.cwd(),
       timeout: 1800000, // 30 min for full builds
       shell: true,

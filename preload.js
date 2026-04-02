@@ -133,6 +133,10 @@ contextBridge.exposeInMainWorld('avis', {
   // Claude rate limit monitoring
   onClaudeRateLimits: (cb) => ipcRenderer.on('claude-rate-limits', (_, data) => cb(data)),
 
+  // Claude Code permission control
+  claudeCodeCheckUnlock: () => ipcRenderer.invoke('claude-code-check-unlock'),
+  claudeCodeSetUnlock: (unlocked) => ipcRenderer.invoke('claude-code-set-unlock', unlocked),
+
   // BUG 3: Get AVIS install path so Claude can find its own source files
   getAvisPath: () => ipcRenderer.invoke('get-avis-path')
 });
