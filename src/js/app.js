@@ -1402,23 +1402,425 @@ const AVIS = {
   },
 
   renderClientUI(profile) {
-    // Will be fully built in Phase 3 — placeholder structure
-    let container = document.getElementById('client-mode-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'client-mode-container';
-      document.querySelector('.main-layout').prepend(container);
+    // Apply theme
+    if (typeof ThemeManager !== 'undefined' && profile.theme) {
+      ThemeManager.applyTheme(profile.theme);
+      // Set background pattern
+      const bgCSS = ThemeManager.getBackgroundCSS(profile.theme);
+      if (bgCSS) document.body.style.backgroundImage = bgCSS;
     }
-    // The full client UI will be built in subsequent phases
+
+    // Set mascot
+    const mascotEl = document.getElementById('client-mascot');
+    if (mascotEl && typeof ThemeManager !== 'undefined') {
+      mascotEl.innerHTML = ThemeManager.getMascotSVG(profile.theme);
+      // Long-press mascot for operator escape (5 seconds)
+      let pressTimer = null;
+      mascotEl.addEventListener('mousedown', () => {
+        pressTimer = setTimeout(() => {
+          document.getElementById('operator-escape-modal').classList.add('active');
+          document.getElementById('operator-escape-password').focus();
+        }, 5000);
+      });
+      mascotEl.addEventListener('mouseup', () => clearTimeout(pressTimer));
+      mascotEl.addEventListener('mouseleave', () => clearTimeout(pressTimer));
+    }
+
+    // Render category grid in spending modal
+    this.renderCategoryGrid(profile.theme);
+
+    // Update dashboard with live data
+    this.refreshClientDashboard();
+
+    // Generate greeting
+    this.generateClientGreeting(profile);
+
+    // Default to dashboard view
+    this.clientSwitchView('dashboard');
+  },
+
+  async refreshClientDashboard() {
+    if (!ClientManager.isClientMode()) return;
+
+    const finances = await ClientManager.getFinances();
+    const monthSpending = await ClientManager.getMonthSpending();
+    const remaining = await ClientManager.getRemainingBudget();
+
+    if (!finances) return;
+
+    // This Month card
+    const totalBudget = Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0);
+    document.getElementById('client-month-spent').textContent = `$${monthSpending.total.toFixed(2)}`;
+    const remTotal = remaining?._total?.remaining || 0;
+    const now = new Date();
+    const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+    document.getElementById('client-month-remaining').textContent =
+      remTotal >= 0 ? `$${remTotal.toFixed(2)} left for ${daysLeft} days` : `$${Math.abs(remTotal).toFixed(2)} over budget`;
+    const barPct = totalBudget > 0 ? Math.min(100, (monthSpending.total / totalBudget) * 100) : 0;
+    document.getElementById('client-budget-bar').style.width = `${barPct}%`;
+    if (barPct > 100) document.getElementById('client-budget-bar').classList.add('over');
+
+    // Savings card
+    const savings = finances.accounts.find(a => a.purpose === 'house_savings');
+    if (savings) {
+      document.getElementById('client-savings-detail').textContent = `$${savings.balance.toFixed(0)} / $${savings.target_balance.toLocaleString()}`;
+      const savPct = (savings.balance / savings.target_balance) * 100;
+      document.getElementById('client-savings-bar').style.width = `${savPct}%`;
+      document.getElementById('client-savings-remaining').textContent = `$${(savings.target_balance - savings.balance).toLocaleString()} to go ✨`;
+    }
+
+    // Debt card
+    const cc = finances.debts.find(d => d.id === 'credit_card');
+    if (cc) {
+      document.getElementById('client-debt-detail').textContent = `$${cc.balance.toFixed(2)} left`;
+      // Assume starting balance was ~800 for progress calc
+      const debtPct = Math.max(0, 100 - (cc.balance / 800) * 100);
+      document.getElementById('client-debt-bar').style.width = `${debtPct}%`;
+    }
+
+    // Credit score
+    document.getElementById('client-score-detail').textContent = `${finances.credit_score} → ${finances.credit_score_target}`;
+
+    // Spending breakdown by category
+    this.renderSpendingBreakdown(finances, monthSpending, remaining);
+
+    // Recent activity
+    this.renderRecentActivity();
+  },
+
+  renderSpendingBreakdown(finances, monthSpending, remaining) {
+    const list = document.getElementById('client-spending-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const theme = ThemeManager?.getTheme();
+    const categories = Object.entries(finances.monthly_budget).filter(([_, v]) => v > 0);
+
+    for (const [cat, limit] of categories) {
+      const spent = monthSpending.byCategory[cat] || 0;
+      const pct = Math.min(150, (spent / limit) * 100);
+      const isOver = spent > limit;
+
+      const row = document.createElement('div');
+      row.className = 'client-spending-row';
+      row.innerHTML = `
+        <div class="client-spending-icon">${ThemeManager?.getCategoryIcon(cat, theme) || ''}</div>
+        <div class="client-spending-info">
+          <div class="client-spending-cat">${this._formatCategoryName(cat)}</div>
+          <div class="client-spending-bar"><div class="client-spending-bar-fill ${isOver ? 'over' : ''}" style="width:${pct}%"></div></div>
+        </div>
+        <div class="client-spending-amount" style="${isOver ? 'color:var(--client-danger)' : ''}">$${spent.toFixed(0)} / $${limit}</div>
+      `;
+      list.appendChild(row);
+    }
+  },
+
+  _formatCategoryName(cat) {
+    return cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  },
+
+  async renderRecentActivity() {
+    const log = await ClientManager.getSpendingLog();
+    const list = document.getElementById('client-recent-list');
+    if (!list) return;
+
+    const recent = log.entries.slice(-5).reverse();
+    if (recent.length === 0) {
+      list.innerHTML = '<div class="client-empty"><p>No spending logged yet — let\'s get started! 🌸</p></div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    for (const entry of recent) {
+      const row = document.createElement('div');
+      row.className = 'client-spending-row';
+      row.innerHTML = `
+        <div class="client-spending-icon">${ThemeManager?.getCategoryIcon(entry.category, ThemeManager.getTheme()) || ''}</div>
+        <div class="client-spending-info">
+          <div class="client-spending-cat">$${entry.amount.toFixed(2)} — ${this._formatCategoryName(entry.category)}</div>
+          <div style="font-size:11px;color:var(--client-text-secondary)">${entry.date}${entry.note ? ' · ' + entry.note : ''}</div>
+        </div>
+      `;
+      list.appendChild(row);
+    }
+  },
+
+  generateClientGreeting(profile) {
+    const hour = new Date().getHours();
+    const name = profile.display_name;
+    let greeting, sub;
+
+    if (hour < 12) {
+      greeting = `Good morning, ${name}! 🌸`;
+      sub = 'Let\'s check in on your goals';
+    } else if (hour < 17) {
+      greeting = `Hey ${name}! 💕`;
+      sub = 'How\'s your day going?';
+    } else if (hour < 21) {
+      greeting = `Hi ${name} 🌙`;
+      sub = 'How was your day?';
+    } else {
+      greeting = `Night, ${name} ✨`;
+      sub = 'Quick check before bed?';
+    }
+
+    // Sunday special
+    if (new Date().getDay() === 0 && hour >= 17) {
+      greeting = `Hi ${name}! ✨`;
+      sub = 'Want to see your week recap?';
+    }
+
+    document.getElementById('client-greeting').textContent = greeting;
+    document.getElementById('client-subgreeting').textContent = sub;
+  },
+
+  // ================================================================
+  // CLIENT VIEW SWITCHING
+  // ================================================================
+  _clientView: 'dashboard',
+
+  clientSwitchView(view) {
+    this._clientView = view;
+
+    // Update nav
+    document.querySelectorAll('.client-nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === view);
+    });
+
+    // Hide all views
+    const dashboard = document.getElementById('client-dashboard');
+    const chatArea = document.getElementById('chat-area');
+    const chatCenter = document.getElementById('chat-center');
+    const settings = document.getElementById('client-settings');
+    const quickPrompts = document.getElementById('client-quick-prompts');
+    const header = document.getElementById('client-header');
+    const fab = document.getElementById('client-fab');
+
+    if (dashboard) dashboard.style.display = 'none';
+    if (chatCenter) chatCenter.style.display = 'none';
+    if (settings) settings.style.display = 'none';
+    if (quickPrompts) quickPrompts.style.display = 'none';
+    if (header) header.style.display = 'none';
+    if (fab) fab.style.display = 'none';
+
+    switch (view) {
+      case 'dashboard':
+        if (dashboard) dashboard.style.display = 'block';
+        if (header) header.style.display = 'block';
+        if (fab) fab.style.display = 'flex';
+        this.refreshClientDashboard();
+        break;
+      case 'chat':
+        if (chatCenter) chatCenter.style.display = 'flex';
+        if (quickPrompts) quickPrompts.style.display = 'flex';
+        break;
+      case 'goals':
+        if (dashboard) dashboard.style.display = 'block';
+        if (header) header.style.display = 'block';
+        // Scroll to goals
+        const savingsCard = document.getElementById('client-savings-card');
+        if (savingsCard) savingsCard.scrollIntoView({ behavior: 'smooth' });
+        break;
+      case 'settings':
+        if (settings) settings.style.display = 'block';
+        break;
+    }
+  },
+
+  // ================================================================
+  // SPENDING LOGGER
+  // ================================================================
+  _spendAmount: '',
+  _spendCategory: 'food',
+
+  openSpendingLogger() {
+    this._spendAmount = '';
+    this._spendCategory = 'food';
+    document.getElementById('spend-amount-display').textContent = '0.00';
+    document.getElementById('spend-note').value = '';
+    // Reset category selection
+    document.querySelectorAll('.client-cat-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.cat === 'food');
+    });
+    document.getElementById('client-spend-modal').classList.add('active');
+    if (typeof ThemeManager !== 'undefined') ThemeManager.playSoundEffect(ThemeManager.getTheme(), 'notification');
+  },
+
+  closeSpendingLogger() {
+    document.getElementById('client-spend-modal').classList.remove('active');
+  },
+
+  numpadPress(key) {
+    if (key === 'del') {
+      this._spendAmount = this._spendAmount.slice(0, -1);
+    } else if (key === '.') {
+      if (!this._spendAmount.includes('.')) this._spendAmount += '.';
+    } else {
+      // Max 2 decimal places
+      const parts = this._spendAmount.split('.');
+      if (parts[1] && parts[1].length >= 2) return;
+      this._spendAmount += key;
+    }
+    const display = this._spendAmount || '0.00';
+    document.getElementById('spend-amount-display').textContent = display;
+  },
+
+  selectSpendCategory(cat, el) {
+    this._spendCategory = cat;
+    document.querySelectorAll('.client-cat-btn').forEach(btn => btn.classList.remove('active'));
+    if (el) el.classList.add('active');
+  },
+
+  async submitSpending() {
+    const amount = parseFloat(this._spendAmount);
+    if (!amount || amount <= 0) {
+      this.showToast('Enter an amount', 'warning');
+      return;
+    }
+
+    const note = document.getElementById('spend-note').value.trim();
+    const entry = await ClientManager.logSpending(null, {
+      amount,
+      category: this._spendCategory,
+      note
+    });
+
+    if (entry) {
+      this.closeSpendingLogger();
+
+      // Get remaining budget for this category
+      const remaining = await ClientManager.getRemainingBudget();
+      const catRemaining = remaining?.[this._spendCategory]?.remaining || 0;
+
+      // Sound + confetti
+      const theme = ThemeManager?.getTheme();
+      if (catRemaining >= 0) {
+        ThemeManager?.playSoundEffect(theme, 'under_budget');
+        ThemeManager?.burst(theme, window.innerWidth / 2, window.innerHeight / 2);
+        this.showToast(`Logged $${amount.toFixed(2)} to ${this._formatCategoryName(this._spendCategory)} — $${catRemaining.toFixed(2)} left 👍`, 'success');
+      } else {
+        ThemeManager?.playSoundEffect(theme, 'over_budget');
+        this.showToast(`Logged $${amount.toFixed(2)} — ${this._formatCategoryName(this._spendCategory)} is $${Math.abs(catRemaining).toFixed(2)} over budget`, 'warning');
+      }
+
+      // Refresh dashboard
+      this.refreshClientDashboard();
+    }
+  },
+
+  renderCategoryGrid(theme) {
+    const grid = document.getElementById('spend-category-grid');
+    if (!grid) return;
+
+    const categories = [
+      { id: 'food', label: 'Food' },
+      { id: 'gas_transport', label: 'Gas' },
+      { id: 'subscriptions', label: 'Subs' },
+      { id: 'shopping_personal', label: 'Shopping' },
+      { id: 'entertainment', label: 'Fun' },
+      { id: 'bills_utilities', label: 'Bills' },
+      { id: 'health_beauty', label: 'Beauty' },
+      { id: 'gifts', label: 'Gifts' },
+      { id: 'other', label: 'Other' }
+    ];
+
+    grid.innerHTML = '';
+    for (const cat of categories) {
+      const btn = document.createElement('button');
+      btn.className = `client-cat-btn${cat.id === 'food' ? ' active' : ''}`;
+      btn.dataset.cat = cat.id;
+      btn.innerHTML = `${ThemeManager?.getCategoryIcon(cat.id, theme) || ''}${cat.label}`;
+      btn.onclick = () => this.selectSpendCategory(cat.id, btn);
+      grid.appendChild(btn);
+    }
+  },
+
+  // ================================================================
+  // CLIENT QUICK PROMPTS
+  // ================================================================
+  clientQuickPrompt(text) {
+    const input = document.getElementById('chat-input');
+    if (input) {
+      input.value = text;
+      this.sendMessage();
+    }
+  },
+
+  // ================================================================
+  // CLIENT SETTINGS TOGGLES
+  // ================================================================
+  toggleClientSetting(setting) {
+    const toggle = document.getElementById(`toggle-${setting === 'notifications' ? 'notif' : setting}`);
+    if (!toggle) return;
+    toggle.classList.toggle('on');
+    const isOn = toggle.classList.contains('on');
+
+    switch (setting) {
+      case 'sound':
+        const theme = ThemeManager?.getTheme();
+        if (theme) theme.sound_effects = isOn;
+        break;
+      case 'dark':
+        document.body.classList.toggle('client-dark', isOn);
+        break;
+    }
+  },
+
+  // ================================================================
+  // OPERATOR ESCAPE
+  // ================================================================
+  async attemptOperatorEscape() {
+    const pw = document.getElementById('operator-escape-password').value;
+    const success = await this.exitClientMode(pw);
+    if (success) {
+      document.getElementById('operator-escape-modal').classList.remove('active');
+      document.getElementById('operator-escape-password').value = '';
+    }
   },
 
   showClientNotification(message, recs) {
-    // Will be built in Phase 7
+    const badge = document.getElementById('client-rec-badge');
+    if (badge && recs.length > 0) {
+      badge.textContent = recs.length;
+      badge.style.display = 'flex';
+    }
     this.showToast(message, 'info');
   },
 
   showWelcomeFlow(profile) {
-    // Will be built in Phase 8
+    const overlay = document.createElement('div');
+    overlay.className = 'client-welcome-overlay';
+    overlay.id = 'client-welcome-overlay';
+
+    const mascotSVG = ThemeManager?.getMascotSVG(profile.theme) || '';
+
+    overlay.innerHTML = `
+      <div class="mascot-welcome" style="transform:scale(1.5);margin-bottom:30px;">${mascotSVG}</div>
+      <h1>Hi ${profile.display_name}! 💕</h1>
+      <p>Welcome to your money buddy</p>
+      <p style="margin-top:16px;font-size:13px;">Here's your plan to save $2,100 by December for the house ✨</p>
+      <p style="margin-top:8px;font-size:12px;opacity:0.7;">Tap the + button to log spending<br>Chat with me anytime for help<br>Coach Avel will check in too 💌</p>
+      <button class="client-welcome-btn" onclick="AVIS.dismissWelcome()">Let's do this! 🌸</button>
+    `;
+
+    document.body.appendChild(overlay);
+    if (typeof gsap !== 'undefined') {
+      gsap.from(overlay, { opacity: 0, duration: 0.5 });
+      gsap.from(overlay.querySelector('.mascot-welcome'), { scale: 0, duration: 0.6, delay: 0.2, ease: 'back.out(1.7)' });
+      gsap.from(overlay.querySelector('h1'), { y: 20, opacity: 0, duration: 0.4, delay: 0.4 });
+    }
+  },
+
+  async dismissWelcome() {
+    const overlay = document.getElementById('client-welcome-overlay');
+    if (overlay) {
+      if (typeof gsap !== 'undefined') {
+        gsap.to(overlay, { opacity: 0, duration: 0.3, onComplete: () => overlay.remove() });
+      } else {
+        overlay.remove();
+      }
+    }
+    await ClientManager.updateProfile(null, { welcome_completed: true });
   },
 
   // ====================================================================
