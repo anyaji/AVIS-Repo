@@ -100,7 +100,6 @@ const AVIS = {
     this.renderChangelog();
     this.initDevConsole();
     this.startClock();
-    this.initSounds();
     this.updateChromeStatus();
     setInterval(() => this.updateChromeStatus(), 10000);
 
@@ -355,57 +354,11 @@ const AVIS = {
   },
 
   // ====================================================================
-  // Sound System — file-based with fallback to Web Audio
+  // Sound System — disabled
   // ====================================================================
-  _sounds: {},
-  _soundsLoaded: false,
-
-  initSounds() {
-    const soundFiles = {
-      send: '../assets/sounds/startup.mp3',
-      receive: '../assets/sounds/startup.mp3',
-      error: '../assets/sounds/startup.mp3'
-    };
-    for (const [name, path] of Object.entries(soundFiles)) {
-      try {
-        const audio = new Audio(path);
-        audio.volume = 0.3;
-        audio.preload = 'auto';
-        this._sounds[name] = audio;
-      } catch (e) {}
-    }
-    this._soundsLoaded = true;
-  },
-
-  playSound(name) {
-    if (!HotConfig.get('notificationSound')) return;
-    const s = this._sounds[name];
-    if (s) {
-      try { s.currentTime = 0; s.play().catch(() => {}); } catch (e) {}
-      return;
-    }
-    // Fallback to Web Audio API
-    this._playTone(name === 'error' ? 220 : name === 'send' ? 660 : 880);
-  },
-
-  _playTone(freq) {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = freq; osc.type = 'sine';
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      osc.start(); osc.stop(ctx.currentTime + 0.3);
-    } catch (e) {}
-  },
-
-  // Notification sound (Web Audio API — no file needed)
-  playNotificationSound() {
-    if (!HotConfig.get('notificationSound')) return;
-    this.playSound('receive');
-  },
+  initSounds() {},
+  playSound() {},
+  playNotificationSound() {},
 
   // ====================================================================
   // GSAP UI Micro-Animations
@@ -1652,7 +1605,7 @@ const AVIS = {
       btn.classList.toggle('active', btn.dataset.cat === 'food');
     });
     document.getElementById('client-spend-modal').classList.add('active');
-    if (typeof ThemeManager !== 'undefined') ThemeManager.playSoundEffect(ThemeManager.getTheme(), 'notification');
+    // Sound disabled
   },
 
   closeSpendingLogger() {
@@ -1704,11 +1657,9 @@ const AVIS = {
       // Sound + confetti
       const theme = ThemeManager?.getTheme();
       if (catRemaining >= 0) {
-        ThemeManager?.playSoundEffect(theme, 'under_budget');
         ThemeManager?.burst(theme, window.innerWidth / 2, window.innerHeight / 2);
         this.showToast(`Logged $${amount.toFixed(2)} to ${this._formatCategoryName(this._spendCategory)} — $${catRemaining.toFixed(2)} left 👍`, 'success');
       } else {
-        ThemeManager?.playSoundEffect(theme, 'over_budget');
         this.showToast(`Logged $${amount.toFixed(2)} — ${this._formatCategoryName(this._spendCategory)} is $${Math.abs(catRemaining).toFixed(2)} over budget`, 'warning');
       }
 

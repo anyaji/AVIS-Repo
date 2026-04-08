@@ -3,223 +3,296 @@
 <head>
 <meta charset="UTF-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800;900&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800;900&family=Inter:wght@300;400;600;700;800&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
     width: 100vw; height: 100vh;
-    background: #000;
+    background: #060810;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     overflow: hidden;
-    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-family: 'Inter', sans-serif;
   }
 
-  canvas#icon-canvas { display: block; opacity: 0; }
+  /* Ambient glow behind logo */
+  .ambient-glow {
+    position: fixed;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,168,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  /* Logo container */
+  .logo-mark {
+    position: relative;
+    width: 100px; height: 100px;
+    opacity: 0;
+  }
+
+  .logo-ring {
+    position: absolute; inset: 0;
+    border: 2px solid rgba(0,168,255,0.15);
+    border-radius: 50%;
+  }
+
+  .logo-ring-inner {
+    position: absolute;
+    inset: 12px;
+    border: 1px solid rgba(0,168,255,0.1);
+    border-radius: 50%;
+  }
+
+  .logo-ring-accent {
+    position: absolute; inset: -4px;
+    border: 1px solid transparent;
+    border-top-color: rgba(0,168,255,0.6);
+    border-radius: 50%;
+  }
+
+  .logo-letter {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 42px; font-weight: 800;
+    color: #00a8ff;
+    text-shadow: 0 0 30px rgba(0,168,255,0.4);
+  }
+
+  /* Orbital dots */
+  .orbital {
+    position: absolute;
+    width: 6px; height: 6px;
+    background: #00a8ff;
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(0,168,255,0.6);
+    opacity: 0;
+  }
 
   #title {
-    font-size: 72px; font-weight: 900;
-    letter-spacing: 24px; color: #00a8ff;
-    opacity: 0; margin-top: -4px;
-    text-shadow: 0 0 40px rgba(0,168,255,0.6), 0 0 80px rgba(0,168,255,0.3);
+    font-family: 'Inter', sans-serif;
+    font-size: 48px; font-weight: 800;
+    letter-spacing: 16px; color: #fff;
+    opacity: 0; margin-top: 24px;
+  }
+
+  #title span {
+    display: inline-block;
   }
 
   #subtitle {
-    font-size: 13px; letter-spacing: 8px;
-    color: #8899aa; opacity: 0;
-    margin-top: 8px; text-transform: uppercase;
-  }
-
-  #company {
-    font-size: 10px; letter-spacing: 3px;
-    color: #445566; opacity: 0;
-    text-transform: uppercase; margin-top: 2px;
+    font-size: 11px; letter-spacing: 6px;
+    color: rgba(255,255,255,0.3); opacity: 0;
+    margin-top: 10px; text-transform: uppercase;
+    font-weight: 400;
   }
 
   #divider {
     width: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, #00a8ff66, transparent);
-    margin: 16px 0;
+    background: linear-gradient(90deg, transparent, rgba(0,168,255,0.3), transparent);
+    margin: 20px 0;
   }
 
-  #boot {
-    text-align: left; width: 360px;
-    opacity: 0; min-height: 100px;
-    position: absolute; bottom: 50px; left: 50px;
+  /* Status indicators */
+  #status-grid {
+    display: flex; gap: 20px;
+    opacity: 0;
   }
 
-  .boot-line {
-    font-size: 11px; line-height: 2;
-    opacity: 0; color: #445566;
+  .status-item {
+    display: flex; align-items: center; gap: 6px;
+    opacity: 0;
   }
-  .boot-line .ok { color: #00ff88; font-weight: 700; }
-  .boot-line .ready { color: #00a8ff; font-weight: 700; }
+
+  .status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #1a3a52;
+  }
+
+  .status-dot.active {
+    background: #00a8ff;
+    box-shadow: 0 0 6px rgba(0,168,255,0.5);
+  }
+
+  .status-label {
+    font-size: 9px; letter-spacing: 2px;
+    color: rgba(255,255,255,0.25);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .status-dot.active + .status-label {
+    color: rgba(0,168,255,0.6);
+  }
 
   #version-tag {
-    position: absolute; bottom: 20px; right: 24px;
-    font-size: 10px; color: #223344;
+    position: absolute; bottom: 24px; right: 28px;
+    font-size: 9px; color: rgba(255,255,255,0.1);
     letter-spacing: 2px; opacity: 0;
+    font-family: 'JetBrains Mono', monospace;
   }
 
-  /* Scanline overlay */
-  body::after {
-    content: '';
-    position: fixed; top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: repeating-linear-gradient(
-      0deg, transparent, transparent 2px,
-      rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px
-    );
-    pointer-events: none; z-index: 10;
+  /* Particle field */
+  .particle {
+    position: fixed;
+    width: 1px; height: 1px;
+    background: rgba(0,168,255,0.3);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* Progress line at bottom */
+  #progress-line {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 2px; width: 0;
+    background: linear-gradient(90deg, transparent, #00a8ff, transparent);
+    opacity: 0.6;
   }
 </style>
 </head>
 <body>
 
-<canvas id="icon-canvas" width="120" height="120"></canvas>
-<div id="title">AVIS</div>
-<div id="subtitle">Avel Intelligence Services</div>
-<div id="company">by Avel Productions LLC</div>
-<div id="divider"></div>
+<div class="ambient-glow" id="glow"></div>
 
-<div id="boot">
-  <div class="boot-line" id="b1">&gt; INITIALIZING AVIS CORE <span class="ok">OK</span></div>
-  <div class="boot-line" id="b2">&gt; LOADING AI PROVIDERS <span class="ok">OK</span></div>
-  <div class="boot-line" id="b3">&gt; ESTABLISHING SECURE CHANNELS <span class="ok">OK</span></div>
-  <div class="boot-line" id="b4">&gt; CHROME MCP BRIDGE <span class="ok">OK</span></div>
-  <div class="boot-line" id="b5">&gt; CLAUDE ORCHESTRATOR <span class="ready">READY</span></div>
+<!-- Floating particles -->
+<div id="particles"></div>
+
+<div class="logo-mark" id="logo-mark">
+  <div class="logo-ring" id="ring-outer"></div>
+  <div class="logo-ring-inner" id="ring-inner"></div>
+  <div class="logo-ring-accent" id="ring-accent"></div>
+  <div class="logo-letter" id="logo-A">A</div>
+  <div class="orbital" id="orb1"></div>
+  <div class="orbital" id="orb2"></div>
 </div>
 
+<div id="title">
+  <span>A</span><span>V</span><span>I</span><span>S</span>
+</div>
+
+<div id="subtitle">Avel Intelligence Services</div>
+<div id="divider"></div>
+
+<div id="status-grid">
+  <div class="status-item" id="s1"><div class="status-dot"></div><span class="status-label">Core</span></div>
+  <div class="status-item" id="s2"><div class="status-dot"></div><span class="status-label">Providers</span></div>
+  <div class="status-item" id="s3"><div class="status-dot"></div><span class="status-label">Orchestrator</span></div>
+  <div class="status-item" id="s4"><div class="status-dot"></div><span class="status-label">Ready</span></div>
+</div>
+
+<div id="progress-line"></div>
 <div id="version-tag"></div>
 
 <script src="{GSAP_PATH}"></script>
 <script>
 const { ipcRenderer } = require('electron');
 
-// Draw animated neural network icon on canvas
-function drawIcon(canvas, progress, time) {
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const cx = W / 2, cy = H / 2, r = W * 0.44;
+// Spawn floating particles
+const particleContainer = document.getElementById('particles');
+for (let i = 0; i < 40; i++) {
+  const p = document.createElement('div');
+  p.className = 'particle';
+  p.style.left = Math.random() * 100 + 'vw';
+  p.style.top = Math.random() * 100 + 'vh';
+  p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
+  p.style.opacity = Math.random() * 0.3;
+  particleContainer.appendChild(p);
 
-  ctx.clearRect(0, 0, W, H);
-
-  const nodes = [
-    { x: cx,          y: cy - r * 0.55, s: W * 0.06 },
-    { x: cx - r * 0.48, y: cy - r * 0.15, s: W * 0.045 },
-    { x: cx + r * 0.48, y: cy - r * 0.15, s: W * 0.045 },
-    { x: cx - r * 0.3,  y: cy + r * 0.42, s: W * 0.045 },
-    { x: cx + r * 0.3,  y: cy + r * 0.42, s: W * 0.045 },
-    { x: cx,          y: cy + r * 0.12, s: W * 0.075 },
-  ];
-
-  const edges = [[0,1],[0,2],[0,5],[1,3],[1,5],[2,4],[2,5],[3,5],[4,5],[3,4]];
-
-  // Draw edges with pulsing
-  edges.forEach(([a, b], i) => {
-    const pulse = 0.25 + 0.75 * Math.abs(Math.sin(time * 1.5 + i * 0.7));
-    ctx.beginPath();
-    ctx.moveTo(nodes[a].x, nodes[a].y);
-    ctx.lineTo(nodes[b].x, nodes[b].y);
-    ctx.strokeStyle = `rgba(0,168,255,${pulse * 0.5 * progress})`;
-    ctx.lineWidth = W * 0.008;
-    ctx.stroke();
+  gsap.to(p, {
+    y: -80 - Math.random() * 120,
+    x: (Math.random() - 0.5) * 60,
+    opacity: 0,
+    duration: 3 + Math.random() * 4,
+    delay: Math.random() * 2,
+    repeat: -1,
+    ease: 'none'
   });
-
-  // Draw node glows then nodes
-  nodes.forEach((n, i) => {
-    const p = 0.7 + 0.3 * Math.sin(time * 1.2 + i * 1.1);
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, n.s * 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(0,168,255,${0.07 * p * progress})`;
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, n.s, 0, Math.PI * 2);
-    ctx.fillStyle = i === 5
-      ? `rgba(0,168,255,${p * progress})`
-      : `rgba(0,100,220,${0.85 * p * progress})`;
-    ctx.fill();
-  });
-
-  // Center "A" lettermark
-  ctx.fillStyle = `rgba(255,255,255,${0.95 * progress})`;
-  ctx.font = `900 ${W * 0.22}px 'JetBrains Mono', monospace`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('A', cx, cy + W * 0.04);
 }
 
-const canvas = document.getElementById('icon-canvas');
-let iconProgress = 0;
-const startTime = Date.now();
-
-function animateIcon() {
-  const t = (Date.now() - startTime) / 1000;
-  drawIcon(canvas, iconProgress, t);
-  requestAnimationFrame(animateIcon);
+// Orbital dot rotation
+function orbitDot(el, radius, speed, startAngle) {
+  const parent = document.getElementById('logo-mark');
+  const cx = 50, cy = 50;
+  let angle = startAngle;
+  function tick() {
+    angle += speed;
+    el.style.left = (cx + Math.cos(angle) * radius - 3) + 'px';
+    el.style.top = (cy + Math.sin(angle) * radius - 3) + 'px';
+    requestAnimationFrame(tick);
+  }
+  tick();
 }
-animateIcon();
+orbitDot(document.getElementById('orb1'), 56, 0.02, 0);
+orbitDot(document.getElementById('orb2'), 56, 0.02, Math.PI);
 
-// Play startup sound at 0.8s — path injected by main.js
-setTimeout(() => {
-  try {
-    const audio = new Audio('{SOUND_PATH}');
-    audio.volume = 0.7;
-    audio.play().catch(() => {});
-  } catch (e) {}
-}, 800);
+// Ring accent rotation
+gsap.to('#ring-accent', { rotation: 360, duration: 4, repeat: -1, ease: 'none' });
 
-// GSAP timeline
+// Main timeline
 const tl = gsap.timeline({
   onComplete: () => {
-    setTimeout(() => ipcRenderer.send('startup-complete'), 600);
+    setTimeout(() => ipcRenderer.send('startup-complete'), 400);
   }
 });
 
 tl
-  // Icon fades in and scales up
-  .to('#icon-canvas', {
-    opacity: 1, duration: 0.6, ease: 'power2.out',
-    onUpdate: function () { iconProgress = parseFloat(canvas.style.opacity) || 0; }
-  })
-  .from('#icon-canvas', {
-    scale: 0.6, duration: 0.8, ease: 'back.out(1.7)'
-  }, '<')
+  // Ambient glow breathes in
+  .to('#glow', { opacity: 1, duration: 1.2, ease: 'power2.out' })
 
-  // Title text
-  .to('#title', { opacity: 1, duration: 0.5, ease: 'power2.out' }, '-=0.2')
-  .from('#title', { y: 20, letterSpacing: '48px', duration: 0.6, ease: 'power3.out' }, '<')
+  // Logo mark fades + scales
+  .to('#logo-mark', { opacity: 1, duration: 0.6, ease: 'power3.out' }, 0.2)
+  .from('#logo-mark', { scale: 0.5, duration: 0.8, ease: 'back.out(1.4)' }, 0.2)
+
+  // Ring pulses
+  .from('#ring-outer', { scale: 0.7, opacity: 0, duration: 0.5 }, 0.3)
+  .from('#ring-inner', { scale: 0.5, opacity: 0, duration: 0.4 }, 0.5)
+
+  // Orbital dots
+  .to('#orb1', { opacity: 1, duration: 0.3 }, 0.6)
+  .to('#orb2', { opacity: 1, duration: 0.3 }, 0.7)
+
+  // Title letters stagger in
+  .to('#title', { opacity: 1, duration: 0.01 }, 0.8)
+  .from('#title span', {
+    y: 30, opacity: 0, rotationX: -40,
+    duration: 0.5, stagger: 0.08,
+    ease: 'power3.out'
+  }, 0.8)
 
   // Subtitle
-  .to('#subtitle', { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' }, '-=0.1')
-  .from('#subtitle', { y: 8 }, '<')
+  .to('#subtitle', { opacity: 1, duration: 0.5 }, 1.3)
+  .from('#subtitle', { y: 6, duration: 0.4, ease: 'power2.out' }, 1.3)
 
-  // Company
-  .to('#company', { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' }, '-=0.1')
-  .from('#company', { y: 6 }, '<')
+  // Divider
+  .to('#divider', { width: '240px', duration: 0.6, ease: 'power2.inOut' }, 1.4)
 
-  // Divider line expands
-  .to('#divider', { width: '360px', duration: 0.6, ease: 'power2.inOut' }, '-=0.2')
+  // Status grid appears
+  .to('#status-grid', { opacity: 1, duration: 0.2 }, 1.6)
 
-  // Version tag
-  .to('#version-tag', { opacity: 1, duration: 0.3 }, '-=0.3')
+  // Status items light up one by one
+  .to('#s1', { opacity: 1, duration: 0.15, onComplete: () => document.querySelector('#s1 .status-dot').classList.add('active') }, 1.7)
+  .to('#s2', { opacity: 1, duration: 0.15, onComplete: () => document.querySelector('#s2 .status-dot').classList.add('active') }, 1.9)
+  .to('#s3', { opacity: 1, duration: 0.15, onComplete: () => document.querySelector('#s3 .status-dot').classList.add('active') }, 2.1)
+  .to('#s4', { opacity: 1, duration: 0.15, onComplete: () => document.querySelector('#s4 .status-dot').classList.add('active') }, 2.3)
 
-  // Boot text container
-  .to('#boot', { opacity: 1, duration: 0.2 })
+  // Progress line sweeps across
+  .to('#progress-line', { width: '100%', duration: 1.5, ease: 'power2.inOut' }, 1.7)
 
-  // Boot lines stagger in
-  .to('#b1', { opacity: 1, duration: 0.15 })
-  .to('#b2', { opacity: 1, duration: 0.15 }, '+=0.2')
-  .to('#b3', { opacity: 1, duration: 0.15 }, '+=0.15')
-  .to('#b4', { opacity: 1, duration: 0.15 }, '+=0.15')
-  .to('#b5', { opacity: 1, duration: 0.15 }, '+=0.15')
+  // Version
+  .to('#version-tag', { opacity: 1, duration: 0.3 }, 2.0)
 
-  // Hold for a moment
-  .to({}, { duration: 0.8 })
+  // Hold
+  .to({}, { duration: 0.6 })
 
-  // Fade out everything
-  .to('body', { opacity: 0, duration: 0.5, ease: 'power2.in' });
+  // Logo pulses once before exit
+  .to('#logo-mark', { scale: 1.05, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.inOut' })
+
+  // Fade out
+  .to('body', { opacity: 0, duration: 0.4, ease: 'power2.in' });
 </script>
 </body>
 </html>

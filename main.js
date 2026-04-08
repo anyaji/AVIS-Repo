@@ -631,8 +631,6 @@ app.whenReady().then(() => {
     let startupHtml = fs.readFileSync(startupPath, 'utf-8');
     const version = require('./package.json').version;
     startupHtml = startupHtml.replace('id="version-tag"></div>', `id="version-tag">v${version}</div>`);
-    const soundPath = path.join(__dirname, 'assets', 'sounds', 'startup.mp3').replace(/\\/g, '/');
-    startupHtml = startupHtml.replace('{SOUND_PATH}', `file:///${soundPath}`);
     const gsapPath = path.join(__dirname, 'node_modules', 'gsap', 'dist', 'gsap.min.js').replace(/\\/g, '/');
     startupHtml = startupHtml.replace('{GSAP_PATH}', `file:///${gsapPath}`);
     const tmpStartup = path.join(APPDATA_DIR, '_startup.html');
