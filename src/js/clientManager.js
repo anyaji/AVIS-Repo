@@ -54,23 +54,38 @@ const ClientManager = {
   // DATA ACCESS — always reads fresh from disk
   // ================================================================
   async _loadClientData() {
-    if (!this._activeClient || !this._clientsPath) return;
+    if (!this._activeClient) return;
     try {
-      const profileRaw = await window.avis.toolReadFile(`${this._clientsPath}/${this._activeClient}/profile.json`);
-      this._cachedProfile = JSON.parse(profileRaw);
-      const finRaw = await window.avis.toolReadFile(`${this._clientsPath}/${this._activeClient}/finances.json`);
-      this._cachedFinances = JSON.parse(finRaw);
+      const profileRaw = await this._readClientFile(this._activeClient, 'profile.json');
+      this._cachedProfile = profileRaw ? JSON.parse(profileRaw) : null;
+      const finRaw = await this._readClientFile(this._activeClient, 'finances.json');
+      this._cachedFinances = finRaw ? JSON.parse(finRaw) : null;
     } catch (e) {
       console.warn('ClientManager: could not load client data:', e.message);
     }
+  },
+
+  async _readClientFile(code, filename) {
+    // Try IPC first (more reliable), fall back to toolReadFile
+    try {
+      const raw = await window.avis.clientReadFile(code, filename);
+      if (raw) return raw;
+    } catch (e) {}
+    // Fallback
+    if (this._clientsPath) {
+      try {
+        return await window.avis.toolReadFile(`${this._clientsPath}/${code}/${filename}`);
+      } catch (e) {}
+    }
+    return null;
   },
 
   async getProfile(clientCode) {
     const code = clientCode || this._activeClient;
     if (!code) return null;
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/profile.json`);
-      return JSON.parse(raw);
+      const raw = await this._readClientFile(code, 'profile.json');
+      return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   },
 
@@ -78,8 +93,8 @@ const ClientManager = {
     const code = clientCode || this._activeClient;
     if (!code) return null;
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/finances.json`);
-      return JSON.parse(raw);
+      const raw = await this._readClientFile(code, 'finances.json');
+      return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   },
 
@@ -87,8 +102,8 @@ const ClientManager = {
     const code = clientCode || this._activeClient;
     if (!code) return { entries: [] };
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/spending_log.json`);
-      return JSON.parse(raw);
+      const raw = await this._readClientFile(code, 'spending_log.json');
+      return raw ? JSON.parse(raw) : { entries: [] };
     } catch (e) { return { entries: [] }; }
   },
 
@@ -96,8 +111,8 @@ const ClientManager = {
     const code = clientCode || this._activeClient;
     if (!code) return { events: [] };
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/progress_log.json`);
-      return JSON.parse(raw);
+      const raw = await this._readClientFile(code, 'progress_log.json');
+      return raw ? JSON.parse(raw) : { events: [] };
     } catch (e) { return { events: [] }; }
   },
 
@@ -105,8 +120,8 @@ const ClientManager = {
     const code = clientCode || this._activeClient;
     if (!code) return { messages: [] };
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/conversation_log.json`);
-      return JSON.parse(raw);
+      const raw = await this._readClientFile(code, 'conversation_log.json');
+      return raw ? JSON.parse(raw) : { messages: [] };
     } catch (e) { return { messages: [] }; }
   },
 
@@ -114,8 +129,8 @@ const ClientManager = {
     const code = clientCode || this._activeClient;
     if (!code) return { notes: [] };
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/coaching_notes.json`);
-      return JSON.parse(raw);
+      const raw = await this._readClientFile(code, 'coaching_notes.json');
+      return raw ? JSON.parse(raw) : { notes: [] };
     } catch (e) { return { notes: [] }; }
   },
 
@@ -123,7 +138,8 @@ const ClientManager = {
     const code = clientCode || this._activeClient;
     if (!code) return [];
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/recommendations.json`);
+      const raw = await this._readClientFile(code, 'recommendations.json');
+      if (!raw) return [];
       const data = JSON.parse(raw);
       if (statusFilter) return data.recommendations.filter(r => r.status === statusFilter);
       return data.recommendations;
@@ -133,17 +149,29 @@ const ClientManager = {
   // ================================================================
   // DATA WRITES
   // ================================================================
+  async _writeClientFile(code, filename, data) {
+    try {
+      await window.avis.clientWriteFile(code, filename, typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+      return true;
+    } catch (e) {
+      // Fallback to toolWriteFile
+      if (this._clientsPath) {
+        try {
+          await window.avis.toolWriteFile(`${this._clientsPath}/${code}/${filename}`, typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+          return true;
+        } catch (e2) {}
+      }
+      return false;
+    }
+  },
+
   async updateFinances(clientCode, updates) {
     const code = clientCode || this._activeClient;
     if (!code) return false;
     try {
       const finances = await this.getFinances(code);
       Object.assign(finances, updates, { last_updated: new Date().toISOString().split('T')[0] });
-      await window.avis.toolWriteFile(
-        `${this._clientsPath}/${code}/finances.json`,
-        JSON.stringify(finances, null, 2)
-      );
-      return true;
+      return await this._writeClientFile(code, 'finances.json', finances);
     } catch (e) { return false; }
   },
 
@@ -153,11 +181,7 @@ const ClientManager = {
     try {
       const profile = await this.getProfile(code);
       Object.assign(profile, updates);
-      await window.avis.toolWriteFile(
-        `${this._clientsPath}/${code}/profile.json`,
-        JSON.stringify(profile, null, 2)
-      );
-      return true;
+      return await this._writeClientFile(code, 'profile.json', profile);
     } catch (e) { return false; }
   },
 
@@ -175,10 +199,7 @@ const ClientManager = {
         logged_at: new Date().toISOString()
       };
       log.entries.push(newEntry);
-      await window.avis.toolWriteFile(
-        `${this._clientsPath}/${code}/spending_log.json`,
-        JSON.stringify(log, null, 2)
-      );
+      await this._writeClientFile(code, 'spending_log.json', log);
       // Also log to progress
       await this.logProgress(code, 'spending_logged', `$${newEntry.amount} on ${newEntry.category}`);
       return newEntry;
@@ -196,10 +217,7 @@ const ClientManager = {
         note,
         timestamp: new Date().toISOString()
       });
-      await window.avis.toolWriteFile(
-        `${this._clientsPath}/${code}/progress_log.json`,
-        JSON.stringify(log, null, 2)
-      );
+      await this._writeClientFile(code, 'progress_log.json', log);
       return true;
     } catch (e) { return false; }
   },
@@ -216,10 +234,7 @@ const ClientManager = {
       });
       // Keep last 200 messages
       if (log.messages.length > 200) log.messages = log.messages.slice(-200);
-      await window.avis.toolWriteFile(
-        `${this._clientsPath}/${code}/conversation_log.json`,
-        JSON.stringify(log, null, 2)
-      );
+      await this._writeClientFile(code, 'conversation_log.json', log);
       return true;
     } catch (e) { return false; }
   },
@@ -234,10 +249,7 @@ const ClientManager = {
         author: 'AVL-000',
         note
       });
-      await window.avis.toolWriteFile(
-        `${this._clientsPath}/${code}/coaching_notes.json`,
-        JSON.stringify(notes, null, 2)
-      );
+      await this._writeClientFile(code, 'coaching_notes.json', notes);
       return true;
     } catch (e) { return false; }
   },
@@ -267,10 +279,7 @@ const ClientManager = {
         follow_up_thread_id: null
       };
       allRecs.push(newRec);
-      await window.avis.toolWriteFile(
-        `${this._clientsPath}/${code}/recommendations.json`,
-        JSON.stringify({ recommendations: allRecs }, null, 2)
-      );
+      await this._writeClientFile(code, 'recommendations.json', { recommendations: allRecs });
       return newRec;
     } catch (e) { return false; }
   },
@@ -279,16 +288,14 @@ const ClientManager = {
     const code = clientCode || this._activeClient;
     if (!code) return false;
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/recommendations.json`);
+      const raw = await this._readClientFile(code, 'recommendations.json');
+      if (!raw) return false;
       const data = JSON.parse(raw);
       const rec = data.recommendations.find(r => r.id === recId);
       if (rec) {
         rec.viewed_at = new Date().toISOString();
         if (rec.status === 'pending') rec.status = 'viewed';
-        await window.avis.toolWriteFile(
-          `${this._clientsPath}/${code}/recommendations.json`,
-          JSON.stringify(data, null, 2)
-        );
+        await this._writeClientFile(code, 'recommendations.json', data);
       }
       return true;
     } catch (e) { return false; }
@@ -298,17 +305,15 @@ const ClientManager = {
     const code = clientCode || this._activeClient;
     if (!code) return false;
     try {
-      const raw = await window.avis.toolReadFile(`${this._clientsPath}/${code}/recommendations.json`);
+      const raw = await this._readClientFile(code, 'recommendations.json');
+      if (!raw) return false;
       const data = JSON.parse(raw);
       const rec = data.recommendations.find(r => r.id === recId);
       if (rec) {
         rec.responded_at = new Date().toISOString();
         rec.response = response;
         rec.status = response === 'snoozed' ? 'snoozed' : 'completed';
-        await window.avis.toolWriteFile(
-          `${this._clientsPath}/${code}/recommendations.json`,
-          JSON.stringify(data, null, 2)
-        );
+        await this._writeClientFile(code, 'recommendations.json', data);
       }
       return true;
     } catch (e) { return false; }
