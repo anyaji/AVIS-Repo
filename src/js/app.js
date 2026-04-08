@@ -3892,6 +3892,8 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
         const finances = await ClientManager.getFinances(code);
         const monthSpending = await ClientManager.getMonthSpending(code);
         const remaining = await ClientManager.getRemainingBudget(code);
+        const convLog = await ClientManager.getConversationLog(code);
+        const spendingLog = await ClientManager.getSpendingLog(code);
 
         if (!profile || !finances) { content.innerHTML = '<div>No client data</div>'; break; }
 
@@ -3903,110 +3905,186 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
         const remTotal = remaining?._total?.remaining || 0;
         const now = new Date();
         const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
-        const planMonth = ClientManager.getPlanMonth(profile);
         const mascotSVG = ThemeManager?.getMascotSVG(t) || '';
         const cc = finances.debts?.find(d => d.id === 'credit_card');
+        const loan = finances.debts?.find(d => d.id === 'personal_loan');
         const hour = now.getHours();
         const greeting = hour < 12 ? `Good morning, ${profile.display_name}! 🌸` : hour < 17 ? `Hey ${profile.display_name}! 💕` : `Hi ${profile.display_name} 🌙`;
+        const subGreeting = hour < 12 ? "Let's check in on your goals" : hour < 17 ? "How's your day going?" : "How was your day?";
+
+        // Load fonts for preview
+        ThemeManager?._loadFonts(t.font_heading, t.font_body);
 
         // Spending breakdown rows
         const catRows = Object.entries(finances.monthly_budget).filter(([_, v]) => v > 0).map(([cat, limit]) => {
           const spent = monthSpending.byCategory[cat] || 0;
-          const pct = Math.min(150, (spent / limit) * 100);
+          const pct = Math.min(100, (spent / limit) * 100);
           const over = spent > limit;
           const icon = ThemeManager?.getCategoryIcon(cat, t) || '';
-          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid ${t.color_secondary || '#ffb6d5'}20;">
-            <div style="width:24px;">${icon}</div>
-            <div style="flex:1;">
+          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid ${t.color_secondary || '#ffb6d5'}15;">
+            <div style="width:24px;flex-shrink:0;">${icon}</div>
+            <div style="flex:1;min-width:0;">
               <div style="font-size:11px;font-weight:600;">${cat.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</div>
-              <div style="height:3px;background:${t.color_secondary || '#eee'};border-radius:2px;overflow:hidden;margin-top:2px;">
-                <div style="height:100%;width:${pct}%;background:${over ? (t.color_danger || '#dc143c') : (t.color_primary || '#ff69b4')};border-radius:2px;"></div>
+              <div style="height:3px;background:${t.color_secondary || '#eee'}40;border-radius:2px;overflow:hidden;margin-top:3px;">
+                <div style="height:100%;width:${pct}%;background:${over ? (t.color_danger || '#dc143c') : (t.color_primary || '#ff69b4')};border-radius:2px;transition:width 0.3s;"></div>
               </div>
             </div>
-            <div style="font-size:10px;font-weight:600;${over ? 'color:' + (t.color_danger || '#dc143c') : ''}">$${spent.toFixed(0)}/$${limit}</div>
+            <div style="font-size:10px;font-weight:600;white-space:nowrap;${over ? 'color:' + (t.color_danger || '#dc143c') : ''}">$${spent.toFixed(0)} / $${limit}</div>
           </div>`;
         }).join('');
 
+        // Recent activity entries
+        const recentEntries = spendingLog.entries.slice(-3).reverse();
+        const recentRows = recentEntries.length > 0 ? recentEntries.map(e => {
+          const icon = ThemeManager?.getCategoryIcon(e.category, t) || '';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid ${t.color_secondary || '#ffb6d5'}10;">
+            <div style="width:20px;flex-shrink:0;">${icon}</div>
+            <div style="flex:1;font-size:11px;font-weight:600;">$${e.amount.toFixed(2)} — ${e.category.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</div>
+            <div style="font-size:9px;opacity:0.5;">${e.date}</div>
+          </div>`;
+        }).join('') : `<div style="text-align:center;padding:12px;opacity:0.5;font-size:11px;">No spending logged yet — let's get started! 🌸</div>`;
+
+        // Chat preview (last 3 messages)
+        const recentMsgs = convLog.messages.slice(-3);
+        const chatPreview = recentMsgs.length > 0 ? recentMsgs.map(m => {
+          const isUser = m.role === 'user';
+          return `<div style="display:flex;justify-content:${isUser ? 'flex-end' : 'flex-start'};margin-bottom:6px;">
+            <div style="max-width:75%;padding:8px 12px;border-radius:${isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px'};font-size:11px;line-height:1.4;
+              background:${isUser ? (t.color_primary || '#ff69b4') : (t.color_card || '#fff')};
+              color:${isUser ? '#fff' : (t.color_text_primary || '#3d1f2e')};
+              ${!isUser ? 'border:1px solid ' + (t.color_secondary || '#ffb6d5') + ';' : ''}">
+              ${(m.text || '').substring(0, 80)}${(m.text || '').length > 80 ? '...' : ''}
+            </div>
+          </div>`;
+        }).join('') : `<div style="text-align:center;padding:16px;opacity:0.4;font-size:11px;">Chat with your coach anytime 💬</div>`;
+
+        // Quick prompt chips
+        const chips = ['How am I doing? 💕', 'Can I afford this? 🤔', 'Show my progress ✨'].map(label =>
+          `<div style="padding:6px 10px;border-radius:14px;border:1px solid ${t.color_secondary || '#ffb6d5'};font-size:9px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};white-space:nowrap;">${label}</div>`
+        ).join('');
+
         content.innerHTML = `
-          <div style="background:${t.color_background || '#fff0f7'};border-radius:12px;padding:14px;color:${t.color_text_primary || '#3d1f2e'};font-family:'${t.font_body || 'Nunito'}',sans-serif;max-width:360px;margin:0 auto;position:relative;overflow:hidden;">
+          <!-- Phone frame -->
+          <div style="max-width:320px;margin:0 auto;border-radius:24px;overflow:hidden;border:2px solid ${t.color_secondary || '#ffb6d5'}40;box-shadow:0 8px 32px rgba(0,0,0,0.3);position:relative;">
 
-            <!-- Header -->
-            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;">
-              <div>
-                <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:16px;font-weight:700;">${greeting}</div>
-                <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">Let's check in on your goals</div>
-              </div>
-              <div style="width:50px;">${mascotSVG}</div>
+            <!-- Status bar -->
+            <div style="background:${t.color_card || '#fff'};padding:6px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${t.color_secondary || '#ffb6d5'}30;">
+              <div style="font-size:9px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};">${now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>
+              <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:11px;font-weight:700;color:${t.color_primary || '#ff69b4'};">${profile.display_name}'s Coach</div>
+              <div style="font-size:9px;color:${t.color_text_secondary || '#7a4458'};">●●●</div>
             </div>
 
-            <!-- This Month card -->
-            <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
-              <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:6px;">This Month</div>
-              <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:22px;font-weight:700;">$${monthSpending.total.toFixed(2)}</div>
-              <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">$${remTotal.toFixed(2)} left for ${daysLeft} days</div>
-              <div style="height:6px;background:${t.color_secondary || '#ffb6d5'};border-radius:3px;overflow:hidden;margin-top:6px;">
-                <div style="height:100%;width:${budgetPct}%;background:linear-gradient(90deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});border-radius:3px;"></div>
-              </div>
-            </div>
+            <!-- Scrollable body -->
+            <div style="background:${t.color_background || '#fff0f7'};padding:14px;color:${t.color_text_primary || '#3d1f2e'};font-family:'${t.font_body || 'Nunito'}',sans-serif;min-height:480px;position:relative;">
 
-            <!-- Goals -->
-            <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
-              <div style="display:flex;align-items:center;gap:10px;">
-                <div style="width:36px;height:36px;border-radius:10px;background:${t.color_secondary || '#ffb6d5'};display:flex;align-items:center;justify-content:center;font-size:18px;">🏠</div>
-                <div style="flex:1;">
-                  <div style="font-size:12px;font-weight:600;">Down Payment</div>
-                  <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">$${savings?.balance || 0} / $${savings?.target_balance?.toLocaleString() || 0}</div>
-                  <div style="height:4px;background:${t.color_secondary || '#ffb6d5'};border-radius:2px;overflow:hidden;margin-top:3px;">
-                    <div style="height:100%;width:${savPct}%;background:linear-gradient(90deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});border-radius:2px;"></div>
+              <!-- Header + mascot -->
+              <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;">
+                <div>
+                  <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:17px;font-weight:700;">${greeting}</div>
+                  <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};margin-top:2px;">${subGreeting}</div>
+                </div>
+                <div style="width:50px;">${mascotSVG}</div>
+              </div>
+
+              <!-- This Month -->
+              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
+                <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:6px;">This Month</div>
+                <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:24px;font-weight:700;">$${monthSpending.total.toFixed(2)}</div>
+                <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};margin-top:2px;">${remTotal >= 0 ? '$' + remTotal.toFixed(2) + ' left for ' + daysLeft + ' days' : '$' + Math.abs(remTotal).toFixed(2) + ' over budget'}</div>
+                <div style="height:8px;background:${t.color_secondary || '#ffb6d5'}30;border-radius:4px;overflow:hidden;margin-top:8px;">
+                  <div style="height:100%;width:${budgetPct}%;background:linear-gradient(90deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});border-radius:4px;position:relative;">
+                    <span style="position:absolute;right:-2px;top:-4px;font-size:8px;">✨</span>
                   </div>
                 </div>
               </div>
-            </div>
 
-            ${cc ? `<div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
-              <div style="display:flex;align-items:center;gap:10px;">
-                <div style="width:36px;height:36px;border-radius:10px;background:${t.color_secondary || '#ffb6d5'};display:flex;align-items:center;justify-content:center;font-size:18px;">💳</div>
-                <div style="flex:1;">
-                  <div style="font-size:12px;font-weight:600;">Credit Card Payoff</div>
-                  <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">$${cc.balance.toFixed(2)} left</div>
+              <!-- Goals -->
+              ${savings ? `<div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:40px;height:40px;border-radius:12px;background:${t.color_secondary || '#ffb6d5'}40;display:flex;align-items:center;justify-content:center;font-size:20px;">🏠</div>
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:700;">Down Payment</div>
+                    <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};margin-top:1px;">$${savings.balance.toFixed(0)} / $${savings.target_balance.toLocaleString()}</div>
+                    <div style="height:6px;background:${t.color_secondary || '#ffb6d5'}30;border-radius:3px;overflow:hidden;margin-top:5px;">
+                      <div style="height:100%;width:${savPct}%;background:linear-gradient(90deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});border-radius:3px;"></div>
+                    </div>
+                    <div style="font-size:9px;color:${t.color_text_secondary || '#7a4458'};margin-top:3px;">$${(savings.target_balance - savings.balance).toLocaleString()} to go ✨</div>
+                  </div>
+                </div>
+              </div>` : ''}
+
+              ${cc ? `<div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:40px;height:40px;border-radius:12px;background:${t.color_secondary || '#ffb6d5'}40;display:flex;align-items:center;justify-content:center;font-size:20px;">💳</div>
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:700;">Credit Card</div>
+                    <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">$${cc.balance.toFixed(2)} remaining</div>
+                  </div>
+                </div>
+              </div>` : ''}
+
+              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:40px;height:40px;border-radius:12px;background:${t.color_secondary || '#ffb6d5'}40;display:flex;align-items:center;justify-content:center;font-size:20px;">📈</div>
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:700;">Credit Score</div>
+                    <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">${finances.credit_score} → ${finances.credit_score_target} <span style="opacity:0.5">(${finances.credit_score_target - finances.credit_score} pts to go)</span></div>
+                  </div>
                 </div>
               </div>
-            </div>` : ''}
 
-            <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
-              <div style="display:flex;align-items:center;gap:10px;">
-                <div style="width:36px;height:36px;border-radius:10px;background:${t.color_secondary || '#ffb6d5'};display:flex;align-items:center;justify-content:center;font-size:18px;">📈</div>
-                <div style="flex:1;">
-                  <div style="font-size:12px;font-weight:600;">Credit Score</div>
-                  <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">${finances.credit_score} → ${finances.credit_score_target}</div>
+              <!-- Spending Breakdown -->
+              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
+                <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:8px;">Spending Breakdown</div>
+                ${catRows}
+              </div>
+
+              <!-- Recent Activity -->
+              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
+                <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:8px;">Recent Activity</div>
+                ${recentRows}
+              </div>
+
+              <!-- Coach Chat Preview -->
+              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
+                <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:8px;">Coach Chat</div>
+                ${chatPreview}
+                <!-- Quick prompts -->
+                <div style="display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:2px;">
+                  ${chips}
                 </div>
+                <!-- Chat input -->
+                <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+                  <div style="flex:1;padding:8px 12px;border-radius:16px;border:1.5px solid ${t.color_secondary || '#ffb6d5'};font-size:10px;color:${t.color_text_secondary || '#7a4458'};">Message your coach...</div>
+                  <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;">♥</div>
+                </div>
+              </div>
+
+              <!-- FAB -->
+              <div style="position:absolute;bottom:50px;right:14px;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:300;box-shadow:0 4px 16px ${t.color_primary || '#ff69b4'}50;">+</div>
+
+            </div>
+
+            <!-- Bottom nav -->
+            <div style="background:${t.color_card || '#fff'};display:flex;justify-content:space-around;padding:10px 8px;border-top:1.5px solid ${t.color_secondary || '#ffb6d5'}30;">
+              <div style="text-align:center;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="${t.color_primary || '#ff69b4'}"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                <div style="font-size:8px;font-weight:700;color:${t.color_primary || '#ff69b4'};margin-top:1px;">Home</div>
+              </div>
+              <div style="text-align:center;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="${t.color_text_secondary || '#7a4458'}"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                <div style="font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};margin-top:1px;">Coach</div>
+              </div>
+              <div style="text-align:center;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="${t.color_text_secondary || '#7a4458'}"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
+                <div style="font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};margin-top:1px;">Goals</div>
+              </div>
+              <div style="text-align:center;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="${t.color_text_secondary || '#7a4458'}"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                <div style="font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};margin-top:1px;">Settings</div>
               </div>
             </div>
 
-            <!-- Spending Breakdown -->
-            <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
-              <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:6px;">Spending Breakdown</div>
-              ${catRows}
-            </div>
-
-            <!-- Bottom nav preview -->
-            <div style="display:flex;justify-content:space-around;padding:8px 0;border-top:1px solid ${t.color_secondary || '#ffb6d5'}40;margin-top:4px;">
-              <div style="text-align:center;font-size:8px;font-weight:600;color:${t.color_primary || '#ff69b4'};">Home</div>
-              <div style="text-align:center;font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};">Coach</div>
-              <div style="text-align:center;font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};">Goals</div>
-              <div style="text-align:center;font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};">Settings</div>
-            </div>
-
-            <!-- FAB preview -->
-            <div style="position:absolute;bottom:40px;right:14px;width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 8px ${t.color_primary || '#ff69b4'}50;">+</div>
-
-          </div>
-
-          <div style="text-align:center;margin-top:8px;font-size:10px;color:var(--text-secondary);">
-            Client Code: <span style="color:${t.color_primary || '#ff69b4'};font-weight:700;">${code}</span> · Theme: ${t.name || 'Default'} · Month ${planMonth}/${profile.plan_duration_months || 8}
-          </div>
-          <div style="text-align:center;margin-top:6px;">
-            <button class="dev-save-btn" onclick="AVIS.launchClientMode('${code}')" style="background:${t.color_primary || '#ff69b4'};border:none;">Launch as ${profile.display_name}</button>
           </div>
         `;
         break;
