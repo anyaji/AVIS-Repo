@@ -715,43 +715,157 @@
     </div>
   </div>
 
+  <!-- Transaction History View -->
+  <div class="client-dashboard" id="client-history-view" style="display:none;">
+    <div class="client-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="client-card-title" style="margin-bottom:0;">Transaction History</div>
+        <select id="client-history-filter" onchange="AVIS.filterTransactions()" style="padding:4px 8px;border-radius:10px;border:1px solid var(--client-secondary);background:var(--client-bg);color:var(--client-text);font-size:11px;font-family:var(--client-font-body);">
+          <option value="all">All</option>
+          <option value="food">Food</option>
+          <option value="gas_transport">Gas</option>
+          <option value="subscriptions">Subs</option>
+          <option value="shopping_personal">Shopping</option>
+          <option value="entertainment">Fun</option>
+          <option value="bills_utilities">Bills</option>
+          <option value="health_beauty">Beauty</option>
+          <option value="gifts">Gifts</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div id="client-history-list"></div>
+    </div>
+  </div>
+
+  <!-- Spending Trends View -->
+  <div class="client-dashboard" id="client-trends-view" style="display:none;">
+    <div class="client-card">
+      <div class="client-card-title">Spending Trends</div>
+      <div style="display:flex;gap:6px;margin-bottom:12px;">
+        <button class="client-quick-chip" onclick="AVIS.renderTrends('weekly')" id="trend-btn-weekly" style="font-size:11px;">Weekly</button>
+        <button class="client-quick-chip" onclick="AVIS.renderTrends('category')" id="trend-btn-category" style="font-size:11px;">By Category</button>
+        <button class="client-quick-chip" onclick="AVIS.renderTrends('daily')" id="trend-btn-daily" style="font-size:11px;">Daily</button>
+      </div>
+      <div id="client-trends-chart"></div>
+    </div>
+    <!-- Monthly summary -->
+    <div class="client-card">
+      <div class="client-card-title">This Month vs Budget</div>
+      <div id="client-month-comparison"></div>
+    </div>
+  </div>
+
+  <!-- Reports View -->
+  <div class="client-dashboard" id="client-reports-view" style="display:none;">
+    <div class="client-card">
+      <div class="client-card-title">Weekly Recaps</div>
+      <div id="client-reports-list"></div>
+    </div>
+  </div>
+
+  <!-- Debt Calculator View -->
+  <div class="client-dashboard" id="client-debt-view" style="display:none;">
+    <div class="client-card">
+      <div class="client-card-title">Debt Payoff Calculator</div>
+      <div id="client-debt-calculator"></div>
+    </div>
+  </div>
+
+  <!-- Budget Editor View -->
+  <div class="client-dashboard" id="client-budget-view" style="display:none;">
+    <div class="client-card">
+      <div class="client-card-title">My Budget</div>
+      <div style="font-size:11px;color:var(--client-text-secondary);margin-bottom:10px;">Adjust your monthly spending limits</div>
+      <div id="client-budget-editor"></div>
+      <button class="client-submit-btn" onclick="AVIS.saveClientBudget()" style="margin-top:12px;">Save Changes 💕</button>
+    </div>
+  </div>
+
+  <!-- Profile View -->
+  <div class="client-dashboard" id="client-profile-view" style="display:none;">
+    <div class="client-card" style="text-align:center;">
+      <div id="client-profile-avatar" style="width:70px;height:70px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:30px;"></div>
+      <div id="client-profile-name" style="font-family:var(--client-font-heading);font-size:18px;font-weight:700;"></div>
+      <div style="font-size:11px;color:var(--client-text-secondary);margin-top:2px;">Member since <span id="client-profile-since"></span></div>
+    </div>
+    <div class="client-card">
+      <div class="client-card-title">Customize</div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Display Name</label>
+        <input type="text" id="profile-edit-name" class="client-note-input" style="margin-top:0;">
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Avatar Emoji</label>
+        <div id="profile-emoji-grid" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Avatar Color</label>
+        <div id="profile-color-grid" style="display:flex;gap:6px;"></div>
+      </div>
+      <button class="client-submit-btn" onclick="AVIS.saveClientProfile()">Save Profile 💕</button>
+    </div>
+  </div>
+
+  <!-- Recommendations Modal -->
+  <div class="client-spend-modal" id="client-rec-modal">
+    <div class="client-spend-sheet" style="max-height:70vh;overflow-y:auto;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">💌 From Coach</div>
+      <div id="client-rec-list"></div>
+      <button style="width:100%;padding:10px;border:none;background:none;color:var(--client-text-secondary);font-size:13px;cursor:pointer;margin-top:6px;" onclick="document.getElementById('client-rec-modal').classList.remove('active')">Close</button>
+    </div>
+  </div>
+
   <!-- Bottom Navigation -->
   <nav class="client-nav" id="client-nav">
     <button class="client-nav-btn active" data-view="dashboard" onclick="AVIS.clientSwitchView('dashboard')">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
       Home
     </button>
+    <button class="client-nav-btn" data-view="history" onclick="AVIS.clientSwitchView('history')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 00-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0013 21a9 9 0 000-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+      History
+    </button>
     <button class="client-nav-btn" data-view="chat" onclick="AVIS.clientSwitchView('chat')">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
       Coach
     </button>
-    <button class="client-nav-btn" data-view="goals" onclick="AVIS.clientSwitchView('goals')">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
-      Goals
+    <button class="client-nav-btn" data-view="trends" onclick="AVIS.clientSwitchView('trends')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
+      Trends
     </button>
-    <button class="client-nav-btn" data-view="settings" onclick="AVIS.clientSwitchView('settings')">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-      Settings
+    <button class="client-nav-btn" data-view="more" onclick="AVIS.clientSwitchView('more')">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+      More
     </button>
   </nav>
 
-  <!-- Client Settings Panel -->
-  <div class="client-settings" id="client-settings">
-    <div class="client-card">
-      <div class="client-card-title">Settings</div>
-      <div class="client-settings-row">
-        <span class="client-settings-label">🔔 Notifications</span>
-        <div class="client-toggle on" id="toggle-notif" onclick="AVIS.toggleClientSetting('notifications')"></div>
-      </div>
-      <div class="client-settings-row">
-        <span class="client-settings-label">🔊 Sound Effects</span>
-        <div class="client-toggle on" id="toggle-sound" onclick="AVIS.toggleClientSetting('sound')"></div>
-      </div>
-      <div class="client-settings-row">
+  <!-- More Menu -->
+  <div class="client-dashboard" id="client-more-view" style="display:none;">
+    <div class="client-card" style="padding:0;overflow:hidden;">
+      <button class="client-settings-row" onclick="AVIS.clientSwitchView('goals')" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">🎯 Goals & Debt Calculator</span>
+        <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
+      </button>
+      <button class="client-settings-row" onclick="AVIS.clientSwitchView('budget')" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">💰 Edit Budget</span>
+        <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
+      </button>
+      <button class="client-settings-row" onclick="AVIS.clientSwitchView('reports')" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">📊 Weekly Recaps</span>
+        <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
+      </button>
+      <button class="client-settings-row" onclick="AVIS.clientSwitchView('profile')" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">👤 My Profile</span>
+        <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
+      </button>
+    </div>
+    <div class="client-card" style="padding:0;overflow:hidden;">
+      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
         <span class="client-settings-label">🌙 Dark Mode</span>
         <div class="client-toggle" id="toggle-dark" onclick="AVIS.toggleClientSetting('dark')"></div>
       </div>
-      <div class="client-settings-row">
+      <div class="client-settings-row" style="padding:14px 18px;">
         <span class="client-settings-label">📱 About</span>
         <span style="color:var(--client-text-secondary);font-size:12px;">v4.5.0</span>
       </div>

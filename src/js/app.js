@@ -1376,15 +1376,21 @@ const AVIS = {
     const mascotEl = document.getElementById('client-mascot');
     if (mascotEl && typeof ThemeManager !== 'undefined') {
       mascotEl.innerHTML = ThemeManager.getMascotSVG(profile.theme);
-      // Long-press mascot for operator escape (5 seconds)
+      // Short click → open recommendations, long-press 5s → operator escape
       let pressTimer = null;
+      let isLongPress = false;
       mascotEl.addEventListener('mousedown', () => {
+        isLongPress = false;
         pressTimer = setTimeout(() => {
+          isLongPress = true;
           document.getElementById('operator-escape-modal').classList.add('active');
           document.getElementById('operator-escape-password').focus();
         }, 5000);
       });
-      mascotEl.addEventListener('mouseup', () => clearTimeout(pressTimer));
+      mascotEl.addEventListener('mouseup', () => {
+        clearTimeout(pressTimer);
+        if (!isLongPress) this.openRecommendations();
+      });
       mascotEl.addEventListener('mouseleave', () => clearTimeout(pressTimer));
     }
 
@@ -1403,6 +1409,9 @@ const AVIS = {
 
   async refreshClientDashboard() {
     if (!ClientManager.isClientMode()) return;
+
+    // Check recommendation badges
+    this.checkRecommendationBadge();
 
     const finances = await ClientManager.getFinances();
     const monthSpending = await ClientManager.getMonthSpending();
@@ -1544,47 +1553,61 @@ const AVIS = {
   clientSwitchView(view) {
     this._clientView = view;
 
-    // Update nav
+    // Update nav highlights
     document.querySelectorAll('.client-nav-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === view);
     });
 
-    // Hide all views
-    const dashboard = document.getElementById('client-dashboard');
-    const chatArea = document.getElementById('chat-area');
-    const chatCenter = document.getElementById('chat-center');
-    const settings = document.getElementById('client-settings');
-    const quickPrompts = document.getElementById('client-quick-prompts');
-    const header = document.getElementById('client-header');
-    const fab = document.getElementById('client-fab');
+    // All hideable views
+    const views = ['client-dashboard', 'chat-center', 'client-quick-prompts', 'client-header', 'client-fab',
+      'client-history-view', 'client-trends-view', 'client-more-view', 'client-reports-view',
+      'client-debt-view', 'client-budget-view', 'client-profile-view'];
+    views.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 
-    if (dashboard) dashboard.style.display = 'none';
-    if (chatCenter) chatCenter.style.display = 'none';
-    if (settings) settings.style.display = 'none';
-    if (quickPrompts) quickPrompts.style.display = 'none';
-    if (header) header.style.display = 'none';
-    if (fab) fab.style.display = 'none';
+    const show = id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; };
+    const showFlex = id => { const el = document.getElementById(id); if (el) el.style.display = 'flex'; };
 
     switch (view) {
       case 'dashboard':
-        if (dashboard) dashboard.style.display = 'block';
-        if (header) header.style.display = 'block';
-        if (fab) fab.style.display = 'flex';
+        show('client-dashboard'); show('client-header'); showFlex('client-fab');
         this.refreshClientDashboard();
         break;
       case 'chat':
-        if (chatCenter) chatCenter.style.display = 'flex';
-        if (quickPrompts) quickPrompts.style.display = 'flex';
+        showFlex('chat-center'); showFlex('client-quick-prompts');
+        break;
+      case 'history':
+        show('client-history-view');
+        this.renderTransactionHistory();
+        break;
+      case 'trends':
+        show('client-trends-view');
+        this.renderTrends('weekly');
         break;
       case 'goals':
-        if (dashboard) dashboard.style.display = 'block';
-        if (header) header.style.display = 'block';
-        // Scroll to goals
-        const savingsCard = document.getElementById('client-savings-card');
-        if (savingsCard) savingsCard.scrollIntoView({ behavior: 'smooth' });
+        show('client-dashboard'); show('client-header');
+        this.refreshClientDashboard();
+        // Show debt calculator below goals
+        show('client-debt-view');
+        this.renderDebtCalculator();
+        setTimeout(() => {
+          const sc = document.getElementById('client-savings-card');
+          if (sc) sc.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
         break;
-      case 'settings':
-        if (settings) settings.style.display = 'block';
+      case 'more':
+        show('client-more-view');
+        break;
+      case 'budget':
+        show('client-budget-view');
+        this.renderBudgetEditor();
+        break;
+      case 'reports':
+        show('client-reports-view');
+        this.renderReports();
+        break;
+      case 'profile':
+        show('client-profile-view');
+        this.renderProfileEditor();
         break;
     }
   },
@@ -1724,6 +1747,435 @@ const AVIS = {
         document.body.classList.toggle('client-dark', isOn);
         break;
     }
+  },
+
+  // ================================================================
+  // TRANSACTION HISTORY
+  // ================================================================
+  async renderTransactionHistory(filter) {
+    const log = await ClientManager.getSpendingLog();
+    const list = document.getElementById('client-history-list');
+    if (!list) return;
+
+    let entries = [...log.entries].reverse();
+    if (filter && filter !== 'all') entries = entries.filter(e => e.category === filter);
+
+    if (entries.length === 0) {
+      list.innerHTML = '<div class="client-empty"><p>No transactions yet 🌸</p></div>';
+      return;
+    }
+
+    // Group by date
+    const groups = {};
+    for (const e of entries) {
+      const d = e.date || 'Unknown';
+      if (!groups[d]) groups[d] = [];
+      groups[d].push(e);
+    }
+
+    const theme = ThemeManager?.getTheme();
+    list.innerHTML = Object.entries(groups).map(([date, items]) => {
+      const dayTotal = items.reduce((s, e) => s + e.amount, 0);
+      const rows = items.map(e => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--client-secondary, #ffb6d5)15;">
+          <div style="width:28px;flex-shrink:0;">${ThemeManager?.getCategoryIcon(e.category, theme) || ''}</div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:600;">${this._formatCategoryName(e.category)}</div>
+            ${e.note ? `<div style="font-size:10px;color:var(--client-text-secondary);margin-top:1px;">${e.note}</div>` : ''}
+          </div>
+          <div style="font-size:13px;font-weight:700;">-$${e.amount.toFixed(2)}</div>
+        </div>
+      `).join('');
+      return `
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--client-text-secondary);margin-bottom:4px;">
+            <span>${new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+            <span>$${dayTotal.toFixed(2)}</span>
+          </div>
+          ${rows}
+        </div>`;
+    }).join('');
+  },
+
+  filterTransactions() {
+    const filter = document.getElementById('client-history-filter')?.value;
+    this.renderTransactionHistory(filter);
+  },
+
+  // ================================================================
+  // SPENDING TRENDS CHART (pure CSS bars)
+  // ================================================================
+  async renderTrends(mode) {
+    // Highlight active button
+    ['weekly', 'category', 'daily'].forEach(m => {
+      const btn = document.getElementById(`trend-btn-${m}`);
+      if (btn) btn.style.background = m === mode ? 'var(--client-primary, #ff69b4)' : '';
+      if (btn) btn.style.color = m === mode ? '#fff' : '';
+    });
+
+    const chart = document.getElementById('client-trends-chart');
+    const compEl = document.getElementById('client-month-comparison');
+    if (!chart) return;
+
+    const log = await ClientManager.getSpendingLog();
+    const finances = await ClientManager.getFinances();
+    const theme = ThemeManager?.getTheme();
+    const primary = theme?.color_primary || '#ff69b4';
+    const accent = theme?.color_accent || '#ff1493';
+
+    if (mode === 'category') {
+      // Spending by category for current month
+      const monthSpending = await ClientManager.getMonthSpending();
+      const cats = Object.entries(monthSpending.byCategory).sort((a, b) => b[1] - a[1]);
+      const max = cats.length > 0 ? cats[0][1] : 1;
+      chart.innerHTML = cats.length === 0 ? '<div style="text-align:center;opacity:0.5;padding:16px;">No spending data yet</div>' :
+        cats.map(([cat, amount]) => `
+          <div style="margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+              <span style="font-weight:600;">${this._formatCategoryName(cat)}</span>
+              <span>$${amount.toFixed(2)}</span>
+            </div>
+            <div style="height:20px;background:var(--client-secondary, #ffb6d5)30;border-radius:10px;overflow:hidden;">
+              <div style="height:100%;width:${(amount / max) * 100}%;background:linear-gradient(90deg,${primary},${accent});border-radius:10px;"></div>
+            </div>
+          </div>
+        `).join('');
+    } else if (mode === 'weekly') {
+      // Last 4 weeks
+      const weeks = [];
+      for (let w = 3; w >= 0; w--) {
+        const start = new Date(); start.setDate(start.getDate() - (w + 1) * 7);
+        const end = new Date(); end.setDate(end.getDate() - w * 7);
+        const startStr = start.toISOString().split('T')[0];
+        const endStr = end.toISOString().split('T')[0];
+        const total = log.entries.filter(e => e.date >= startStr && e.date < endStr).reduce((s, e) => s + e.amount, 0);
+        weeks.push({ label: `Week ${4 - w}`, total });
+      }
+      const max = Math.max(...weeks.map(w => w.total), 1);
+      chart.innerHTML = `<div style="display:flex;align-items:flex-end;gap:12px;height:140px;padding:8px 0;">
+        ${weeks.map(w => `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+            <div style="font-size:10px;font-weight:600;margin-bottom:4px;">$${w.total.toFixed(0)}</div>
+            <div style="width:100%;background:linear-gradient(180deg,${primary},${accent});border-radius:8px 8px 0 0;height:${Math.max(4, (w.total / max) * 100)}px;"></div>
+            <div style="font-size:9px;color:var(--client-text-secondary);margin-top:4px;">${w.label}</div>
+          </div>
+        `).join('')}
+      </div>`;
+    } else if (mode === 'daily') {
+      // Last 7 days
+      const days = [];
+      for (let d = 6; d >= 0; d--) {
+        const date = new Date(); date.setDate(date.getDate() - d);
+        const dateStr = date.toISOString().split('T')[0];
+        const total = log.entries.filter(e => e.date === dateStr).reduce((s, e) => s + e.amount, 0);
+        days.push({ label: date.toLocaleDateString('en-US', { weekday: 'short' }), total, date: dateStr });
+      }
+      const max = Math.max(...days.map(d => d.total), 1);
+      chart.innerHTML = `<div style="display:flex;align-items:flex-end;gap:6px;height:120px;padding:8px 0;">
+        ${days.map(d => `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+            <div style="font-size:8px;font-weight:600;margin-bottom:3px;">${d.total > 0 ? '$' + d.total.toFixed(0) : ''}</div>
+            <div style="width:100%;background:${d.total > 0 ? `linear-gradient(180deg,${primary},${accent})` : 'var(--client-secondary, #ffb6d5)30'};border-radius:6px 6px 0 0;height:${Math.max(4, (d.total / max) * 100)}px;"></div>
+            <div style="font-size:8px;color:var(--client-text-secondary);margin-top:3px;">${d.label}</div>
+          </div>
+        `).join('')}
+      </div>`;
+    }
+
+    // Month comparison
+    if (compEl && finances) {
+      const monthSpending = await ClientManager.getMonthSpending();
+      const budget = finances.monthly_budget;
+      compEl.innerHTML = Object.entries(budget).filter(([_, v]) => v > 0).map(([cat, limit]) => {
+        const spent = monthSpending.byCategory[cat] || 0;
+        const pct = Math.min(100, (spent / limit) * 100);
+        const over = spent > limit;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
+          <div style="width:80px;font-size:10px;font-weight:600;flex-shrink:0;">${this._formatCategoryName(cat)}</div>
+          <div style="flex:1;height:8px;background:var(--client-secondary,#ffb6d5)25;border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${over ? 'var(--client-danger,#dc143c)' : primary};border-radius:4px;"></div>
+          </div>
+          <div style="font-size:10px;font-weight:600;width:70px;text-align:right;${over ? 'color:var(--client-danger,#dc143c)' : ''}">$${spent.toFixed(0)} / $${limit}</div>
+        </div>`;
+      }).join('');
+    }
+  },
+
+  // ================================================================
+  // WEEKLY REPORTS
+  // ================================================================
+  async renderReports() {
+    const list = document.getElementById('client-reports-list');
+    if (!list) return;
+
+    const progress = await ClientManager.getProgressLog();
+    const checkins = progress.events.filter(e => e.type === 'weekly_checkin').reverse();
+
+    if (checkins.length === 0) {
+      list.innerHTML = '<div class="client-empty"><p>No weekly recaps yet — your first one arrives Sunday! 🌸</p></div>';
+      return;
+    }
+
+    list.innerHTML = checkins.map(e => `
+      <div style="padding:12px 0;border-bottom:1px solid var(--client-secondary, #ffb6d5)20;">
+        <div style="font-size:10px;color:var(--client-text-secondary);margin-bottom:4px;">${new Date(e.timestamp || e.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+        <div style="font-size:12px;line-height:1.6;">${e.note}</div>
+      </div>
+    `).join('');
+  },
+
+  // ================================================================
+  // DEBT PAYOFF CALCULATOR
+  // ================================================================
+  async renderDebtCalculator() {
+    const el = document.getElementById('client-debt-calculator');
+    if (!el) return;
+
+    const finances = await ClientManager.getFinances();
+    if (!finances || !finances.debts || finances.debts.length === 0) {
+      el.innerHTML = '<div class="client-empty"><p>No debts — you\'re debt free! 🎉</p></div>';
+      return;
+    }
+
+    el.innerHTML = finances.debts.map(debt => {
+      const monthlyPayment = debt.attack_amount || debt.minimum_payment;
+      const monthsLeft = Math.ceil(debt.balance / monthlyPayment);
+      const payoffDate = new Date();
+      payoffDate.setMonth(payoffDate.getMonth() + monthsLeft);
+
+      // Scenario: what if they pay extra?
+      const extraPayments = [0, 25, 50, 100];
+      const scenarios = extraPayments.map(extra => {
+        const total = monthlyPayment + extra;
+        const months = Math.ceil(debt.balance / total);
+        const d = new Date(); d.setMonth(d.getMonth() + months);
+        return { extra, months, date: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) };
+      });
+
+      return `
+        <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--client-secondary, #ffb6d5)20;">
+          <div style="font-size:14px;font-weight:700;margin-bottom:6px;">${debt.name}</div>
+          <div style="display:flex;gap:12px;margin-bottom:8px;">
+            <div>
+              <div style="font-size:9px;text-transform:uppercase;opacity:0.5;">Balance</div>
+              <div style="font-size:16px;font-weight:700;">$${debt.balance.toFixed(2)}</div>
+            </div>
+            <div>
+              <div style="font-size:9px;text-transform:uppercase;opacity:0.5;">Payment</div>
+              <div style="font-size:16px;font-weight:700;">$${monthlyPayment}/mo</div>
+            </div>
+            <div>
+              <div style="font-size:9px;text-transform:uppercase;opacity:0.5;">Payoff</div>
+              <div style="font-size:16px;font-weight:700;">${payoffDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</div>
+            </div>
+          </div>
+          <div style="font-size:11px;font-weight:600;margin-bottom:6px;">What if you paid more?</div>
+          ${scenarios.map(s => `
+            <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;">
+              <div style="width:60px;font-weight:600;">${s.extra === 0 ? 'Current' : '+$' + s.extra + '/mo'}</div>
+              <div style="flex:1;height:6px;background:var(--client-secondary, #ffb6d5)25;border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${Math.max(5, 100 - (s.months / scenarios[0].months) * 100 + 30)}%;background:var(--client-primary, #ff69b4);border-radius:3px;"></div>
+              </div>
+              <div style="width:80px;text-align:right;font-size:10px;">${s.months} mo → ${s.date}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }).join('');
+  },
+
+  // ================================================================
+  // BUDGET EDITOR
+  // ================================================================
+  async renderBudgetEditor() {
+    const el = document.getElementById('client-budget-editor');
+    if (!el) return;
+
+    const finances = await ClientManager.getFinances();
+    if (!finances) return;
+
+    const theme = ThemeManager?.getTheme();
+    const totalBudget = Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0);
+
+    el.innerHTML = `
+      <div style="text-align:center;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--client-text-secondary);">Total Monthly Budget</div>
+        <div style="font-size:24px;font-weight:700;" id="budget-total-display">$${totalBudget}</div>
+      </div>
+      ${Object.entries(finances.monthly_budget).map(([cat, amount]) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--client-secondary, #ffb6d5)15;">
+          <div style="width:28px;flex-shrink:0;">${ThemeManager?.getCategoryIcon(cat, theme) || ''}</div>
+          <div style="flex:1;font-size:12px;font-weight:600;">${this._formatCategoryName(cat)}</div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="font-size:13px;color:var(--client-text-secondary);">$</span>
+            <input type="number" data-budget-cat="${cat}" value="${amount}" min="0" step="5"
+              style="width:60px;padding:6px 8px;border-radius:10px;border:1px solid var(--client-secondary, #ffb6d5);background:var(--client-bg, #fff0f7);color:var(--client-text, #3d1f2e);font-size:13px;font-weight:600;font-family:var(--client-font-body);text-align:right;"
+              oninput="AVIS.updateBudgetTotal()">
+          </div>
+        </div>
+      `).join('')}
+    `;
+  },
+
+  updateBudgetTotal() {
+    const inputs = document.querySelectorAll('[data-budget-cat]');
+    let total = 0;
+    inputs.forEach(input => total += parseFloat(input.value) || 0);
+    const display = document.getElementById('budget-total-display');
+    if (display) display.textContent = '$' + total;
+  },
+
+  async saveClientBudget() {
+    const inputs = document.querySelectorAll('[data-budget-cat]');
+    const newBudget = {};
+    inputs.forEach(input => {
+      newBudget[input.dataset.budgetCat] = parseFloat(input.value) || 0;
+    });
+    const finances = await ClientManager.getFinances();
+    if (finances) {
+      finances.monthly_budget = newBudget;
+      await ClientManager.updateFinances(null, { monthly_budget: newBudget });
+      this.showToast('Budget updated! 💕', 'success');
+      ThemeManager?.burst(ThemeManager.getTheme(), window.innerWidth / 2, window.innerHeight / 2);
+    }
+  },
+
+  // ================================================================
+  // PROFILE / AVATAR CUSTOMIZATION
+  // ================================================================
+  _profileEmoji: '😊',
+  _profileColor: '#ff69b4',
+
+  async renderProfileEditor() {
+    const profile = await ClientManager.getProfile();
+    if (!profile) return;
+
+    const nameInput = document.getElementById('profile-edit-name');
+    if (nameInput) nameInput.value = profile.display_name;
+
+    const avatar = document.getElementById('client-profile-avatar');
+    this._profileEmoji = profile.avatar_emoji || '😊';
+    this._profileColor = profile.avatar_color || profile.theme?.color_primary || '#ff69b4';
+    if (avatar) {
+      avatar.style.background = this._profileColor;
+      avatar.textContent = this._profileEmoji;
+    }
+
+    const nameEl = document.getElementById('client-profile-name');
+    if (nameEl) nameEl.textContent = profile.display_name;
+
+    const sinceEl = document.getElementById('client-profile-since');
+    if (sinceEl) sinceEl.textContent = new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    // Emoji grid
+    const emojiGrid = document.getElementById('profile-emoji-grid');
+    const emojis = ['😊', '💕', '🌸', '✨', '💪', '🎯', '🏠', '💰', '🔥', '🦋', '🌙', '👑', '💎', '🐱', '🌺', '⭐'];
+    if (emojiGrid) {
+      emojiGrid.innerHTML = emojis.map(e => `
+        <button onclick="AVIS.selectProfileEmoji('${e}', this)" style="width:36px;height:36px;border-radius:10px;border:2px solid ${e === this._profileEmoji ? 'var(--client-primary)' : 'transparent'};background:var(--client-bg);font-size:18px;cursor:pointer;">${e}</button>
+      `).join('');
+    }
+
+    // Color grid
+    const colorGrid = document.getElementById('profile-color-grid');
+    const colors = ['#ff69b4', '#ff1493', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#00bcd4', '#4caf50', '#ff9800', '#f44336', '#795548'];
+    if (colorGrid) {
+      colorGrid.innerHTML = colors.map(c => `
+        <button onclick="AVIS.selectProfileColor('${c}', this)" style="width:28px;height:28px;border-radius:50%;border:2px solid ${c === this._profileColor ? '#fff' : 'transparent'};background:${c};cursor:pointer;"></button>
+      `).join('');
+    }
+  },
+
+  selectProfileEmoji(emoji, btn) {
+    this._profileEmoji = emoji;
+    document.querySelectorAll('#profile-emoji-grid button').forEach(b => b.style.borderColor = 'transparent');
+    if (btn) btn.style.borderColor = 'var(--client-primary)';
+    const avatar = document.getElementById('client-profile-avatar');
+    if (avatar) avatar.textContent = emoji;
+  },
+
+  selectProfileColor(color, btn) {
+    this._profileColor = color;
+    document.querySelectorAll('#profile-color-grid button').forEach(b => b.style.borderColor = 'transparent');
+    if (btn) btn.style.borderColor = '#fff';
+    const avatar = document.getElementById('client-profile-avatar');
+    if (avatar) avatar.style.background = color;
+  },
+
+  async saveClientProfile() {
+    const name = document.getElementById('profile-edit-name')?.value.trim();
+    if (!name) { this.showToast('Name is required', 'warning'); return; }
+    await ClientManager.updateProfile(null, {
+      display_name: name,
+      avatar_emoji: this._profileEmoji,
+      avatar_color: this._profileColor
+    });
+    this.showToast('Profile saved! 💕', 'success');
+    ThemeManager?.burst(ThemeManager.getTheme(), window.innerWidth / 2, window.innerHeight / 2);
+    // Update greeting
+    const greetEl = document.getElementById('client-greeting');
+    if (greetEl) {
+      const hour = new Date().getHours();
+      greetEl.textContent = hour < 12 ? `Good morning, ${name}! 🌸` : hour < 17 ? `Hey ${name}! 💕` : `Hi ${name} 🌙`;
+    }
+  },
+
+  // ================================================================
+  // RECOMMENDATION NOTIFICATIONS
+  // ================================================================
+  async checkRecommendationBadge() {
+    if (!ClientManager.isClientMode()) return;
+    const pending = await ClientManager.getRecommendations(null, 'pending');
+    const viewed = await ClientManager.getRecommendations(null, 'viewed');
+    const unread = [...pending, ...viewed.filter(r => !r.responded_at)];
+
+    // Badge on header mascot
+    const badge = document.getElementById('client-rec-badge');
+    if (badge) {
+      if (unread.length > 0) {
+        badge.textContent = unread.length;
+        badge.style.display = 'flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  },
+
+  async openRecommendations() {
+    const recs = await ClientManager.getRecommendations();
+    const pending = recs.filter(r => r.status === 'pending' || r.status === 'viewed');
+    const list = document.getElementById('client-rec-list');
+    if (!list) return;
+
+    if (pending.length === 0) {
+      list.innerHTML = '<div class="client-empty"><p>No new messages from coach 🌸</p></div>';
+    } else {
+      list.innerHTML = pending.map(r => `
+        <div class="client-rec-card" style="margin:0 0 10px;border:1px solid var(--client-secondary);">
+          <div class="client-rec-badge">💌 From Coach</div>
+          <div class="client-rec-title">${r.title}</div>
+          <div class="client-rec-body">${r.body}</div>
+          <div class="client-rec-actions">
+            <button class="client-rec-btn accept" onclick="AVIS.respondRec('${r.id}','accepted')">Got it! 💕</button>
+            <button class="client-rec-btn snooze" onclick="AVIS.respondRec('${r.id}','snoozed')">Later</button>
+          </div>
+        </div>
+      `).join('');
+
+      // Mark as viewed
+      for (const r of pending) {
+        if (r.status === 'pending') await ClientManager.markRecommendationViewed(null, r.id);
+      }
+    }
+
+    document.getElementById('client-rec-modal').classList.add('active');
+  },
+
+  async respondRec(recId, response) {
+    await ClientManager.respondToRecommendation(null, recId, response);
+    this.showToast(response === 'accepted' ? 'Noted! 💕' : 'Snoozed', 'success');
+    this.openRecommendations(); // Refresh
+    this.checkRecommendationBadge();
   },
 
   // ================================================================
