@@ -1,0 +1,906 @@
+/* ================================================================
+   CLIENT MODE — Complete UI override for client experience
+   All styles use CSS variables set by ThemeManager
+   ================================================================ */
+
+/* ================================================================
+   BASE — hide operator chrome, set client background
+   ================================================================ */
+body.client-mode {
+  background: var(--client-bg, #fff0f7);
+  background-image: var(--client-pattern, none);
+  color: var(--client-text, #3d1f2e);
+  font-family: var(--client-font-body, 'Nunito', sans-serif);
+}
+
+body.client-mode .titlebar {
+  background: var(--client-card, #fff);
+  border-bottom: 2px solid var(--client-primary, #ff69b4);
+  -webkit-app-region: drag;
+}
+
+body.client-mode .titlebar-left .logo {
+  color: var(--client-primary, #ff69b4);
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+body.client-mode .app-version {
+  color: var(--client-text-secondary, #7a4458);
+}
+
+body.client-mode .titlebar-center {
+  display: none !important;
+}
+
+body.client-mode .titlebar-right .live-clock {
+  color: var(--client-text-secondary, #7a4458);
+}
+
+body.client-mode .titlebar-right .window-btn {
+  color: var(--client-text-secondary, #7a4458);
+}
+
+body.client-mode .titlebar-right .window-btn:hover {
+  background: var(--client-primary, #ff69b4);
+  color: #fff;
+}
+
+body.client-mode .titlebar-right .window-btn.close:hover {
+  background: var(--client-danger, #dc143c);
+}
+
+body.client-mode .left-panel {
+  display: none !important;
+}
+
+body.client-mode .main-layout {
+  grid-template-columns: 1fr;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+/* ================================================================
+   CLIENT NAV BAR — bottom navigation
+   ================================================================ */
+.client-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: var(--client-card, #fff);
+  border-top: 2px solid var(--client-secondary, #ffb6d5);
+  z-index: 1000;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 10px;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+}
+
+body.client-mode .client-nav {
+  display: flex;
+}
+
+.client-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--client-text-secondary, #7a4458);
+  font-family: var(--client-font-body, 'Nunito', sans-serif);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--client-radius, 20px);
+  transition: all 0.2s ease;
+}
+
+.client-nav-btn.active {
+  color: var(--client-primary, #ff69b4);
+  background: var(--client-secondary, #ffb6d5);
+  background: linear-gradient(135deg, rgba(255,105,180,0.1), rgba(255,20,147,0.08));
+}
+
+.client-nav-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ================================================================
+   CLIENT HEADER — greeting + mascot
+   ================================================================ */
+.client-header {
+  display: none;
+  padding: 20px 16px 12px;
+  position: relative;
+}
+
+body.client-mode .client-header {
+  display: block;
+}
+
+.client-greeting {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+  margin-bottom: 4px;
+}
+
+.client-subgreeting {
+  font-size: 13px;
+  color: var(--client-text-secondary, #7a4458);
+}
+
+.client-header .mascot-container {
+  position: absolute;
+  top: 10px;
+  right: 16px;
+  cursor: pointer;
+}
+
+/* Notification badge on mascot */
+.client-header .rec-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--client-accent, #ff1493);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: badge-pulse 2s infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* ================================================================
+   DASHBOARD CARDS — "This Month at a Glance"
+   ================================================================ */
+.client-dashboard {
+  display: none;
+  padding: 0 16px 80px;
+  overflow-y: auto;
+}
+
+body.client-mode .client-dashboard {
+  display: block;
+}
+
+.client-card {
+  background: var(--client-card, #fff);
+  border-radius: var(--client-radius, 20px);
+  padding: 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 12px rgba(255,105,180,0.08);
+  border: 1px solid var(--client-secondary, #ffb6d5);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.client-card:active {
+  transform: scale(0.98);
+}
+
+.client-card-title {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--client-text-secondary, #7a4458);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.client-card-value {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+}
+
+.client-card-sub {
+  font-size: 12px;
+  color: var(--client-text-secondary, #7a4458);
+  margin-top: 4px;
+}
+
+/* ================================================================
+   PROGRESS BAR
+   ================================================================ */
+.client-progress-bar {
+  width: 100%;
+  height: 10px;
+  background: var(--client-secondary, #ffb6d5);
+  border-radius: 5px;
+  overflow: hidden;
+  margin: 10px 0 4px;
+}
+
+.client-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--client-primary, #ff69b4), var(--client-accent, #ff1493));
+  border-radius: 5px;
+  transition: width 0.6s ease;
+  position: relative;
+}
+
+.client-progress-fill::after {
+  content: '✨';
+  position: absolute;
+  right: -4px;
+  top: -6px;
+  font-size: 10px;
+}
+
+/* ================================================================
+   GOAL CARDS
+   ================================================================ */
+.client-goal-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.client-goal-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--client-secondary, #ffb6d5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.client-goal-info {
+  flex: 1;
+}
+
+.client-goal-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--client-text, #3d1f2e);
+  margin-bottom: 2px;
+}
+
+.client-goal-detail {
+  font-size: 12px;
+  color: var(--client-text-secondary, #7a4458);
+}
+
+/* ================================================================
+   SPENDING BREAKDOWN
+   ================================================================ */
+.client-spending-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,105,180,0.08);
+}
+
+.client-spending-row:last-child {
+  border-bottom: none;
+}
+
+.client-spending-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.client-spending-info {
+  flex: 1;
+}
+
+.client-spending-cat {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--client-text, #3d1f2e);
+}
+
+.client-spending-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--client-secondary, #ffb6d5);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.client-spending-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--client-primary, #ff69b4);
+  transition: width 0.4s ease;
+}
+
+.client-spending-bar-fill.over {
+  background: var(--client-danger, #dc143c);
+}
+
+.client-spending-amount {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--client-text-secondary, #7a4458);
+  white-space: nowrap;
+}
+
+/* ================================================================
+   FLOATING ADD BUTTON
+   ================================================================ */
+.client-fab {
+  display: none;
+  position: fixed;
+  bottom: 76px;
+  right: 24px;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--client-primary, #ff69b4), var(--client-accent, #ff1493));
+  color: #fff;
+  border: none;
+  font-size: 28px;
+  font-weight: 300;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(255,20,147,0.35);
+  z-index: 999;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: fab-bounce 3s ease-in-out infinite;
+}
+
+body.client-mode .client-fab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.client-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 24px rgba(255,20,147,0.45);
+}
+
+.client-fab:active {
+  transform: scale(0.95);
+}
+
+@keyframes fab-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ================================================================
+   SPENDING MODAL
+   ================================================================ */
+.client-spend-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
+}
+
+.client-spend-modal.active {
+  display: flex;
+  align-items: flex-end;
+}
+
+.client-spend-sheet {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--client-card, #fff);
+  border-radius: var(--client-radius, 20px) var(--client-radius, 20px) 0 0;
+  padding: 24px 20px 30px;
+  animation: sheet-up 0.3s ease-out;
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.client-spend-sheet .sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--client-secondary, #ffb6d5);
+  border-radius: 2px;
+  margin: 0 auto 16px;
+}
+
+.client-spend-sheet .sheet-title {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+/* Number pad */
+.client-numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.client-numpad-btn {
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid var(--client-secondary, #ffb6d5);
+  background: var(--client-bg, #fff0f7);
+  color: var(--client-text, #3d1f2e);
+  font-size: 20px;
+  font-weight: 600;
+  font-family: var(--client-font-body, 'Nunito', sans-serif);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.client-numpad-btn:active {
+  background: var(--client-primary, #ff69b4);
+  color: #fff;
+  transform: scale(0.95);
+}
+
+.client-amount-display {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+  text-align: center;
+  padding: 12px;
+  margin-bottom: 4px;
+}
+
+.client-amount-display::before {
+  content: '$';
+  color: var(--client-text-secondary, #7a4458);
+  font-size: 24px;
+}
+
+/* Category grid */
+.client-category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.client-cat-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: var(--client-bg, #fff0f7);
+  color: var(--client-text-secondary, #7a4458);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.client-cat-btn.active {
+  border-color: var(--client-primary, #ff69b4);
+  background: var(--client-secondary, #ffb6d5);
+  color: var(--client-text, #3d1f2e);
+}
+
+/* Submit */
+.client-submit-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--client-radius, 20px);
+  border: none;
+  background: linear-gradient(135deg, var(--client-primary, #ff69b4), var(--client-accent, #ff1493));
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+.client-submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(255,20,147,0.3);
+}
+
+.client-submit-btn:active {
+  transform: scale(0.98);
+}
+
+.client-note-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--client-secondary, #ffb6d5);
+  background: var(--client-bg, #fff0f7);
+  color: var(--client-text, #3d1f2e);
+  font-family: var(--client-font-body, 'Nunito', sans-serif);
+  font-size: 13px;
+  outline: none;
+  margin-top: 8px;
+}
+
+.client-note-input:focus {
+  border-color: var(--client-primary, #ff69b4);
+}
+
+/* ================================================================
+   COACH CHAT — client mode
+   ================================================================ */
+body.client-mode .chat-area {
+  padding-bottom: 130px;
+}
+
+body.client-mode .message.user .message-bubble {
+  background: var(--client-primary, #ff69b4);
+  color: #fff;
+  border-radius: 20px 20px 4px 20px;
+  border: none;
+}
+
+body.client-mode .message.ai .message-bubble {
+  background: var(--client-card, #fff);
+  color: var(--client-text, #3d1f2e);
+  border: 1.5px solid var(--client-secondary, #ffb6d5);
+  border-radius: 20px 20px 20px 4px;
+}
+
+body.client-mode .message .provider-badge {
+  display: none;
+}
+
+body.client-mode .message.ai .message-bubble::before {
+  content: '';
+  display: none; /* Hide model badge in client mode */
+}
+
+/* Chat input override */
+body.client-mode .input-wrap {
+  background: var(--client-card, #fff);
+  border: 2px solid var(--client-secondary, #ffb6d5);
+  border-radius: var(--client-radius, 20px);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+body.client-mode .input-wrap:focus-within {
+  border-color: var(--client-primary, #ff69b4);
+}
+
+body.client-mode #chat-input {
+  color: var(--client-text, #3d1f2e);
+  font-family: var(--client-font-body, 'Nunito', sans-serif);
+}
+
+body.client-mode #chat-input::placeholder {
+  color: var(--client-text-secondary, #7a4458);
+}
+
+body.client-mode #send-btn {
+  background: linear-gradient(135deg, var(--client-primary, #ff69b4), var(--client-accent, #ff1493));
+  color: #fff;
+  border-radius: 50%;
+}
+
+/* Quick prompt chips */
+.client-quick-prompts {
+  display: none;
+  gap: 8px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+body.client-mode .client-quick-prompts {
+  display: flex;
+}
+
+.client-quick-chip {
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--client-secondary, #ffb6d5);
+  background: var(--client-card, #fff);
+  color: var(--client-text-secondary, #7a4458);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--client-font-body, 'Nunito', sans-serif);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.client-quick-chip:hover {
+  background: var(--client-secondary, #ffb6d5);
+  color: var(--client-text, #3d1f2e);
+}
+
+/* ================================================================
+   RECOMMENDATION CARD
+   ================================================================ */
+.client-rec-card {
+  background: var(--client-card, #fff);
+  border: 2px solid var(--client-accent, #ff1493);
+  border-radius: var(--client-radius, 20px);
+  padding: 18px;
+  margin: 12px 16px;
+  animation: rec-slide 0.3s ease-out;
+}
+
+@keyframes rec-slide {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.client-rec-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--client-accent, #ff1493);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.client-rec-title {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+  margin-bottom: 6px;
+}
+
+.client-rec-body {
+  font-size: 13px;
+  color: var(--client-text-secondary, #7a4458);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.client-rec-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.client-rec-btn {
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.client-rec-btn.accept {
+  background: var(--client-primary, #ff69b4);
+  color: #fff;
+}
+
+.client-rec-btn.snooze {
+  background: var(--client-secondary, #ffb6d5);
+  color: var(--client-text, #3d1f2e);
+}
+
+/* ================================================================
+   WELCOME FLOW
+   ================================================================ */
+.client-welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: var(--client-bg, #fff0f7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.client-welcome-overlay .mascot-welcome {
+  margin-bottom: 24px;
+}
+
+.client-welcome-overlay h1 {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+  margin-bottom: 8px;
+}
+
+.client-welcome-overlay p {
+  color: var(--client-text-secondary, #7a4458);
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 300px;
+}
+
+.client-welcome-btn {
+  margin-top: 28px;
+  padding: 14px 40px;
+  border-radius: var(--client-radius, 20px);
+  border: none;
+  background: linear-gradient(135deg, var(--client-primary, #ff69b4), var(--client-accent, #ff1493));
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  cursor: pointer;
+}
+
+/* ================================================================
+   SETTINGS PANEL (client)
+   ================================================================ */
+.client-settings {
+  display: none;
+  padding: 16px;
+}
+
+.client-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--client-secondary, #ffb6d5);
+}
+
+.client-settings-row:last-child {
+  border-bottom: none;
+}
+
+.client-settings-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--client-text, #3d1f2e);
+}
+
+/* Toggle switch */
+.client-toggle {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--client-secondary, #ffb6d5);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.client-toggle.on {
+  background: var(--client-primary, #ff69b4);
+}
+
+.client-toggle::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+}
+
+.client-toggle.on::after {
+  transform: translateX(20px);
+}
+
+/* ================================================================
+   EMPTY STATES
+   ================================================================ */
+.client-empty {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.client-empty .mascot-empty {
+  margin-bottom: 12px;
+  opacity: 0.7;
+}
+
+.client-empty p {
+  color: var(--client-text-secondary, #7a4458);
+  font-size: 14px;
+}
+
+/* ================================================================
+   OPERATOR ESCAPE — hidden password modal
+   ================================================================ */
+.operator-escape-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  align-items: center;
+  justify-content: center;
+}
+
+.operator-escape-modal.active {
+  display: flex;
+}
+
+.operator-escape-box {
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 24px;
+  width: 280px;
+  text-align: center;
+}
+
+.operator-escape-box h3 {
+  color: #888;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+}
+
+.operator-escape-box input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+  outline: none;
+}
+
+.operator-escape-box button {
+  margin-top: 12px;
+  padding: 8px 24px;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #222;
+  color: #888;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* ================================================================
+   DARK MODE VARIANT (still themed)
+   ================================================================ */
+body.client-mode.client-dark {
+  --client-bg: #1a0e14;
+  --client-card: #261a20;
+  --client-text: #f0e0ea;
+  --client-text-secondary: #b89aaa;
+}
+
+/* ================================================================
+   RESPONSIVE — ensure max-width behavior
+   ================================================================ */
+@media (min-width: 520px) {
+  body.client-mode .client-spend-sheet {
+    margin: 0 auto;
+  }
+}
