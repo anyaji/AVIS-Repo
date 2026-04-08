@@ -3845,22 +3845,168 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
 
         const totalBudget = finances ? Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0) : 0;
         const savings = finances?.accounts?.find(a => a.purpose === 'house_savings');
+        const themeColor = profile?.theme?.color_primary || '#888';
 
         content.innerHTML = `
-          <div style="margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text-primary);">Health Score: ${healthScore}/100</div>
-          <div>Plan Month: ${ClientManager.getPlanMonth(profile)} of ${profile?.plan_duration_months || 8}</div>
-          <div>Income: $${profile?.income?.base_pay_monthly || 0}/month</div>
-          <div>This Month: $${monthSpending.total.toFixed(2)} / $${totalBudget} budget</div>
-          <div>Savings: $${savings?.balance || 0} / $${savings?.target_balance || 0}</div>
-          <div>Credit Score: ${finances?.credit_score || 'N/A'} (target ${finances?.credit_score_target || 'N/A'})</div>
-          <div style="margin-top:8px;font-weight:600;">Debts:</div>
-          ${finances?.debts?.map(d => `<div>- ${d.name}: $${d.balance.toFixed(2)} ($${d.minimum_payment}/mo)</div>`).join('') || 'None'}
+          <div style="display:flex;gap:12px;margin-bottom:10px;align-items:center;">
+            <div style="width:40px;height:40px;border-radius:10px;background:${themeColor};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;">${(profile?.display_name || '?')[0]}</div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary);">${profile?.display_name || code}</div>
+              <div style="font-size:10px;color:var(--text-secondary);">Code: <span style="color:${themeColor};font-weight:700;">${code}</span> · Theme: ${profile?.theme?.name || 'None'} · Status: ${profile?.status || 'unknown'}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+            <div style="background:var(--secondary-bg);border-radius:6px;padding:8px;">
+              <div style="font-size:9px;text-transform:uppercase;opacity:0.5;margin-bottom:2px;">Health</div>
+              <div style="font-size:16px;font-weight:700;color:${healthScore >= 70 ? '#00ff88' : healthScore >= 40 ? '#ffa500' : '#ff4444'};">${healthScore}/100</div>
+            </div>
+            <div style="background:var(--secondary-bg);border-radius:6px;padding:8px;">
+              <div style="font-size:9px;text-transform:uppercase;opacity:0.5;margin-bottom:2px;">Plan Month</div>
+              <div style="font-size:16px;font-weight:700;color:var(--text-primary);">${ClientManager.getPlanMonth(profile)} / ${profile?.plan_duration_months || 8}</div>
+            </div>
+            <div style="background:var(--secondary-bg);border-radius:6px;padding:8px;">
+              <div style="font-size:9px;text-transform:uppercase;opacity:0.5;margin-bottom:2px;">This Month</div>
+              <div style="font-size:16px;font-weight:700;color:var(--text-primary);">$${monthSpending.total.toFixed(0)} <span style="font-size:10px;opacity:0.5">/ $${totalBudget}</span></div>
+            </div>
+            <div style="background:var(--secondary-bg);border-radius:6px;padding:8px;">
+              <div style="font-size:9px;text-transform:uppercase;opacity:0.5;margin-bottom:2px;">Savings</div>
+              <div style="font-size:16px;font-weight:700;color:var(--text-primary);">$${savings?.balance || 0} <span style="font-size:10px;opacity:0.5">/ $${savings?.target_balance || 0}</span></div>
+            </div>
+          </div>
+          <div>Income: $${profile?.income?.base_pay_monthly || 0}/month · Credit Score: ${finances?.credit_score || 'N/A'} → ${finances?.credit_score_target || 'N/A'}</div>
+          ${finances?.debts?.length > 0 ? '<div style="margin-top:6px;font-weight:600;">Debts:</div>' + finances.debts.map(d => `<div>- ${d.name}: $${d.balance.toFixed(2)} ($${d.minimum_payment}/mo)</div>`).join('') : '<div style="margin-top:4px;color:#00ff88;">No debts ✓</div>'}
           <div style="margin-top:8px;font-weight:600;">Budget Remaining:</div>
           ${remaining ? Object.entries(remaining).filter(([k]) => k !== '_total').map(([cat, data]) =>
             `<div style="color:${data.remaining < 0 ? '#ff4444' : 'inherit'}">- ${cat}: $${data.spent.toFixed(0)} / $${data.limit} (${data.remaining >= 0 ? '$' + data.remaining.toFixed(0) + ' left' : '$' + Math.abs(data.remaining).toFixed(0) + ' OVER'})</div>`
           ).join('') : 'No data'}
-          <div style="margin-top:8px;">
-            <button class="dev-save-btn" onclick="AVIS.launchClientMode('${code}')" style="background:${profile?.theme?.color_primary || '#ff69b4'};border:none;">Launch as ${profile?.display_name || code}</button>
+          <div style="margin-top:10px;display:flex;gap:6px;">
+            <button class="dev-save-btn" onclick="AVIS.launchClientMode('${code}')" style="background:${themeColor};border:none;flex:1;">Launch as ${profile?.display_name || code}</button>
+            <button class="dev-save-btn" onclick="AVIS.switchCockpitTab('preview')" style="border:1px solid ${themeColor};background:transparent;color:${themeColor};">Preview</button>
+          </div>
+        `;
+        break;
+      }
+
+      case 'preview': {
+        const profile = await ClientManager.getProfile(code);
+        const finances = await ClientManager.getFinances(code);
+        const monthSpending = await ClientManager.getMonthSpending(code);
+        const remaining = await ClientManager.getRemainingBudget(code);
+
+        if (!profile || !finances) { content.innerHTML = '<div>No client data</div>'; break; }
+
+        const t = profile.theme || {};
+        const totalBudget = Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0);
+        const savings = finances.accounts?.find(a => a.purpose === 'house_savings');
+        const savPct = savings ? ((savings.balance / savings.target_balance) * 100).toFixed(0) : 0;
+        const budgetPct = totalBudget > 0 ? Math.min(100, (monthSpending.total / totalBudget) * 100).toFixed(0) : 0;
+        const remTotal = remaining?._total?.remaining || 0;
+        const now = new Date();
+        const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+        const planMonth = ClientManager.getPlanMonth(profile);
+        const mascotSVG = ThemeManager?.getMascotSVG(t) || '';
+        const cc = finances.debts?.find(d => d.id === 'credit_card');
+        const hour = now.getHours();
+        const greeting = hour < 12 ? `Good morning, ${profile.display_name}! 🌸` : hour < 17 ? `Hey ${profile.display_name}! 💕` : `Hi ${profile.display_name} 🌙`;
+
+        // Spending breakdown rows
+        const catRows = Object.entries(finances.monthly_budget).filter(([_, v]) => v > 0).map(([cat, limit]) => {
+          const spent = monthSpending.byCategory[cat] || 0;
+          const pct = Math.min(150, (spent / limit) * 100);
+          const over = spent > limit;
+          const icon = ThemeManager?.getCategoryIcon(cat, t) || '';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid ${t.color_secondary || '#ffb6d5'}20;">
+            <div style="width:24px;">${icon}</div>
+            <div style="flex:1;">
+              <div style="font-size:11px;font-weight:600;">${cat.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</div>
+              <div style="height:3px;background:${t.color_secondary || '#eee'};border-radius:2px;overflow:hidden;margin-top:2px;">
+                <div style="height:100%;width:${pct}%;background:${over ? (t.color_danger || '#dc143c') : (t.color_primary || '#ff69b4')};border-radius:2px;"></div>
+              </div>
+            </div>
+            <div style="font-size:10px;font-weight:600;${over ? 'color:' + (t.color_danger || '#dc143c') : ''}">$${spent.toFixed(0)}/$${limit}</div>
+          </div>`;
+        }).join('');
+
+        content.innerHTML = `
+          <div style="background:${t.color_background || '#fff0f7'};border-radius:12px;padding:14px;color:${t.color_text_primary || '#3d1f2e'};font-family:'${t.font_body || 'Nunito'}',sans-serif;max-width:360px;margin:0 auto;position:relative;overflow:hidden;">
+
+            <!-- Header -->
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px;">
+              <div>
+                <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:16px;font-weight:700;">${greeting}</div>
+                <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">Let's check in on your goals</div>
+              </div>
+              <div style="width:50px;">${mascotSVG}</div>
+            </div>
+
+            <!-- This Month card -->
+            <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
+              <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:6px;">This Month</div>
+              <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:22px;font-weight:700;">$${monthSpending.total.toFixed(2)}</div>
+              <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">$${remTotal.toFixed(2)} left for ${daysLeft} days</div>
+              <div style="height:6px;background:${t.color_secondary || '#ffb6d5'};border-radius:3px;overflow:hidden;margin-top:6px;">
+                <div style="height:100%;width:${budgetPct}%;background:linear-gradient(90deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});border-radius:3px;"></div>
+              </div>
+            </div>
+
+            <!-- Goals -->
+            <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:36px;height:36px;border-radius:10px;background:${t.color_secondary || '#ffb6d5'};display:flex;align-items:center;justify-content:center;font-size:18px;">🏠</div>
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:600;">Down Payment</div>
+                  <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">$${savings?.balance || 0} / $${savings?.target_balance?.toLocaleString() || 0}</div>
+                  <div style="height:4px;background:${t.color_secondary || '#ffb6d5'};border-radius:2px;overflow:hidden;margin-top:3px;">
+                    <div style="height:100%;width:${savPct}%;background:linear-gradient(90deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});border-radius:2px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            ${cc ? `<div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:36px;height:36px;border-radius:10px;background:${t.color_secondary || '#ffb6d5'};display:flex;align-items:center;justify-content:center;font-size:18px;">💳</div>
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:600;">Credit Card Payoff</div>
+                  <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">$${cc.balance.toFixed(2)} left</div>
+                </div>
+              </div>
+            </div>` : ''}
+
+            <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:36px;height:36px;border-radius:10px;background:${t.color_secondary || '#ffb6d5'};display:flex;align-items:center;justify-content:center;font-size:18px;">📈</div>
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:600;">Credit Score</div>
+                  <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">${finances.credit_score} → ${finances.credit_score_target}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Spending Breakdown -->
+            <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:12px;margin-bottom:8px;border:1px solid ${t.color_secondary || '#ffb6d5'};">
+              <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:6px;">Spending Breakdown</div>
+              ${catRows}
+            </div>
+
+            <!-- Bottom nav preview -->
+            <div style="display:flex;justify-content:space-around;padding:8px 0;border-top:1px solid ${t.color_secondary || '#ffb6d5'}40;margin-top:4px;">
+              <div style="text-align:center;font-size:8px;font-weight:600;color:${t.color_primary || '#ff69b4'};">Home</div>
+              <div style="text-align:center;font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};">Coach</div>
+              <div style="text-align:center;font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};">Goals</div>
+              <div style="text-align:center;font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};">Settings</div>
+            </div>
+
+            <!-- FAB preview -->
+            <div style="position:absolute;bottom:40px;right:14px;width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 8px ${t.color_primary || '#ff69b4'}50;">+</div>
+
+          </div>
+
+          <div style="text-align:center;margin-top:8px;font-size:10px;color:var(--text-secondary);">
+            Client Code: <span style="color:${t.color_primary || '#ff69b4'};font-weight:700;">${code}</span> · Theme: ${t.name || 'Default'} · Month ${planMonth}/${profile.plan_duration_months || 8}
+          </div>
+          <div style="text-align:center;margin-top:6px;">
+            <button class="dev-save-btn" onclick="AVIS.launchClientMode('${code}')" style="background:${t.color_primary || '#ff69b4'};border:none;">Launch as ${profile.display_name}</button>
           </div>
         `;
         break;
