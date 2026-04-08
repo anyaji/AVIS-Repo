@@ -1363,6 +1363,125 @@ const AVIS = {
     return true;
   },
 
+  // ================================================================
+  // PREVIEW MODE — reskin AVIS as client, keep dev menu
+  // ================================================================
+  _previewModeCode: null,
+  _previewSavedState: null,
+
+  async enterPreviewMode(clientCode) {
+    const profile = await ClientManager.getProfile(clientCode);
+    if (!profile) { this.showToast('Client not found', 'error'); return; }
+
+    this._previewModeCode = clientCode;
+
+    // Save current state
+    this._previewSavedState = {
+      title: document.title,
+      titleText: document.getElementById('app-title')?.textContent,
+      bodyBg: document.body.style.backgroundImage
+    };
+
+    // Apply client theme to AVIS
+    if (typeof ThemeManager !== 'undefined' && profile.theme) {
+      ThemeManager.applyTheme(profile.theme);
+      const bgCSS = ThemeManager.getBackgroundCSS(profile.theme);
+      if (bgCSS) document.body.style.backgroundImage = bgCSS;
+    }
+
+    // Apply client-mode class for themed styling but keep nav visible
+    document.body.classList.add('client-mode');
+
+    // Override: show titlebar tabs again (client-mode CSS hides them)
+    const titleCenter = document.querySelector('.titlebar-center');
+    if (titleCenter) titleCenter.style.cssText = 'display:flex !important;';
+
+    // Override: show left panel (client-mode CSS hides it)
+    const leftPanel = document.querySelector('.left-panel');
+    if (leftPanel) leftPanel.style.cssText = 'display:block !important;';
+
+    // Override: remove max-width constraint on main layout
+    const mainLayout = document.querySelector('.main-layout');
+    if (mainLayout) mainLayout.style.cssText = 'max-width:none !important; grid-template-columns: 260px 1fr !important;';
+
+    // Update title
+    document.title = `Preview: ${profile.display_name}'s Coach`;
+    const titleEl = document.getElementById('app-title');
+    if (titleEl) titleEl.textContent = `${profile.display_name}'s Coach`;
+
+    // Hide client-only elements that shouldn't show in preview
+    const clientNav = document.getElementById('client-nav');
+    if (clientNav) clientNav.style.display = 'none';
+    const clientFab = document.getElementById('client-fab');
+    if (clientFab) clientFab.style.display = 'none';
+    const clientHeader = document.getElementById('client-header');
+    if (clientHeader) clientHeader.style.display = 'none';
+
+    // Show a preview banner at top of chat
+    const chatArea = document.getElementById('chat-area');
+    if (chatArea) {
+      const banner = document.createElement('div');
+      banner.id = 'preview-banner';
+      banner.style.cssText = `padding:10px 16px;background:${profile.theme?.color_primary || '#ff69b4'};color:#fff;font-size:12px;font-weight:600;text-align:center;border-radius:12px;margin:8px;`;
+      banner.innerHTML = `Previewing as ${profile.display_name} (${clientCode}) — <a href="#" onclick="AVIS.exitPreviewMode();return false;" style="color:#fff;text-decoration:underline;">Exit Preview</a>`;
+      chatArea.prepend(banner);
+    }
+
+    this.showToast(`Preview: ${profile.display_name}'s theme applied`, 'success');
+
+    // Refresh cockpit detail if open
+    if (this._cockpitDetailCode === clientCode) {
+      this.switchCockpitTab('preview');
+    }
+  },
+
+  exitPreviewMode() {
+    if (!this._previewModeCode) return;
+
+    // Remove client-mode class
+    document.body.classList.remove('client-mode');
+
+    // Reset theme
+    if (typeof ThemeManager !== 'undefined') ThemeManager.resetTheme();
+
+    // Restore overrides
+    const titleCenter = document.querySelector('.titlebar-center');
+    if (titleCenter) titleCenter.style.cssText = '';
+    const leftPanel = document.querySelector('.left-panel');
+    if (leftPanel) leftPanel.style.cssText = '';
+    const mainLayout = document.querySelector('.main-layout');
+    if (mainLayout) mainLayout.style.cssText = '';
+
+    // Restore title
+    document.title = this._previewSavedState?.title || 'AVIS - Avel Intelligence Services';
+    const titleEl = document.getElementById('app-title');
+    if (titleEl) titleEl.textContent = this._previewSavedState?.titleText || 'AVIS';
+
+    // Restore background
+    document.body.style.backgroundImage = this._previewSavedState?.bodyBg || '';
+
+    // Remove preview banner
+    const banner = document.getElementById('preview-banner');
+    if (banner) banner.remove();
+
+    // Hide client elements
+    const clientNav = document.getElementById('client-nav');
+    if (clientNav) clientNav.style.display = '';
+    const clientFab = document.getElementById('client-fab');
+    if (clientFab) clientFab.style.display = '';
+
+    const prevCode = this._previewModeCode;
+    this._previewModeCode = null;
+    this._previewSavedState = null;
+
+    this.showToast('Preview ended — operator theme restored', 'success');
+
+    // Refresh cockpit if open
+    if (this._cockpitDetailCode === prevCode) {
+      this.switchCockpitTab('preview');
+    }
+  },
+
   renderClientUI(profile) {
     // Apply theme
     if (typeof ThemeManager !== 'undefined' && profile.theme) {
@@ -4341,202 +4460,27 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
 
       case 'preview': {
         const profile = await ClientManager.getProfile(code);
-        const finances = await ClientManager.getFinances(code);
-        const monthSpending = await ClientManager.getMonthSpending(code);
-        const remaining = await ClientManager.getRemainingBudget(code);
-        const convLog = await ClientManager.getConversationLog(code);
-        const spendingLog = await ClientManager.getSpendingLog(code);
+        if (!profile) { content.innerHTML = '<div>No client data</div>'; break; }
 
-        if (!profile || !finances) { content.innerHTML = '<div>No client data</div>'; break; }
-
+        const isActive = this._previewModeCode === code;
         const t = profile.theme || {};
-        const totalBudget = Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0);
-        const savings = finances.accounts?.find(a => a.purpose === 'house_savings');
-        const savPct = savings ? ((savings.balance / savings.target_balance) * 100).toFixed(0) : 0;
-        const budgetPct = totalBudget > 0 ? Math.min(100, (monthSpending.total / totalBudget) * 100).toFixed(0) : 0;
-        const remTotal = remaining?._total?.remaining || 0;
-        const now = new Date();
-        const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
-        const mascotSVG = ThemeManager?.getMascotSVG(t) || '';
-        const cc = finances.debts?.find(d => d.id === 'credit_card');
-        const loan = finances.debts?.find(d => d.id === 'personal_loan');
-        const hour = now.getHours();
-        const greeting = hour < 12 ? `Good morning, ${profile.display_name}! 🌸` : hour < 17 ? `Hey ${profile.display_name}! 💕` : `Hi ${profile.display_name} 🌙`;
-        const subGreeting = hour < 12 ? "Let's check in on your goals" : hour < 17 ? "How's your day going?" : "How was your day?";
-
-        // Load fonts for preview
-        ThemeManager?._loadFonts(t.font_heading, t.font_body);
-
-        // Spending breakdown rows
-        const catRows = Object.entries(finances.monthly_budget).filter(([_, v]) => v > 0).map(([cat, limit]) => {
-          const spent = monthSpending.byCategory[cat] || 0;
-          const pct = Math.min(100, (spent / limit) * 100);
-          const over = spent > limit;
-          const icon = ThemeManager?.getCategoryIcon(cat, t) || '';
-          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid ${t.color_secondary || '#ffb6d5'}15;">
-            <div style="width:24px;flex-shrink:0;">${icon}</div>
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:11px;font-weight:600;">${cat.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</div>
-              <div style="height:3px;background:${t.color_secondary || '#eee'}40;border-radius:2px;overflow:hidden;margin-top:3px;">
-                <div style="height:100%;width:${pct}%;background:${over ? (t.color_danger || '#dc143c') : (t.color_primary || '#ff69b4')};border-radius:2px;transition:width 0.3s;"></div>
-              </div>
-            </div>
-            <div style="font-size:10px;font-weight:600;white-space:nowrap;${over ? 'color:' + (t.color_danger || '#dc143c') : ''}">$${spent.toFixed(0)} / $${limit}</div>
-          </div>`;
-        }).join('');
-
-        // Recent activity entries
-        const recentEntries = spendingLog.entries.slice(-3).reverse();
-        const recentRows = recentEntries.length > 0 ? recentEntries.map(e => {
-          const icon = ThemeManager?.getCategoryIcon(e.category, t) || '';
-          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid ${t.color_secondary || '#ffb6d5'}10;">
-            <div style="width:20px;flex-shrink:0;">${icon}</div>
-            <div style="flex:1;font-size:11px;font-weight:600;">$${e.amount.toFixed(2)} — ${e.category.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</div>
-            <div style="font-size:9px;opacity:0.5;">${e.date}</div>
-          </div>`;
-        }).join('') : `<div style="text-align:center;padding:12px;opacity:0.5;font-size:11px;">No spending logged yet — let's get started! 🌸</div>`;
-
-        // Chat preview (last 3 messages)
-        const recentMsgs = convLog.messages.slice(-3);
-        const chatPreview = recentMsgs.length > 0 ? recentMsgs.map(m => {
-          const isUser = m.role === 'user';
-          return `<div style="display:flex;justify-content:${isUser ? 'flex-end' : 'flex-start'};margin-bottom:6px;">
-            <div style="max-width:75%;padding:8px 12px;border-radius:${isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px'};font-size:11px;line-height:1.4;
-              background:${isUser ? (t.color_primary || '#ff69b4') : (t.color_card || '#fff')};
-              color:${isUser ? '#fff' : (t.color_text_primary || '#3d1f2e')};
-              ${!isUser ? 'border:1px solid ' + (t.color_secondary || '#ffb6d5') + ';' : ''}">
-              ${(m.text || '').substring(0, 80)}${(m.text || '').length > 80 ? '...' : ''}
-            </div>
-          </div>`;
-        }).join('') : `<div style="text-align:center;padding:16px;opacity:0.4;font-size:11px;">Chat with your coach anytime 💬</div>`;
-
-        // Quick prompt chips
-        const chips = ['How am I doing? 💕', 'Can I afford this? 🤔', 'Show my progress ✨'].map(label =>
-          `<div style="padding:6px 10px;border-radius:14px;border:1px solid ${t.color_secondary || '#ffb6d5'};font-size:9px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};white-space:nowrap;">${label}</div>`
-        ).join('');
 
         content.innerHTML = `
-          <!-- Phone frame -->
-          <div style="max-width:320px;margin:0 auto;border-radius:24px;overflow:hidden;border:2px solid ${t.color_secondary || '#ffb6d5'}40;box-shadow:0 8px 32px rgba(0,0,0,0.3);position:relative;">
-
-            <!-- Status bar -->
-            <div style="background:${t.color_card || '#fff'};padding:6px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${t.color_secondary || '#ffb6d5'}30;">
-              <div style="font-size:9px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};">${now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div>
-              <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:11px;font-weight:700;color:${t.color_primary || '#ff69b4'};">${profile.display_name}'s Coach</div>
-              <div style="font-size:9px;color:${t.color_text_secondary || '#7a4458'};">●●●</div>
+          <div style="text-align:center;padding:16px;">
+            <div style="width:60px;height:60px;border-radius:50%;background:${t.color_primary || '#ff69b4'};margin:0 auto 10px;display:flex;align-items:center;justify-content:center;">
+              ${ThemeManager?.getMascotSVG(t) ? `<div style="width:40px;">${ThemeManager.getMascotSVG(t)}</div>` : `<span style="font-size:24px;color:#fff;font-weight:800;">${(profile.display_name || '?')[0]}</span>`}
             </div>
-
-            <!-- Scrollable body -->
-            <div style="background:${t.color_background || '#fff0f7'};padding:14px;color:${t.color_text_primary || '#3d1f2e'};font-family:'${t.font_body || 'Nunito'}',sans-serif;min-height:480px;position:relative;">
-
-              <!-- Header + mascot -->
-              <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:14px;">
-                <div>
-                  <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:17px;font-weight:700;">${greeting}</div>
-                  <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};margin-top:2px;">${subGreeting}</div>
-                </div>
-                <div style="width:50px;">${mascotSVG}</div>
-              </div>
-
-              <!-- This Month -->
-              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
-                <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:6px;">This Month</div>
-                <div style="font-family:'${t.font_heading || 'Quicksand'}',sans-serif;font-size:24px;font-weight:700;">$${monthSpending.total.toFixed(2)}</div>
-                <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};margin-top:2px;">${remTotal >= 0 ? '$' + remTotal.toFixed(2) + ' left for ' + daysLeft + ' days' : '$' + Math.abs(remTotal).toFixed(2) + ' over budget'}</div>
-                <div style="height:8px;background:${t.color_secondary || '#ffb6d5'}30;border-radius:4px;overflow:hidden;margin-top:8px;">
-                  <div style="height:100%;width:${budgetPct}%;background:linear-gradient(90deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});border-radius:4px;position:relative;">
-                    <span style="position:absolute;right:-2px;top:-4px;font-size:8px;">✨</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Goals -->
-              ${savings ? `<div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <div style="width:40px;height:40px;border-radius:12px;background:${t.color_secondary || '#ffb6d5'}40;display:flex;align-items:center;justify-content:center;font-size:20px;">🏠</div>
-                  <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:700;">Down Payment</div>
-                    <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};margin-top:1px;">$${savings.balance.toFixed(0)} / $${savings.target_balance.toLocaleString()}</div>
-                    <div style="height:6px;background:${t.color_secondary || '#ffb6d5'}30;border-radius:3px;overflow:hidden;margin-top:5px;">
-                      <div style="height:100%;width:${savPct}%;background:linear-gradient(90deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});border-radius:3px;"></div>
-                    </div>
-                    <div style="font-size:9px;color:${t.color_text_secondary || '#7a4458'};margin-top:3px;">$${(savings.target_balance - savings.balance).toLocaleString()} to go ✨</div>
-                  </div>
-                </div>
-              </div>` : ''}
-
-              ${cc ? `<div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <div style="width:40px;height:40px;border-radius:12px;background:${t.color_secondary || '#ffb6d5'}40;display:flex;align-items:center;justify-content:center;font-size:20px;">💳</div>
-                  <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:700;">Credit Card</div>
-                    <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">$${cc.balance.toFixed(2)} remaining</div>
-                  </div>
-                </div>
-              </div>` : ''}
-
-              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                  <div style="width:40px;height:40px;border-radius:12px;background:${t.color_secondary || '#ffb6d5'}40;display:flex;align-items:center;justify-content:center;font-size:20px;">📈</div>
-                  <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:700;">Credit Score</div>
-                    <div style="font-size:10px;color:${t.color_text_secondary || '#7a4458'};">${finances.credit_score} → ${finances.credit_score_target} <span style="opacity:0.5">(${finances.credit_score_target - finances.credit_score} pts to go)</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Spending Breakdown -->
-              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
-                <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:8px;">Spending Breakdown</div>
-                ${catRows}
-              </div>
-
-              <!-- Recent Activity -->
-              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
-                <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:8px;">Recent Activity</div>
-                ${recentRows}
-              </div>
-
-              <!-- Coach Chat Preview -->
-              <div style="background:${t.color_card || '#fff'};border-radius:${t.border_radius || '20px'};padding:14px;margin-bottom:10px;border:1px solid ${t.color_secondary || '#ffb6d5'}40;">
-                <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:${t.color_text_secondary || '#7a4458'};margin-bottom:8px;">Coach Chat</div>
-                ${chatPreview}
-                <!-- Quick prompts -->
-                <div style="display:flex;gap:6px;overflow-x:auto;margin-top:8px;padding-bottom:2px;">
-                  ${chips}
-                </div>
-                <!-- Chat input -->
-                <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
-                  <div style="flex:1;padding:8px 12px;border-radius:16px;border:1.5px solid ${t.color_secondary || '#ffb6d5'};font-size:10px;color:${t.color_text_secondary || '#7a4458'};">Message your coach...</div>
-                  <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;">♥</div>
-                </div>
-              </div>
-
-              <!-- FAB -->
-              <div style="position:absolute;bottom:50px;right:14px;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,${t.color_primary || '#ff69b4'},${t.color_accent || '#ff1493'});color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:300;box-shadow:0 4px 16px ${t.color_primary || '#ff69b4'}50;">+</div>
-
+            <div style="font-size:15px;font-weight:700;color:var(--text-primary);">${profile.display_name}'s Experience</div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">Theme: ${t.name || 'Default'} · Code: ${code}</div>
+            <div style="margin-top:14px;">
+              ${isActive
+                ? `<button class="dev-save-btn" onclick="AVIS.exitPreviewMode()" style="background:#444;border:none;margin-right:6px;">Exit Preview</button>`
+                : `<button class="dev-save-btn" onclick="AVIS.enterPreviewMode('${code}')" style="background:${t.color_primary || '#ff69b4'};border:none;">Preview as ${profile.display_name}</button>`
+              }
             </div>
-
-            <!-- Bottom nav -->
-            <div style="background:${t.color_card || '#fff'};display:flex;justify-content:space-around;padding:10px 8px;border-top:1.5px solid ${t.color_secondary || '#ffb6d5'}30;">
-              <div style="text-align:center;">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="${t.color_primary || '#ff69b4'}"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-                <div style="font-size:8px;font-weight:700;color:${t.color_primary || '#ff69b4'};margin-top:1px;">Home</div>
-              </div>
-              <div style="text-align:center;">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="${t.color_text_secondary || '#7a4458'}"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-                <div style="font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};margin-top:1px;">Coach</div>
-              </div>
-              <div style="text-align:center;">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="${t.color_text_secondary || '#7a4458'}"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/></svg>
-                <div style="font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};margin-top:1px;">Goals</div>
-              </div>
-              <div style="text-align:center;">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="${t.color_text_secondary || '#7a4458'}"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-                <div style="font-size:8px;font-weight:600;color:${t.color_text_secondary || '#7a4458'};margin-top:1px;">Settings</div>
-              </div>
+            <div style="font-size:10px;color:var(--text-secondary);margin-top:10px;opacity:0.6;">
+              ${isActive ? 'Preview active — your AVIS is themed as this client. Dev menu stays accessible.' : 'This will reskin your AVIS to look exactly like this client\'s app. Dev menu stays open so you can still manage.'}
             </div>
-
           </div>
         `;
         break;
