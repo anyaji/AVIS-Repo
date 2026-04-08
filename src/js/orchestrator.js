@@ -481,6 +481,14 @@ DELEGATION RULES (follow these always):
       if (memories) journalMemories = '\n\nJournal memories:\n' + memories.substring(0, 500);
     } catch (e) {}
 
+    // CLIENT MODE: If a client is active, use the client coaching prompt instead
+    if (typeof ClientManager !== 'undefined' && ClientManager.isClientMode()) {
+      const clientPrompt = await ClientManager.buildClientSystemPrompt();
+      if (clientPrompt) {
+        return clientPrompt + dateContext;
+      }
+    }
+
     return this.SYSTEM_PROMPT +
       avelContext +
       dateContext +
@@ -551,6 +559,68 @@ DELEGATION RULES (follow these always):
     }
     if ((!userMessage || !userMessage.trim()) && files.length === 0) {
       return { text: 'Please type a message or attach a file.', provider: 'avis', model: 'system' };
+    }
+
+    // === CLIENT MODE: skip all routing, go straight to Claude chat ===
+    if (typeof ClientManager !== 'undefined' && ClientManager.isClientMode()) {
+      const hasClaude = await this.hasProvider('claude');
+      if (hasClaude) {
+        // Parse spending from chat messages
+        const spendingMatch = userMessage.match(/(?:i\s+(?:just\s+)?spent|add|log|bought)\s+\$?(\d+(?:\.\d{2})?)\s+(?:on|to|for)\s+(.+)/i);
+        if (spendingMatch) {
+          const amount = parseFloat(spendingMatch[1]);
+          const rawCat = spendingMatch[2].trim().toLowerCase();
+          // Map to categories
+          const catMap = {
+            food: ['food', 'lunch', 'dinner', 'breakfast', 'groceries', 'eating', 'restaurant', 'meal'],
+            gas_transport: ['gas', 'fuel', 'uber', 'lyft', 'transport', 'car', 'parking'],
+            subscriptions: ['subscription', 'netflix', 'spotify', 'hulu', 'youtube'],
+            shopping_personal: ['shopping', 'clothes', 'amazon', 'personal', 'earrings', 'shoes'],
+            entertainment: ['entertainment', 'movies', 'concert', 'games', 'fun'],
+            bills_utilities: ['bills', 'utilities', 'electric', 'water', 'internet', 'phone'],
+            health_beauty: ['health', 'beauty', 'nails', 'hair', 'makeup', 'pharmacy', 'medicine'],
+            gifts: ['gift', 'present', 'birthday'],
+            other: ['other']
+          };
+          let category = 'other';
+          for (const [cat, keywords] of Object.entries(catMap)) {
+            if (keywords.some(k => rawCat.includes(k))) { category = cat; break; }
+          }
+          const entry = await ClientManager.logSpending(null, { amount, category, note: rawCat });
+          if (entry) {
+            const remaining = await ClientManager.getRemainingBudget();
+            const catRemaining = remaining?.[category]?.remaining || 0;
+            // Still send to Claude for a warm response, but include the logging context
+            userMessage = `[SYSTEM: Spending logged — $${amount.toFixed(2)} to ${category}. Remaining in ${category}: $${catRemaining.toFixed(2)}. Original message: "${userMessage}". Confirm the log warmly and mention remaining budget.]`;
+          }
+        }
+
+        // Save conversation
+        await ClientManager.saveConversationMessage(null, 'user', userMessage.replace(/^\[SYSTEM:.*?\]\s*/, ''));
+
+        try {
+          if (typeof MissionControl !== 'undefined') MissionControl.setAgentWorking('claude', 'coaching');
+          // Always stream for client mode — feels more personal
+          if (this.onStreamChunk) {
+            const result = await this.streamDirect(userMessage);
+            if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('claude');
+            if (result && !result.error) {
+              await ClientManager.saveConversationMessage(null, 'assistant', result.text);
+              return result;
+            }
+          }
+          // Fallback to agentic
+          const result = await this.agenticLoop(userMessage, files);
+          if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('claude');
+          if (result && !result.error) {
+            await ClientManager.saveConversationMessage(null, 'assistant', result.text);
+            return result;
+          }
+        } catch (e) {
+          if (typeof MissionControl !== 'undefined') MissionControl.setAgentIdle('claude');
+        }
+      }
+      return { text: 'Coach is temporarily unavailable. Please try again in a moment.', provider: 'avis', model: 'system' };
     }
 
     // === BROWSER TASK CHECK: route to Chrome Agent if detected ===

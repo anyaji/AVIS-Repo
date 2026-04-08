@@ -633,6 +633,8 @@ app.whenReady().then(() => {
     startupHtml = startupHtml.replace('id="version-tag"></div>', `id="version-tag">v${version}</div>`);
     const soundPath = path.join(__dirname, 'assets', 'sounds', 'startup.mp3').replace(/\\/g, '/');
     startupHtml = startupHtml.replace('{SOUND_PATH}', `file:///${soundPath}`);
+    const gsapPath = path.join(__dirname, 'node_modules', 'gsap', 'dist', 'gsap.min.js').replace(/\\/g, '/');
+    startupHtml = startupHtml.replace('{GSAP_PATH}', `file:///${gsapPath}`);
     const tmpStartup = path.join(APPDATA_DIR, '_startup.html');
     fs.writeFileSync(tmpStartup, startupHtml, 'utf-8');
     splash.loadFile(tmpStartup);
@@ -2591,4 +2593,97 @@ function startSentinel() {
   setTimeout(runCheck, 30000);
   setInterval(runCheck, 2 * 60 * 60 * 1000);
 }
+
+// ====================================================================
+// CLIENT PLATFORM — IPC Handlers
+// ====================================================================
+const CLIENTS_DIR = path.join(__dirname, 'clients');
+
+// List client directories
+ipcMain.handle('client:list', async () => {
+  try {
+    if (!fs.existsSync(CLIENTS_DIR)) return [];
+    const dirs = fs.readdirSync(CLIENTS_DIR, { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => d.name);
+    return dirs;
+  } catch (e) { return []; }
+});
+
+// Read a client JSON file
+ipcMain.handle('client:read-file', async (_, clientCode, filename) => {
+  try {
+    const filePath = path.join(CLIENTS_DIR, clientCode, filename);
+    if (!fs.existsSync(filePath)) return null;
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch (e) { return null; }
+});
+
+// Write a client JSON file
+ipcMain.handle('client:write-file', async (_, clientCode, filename, content) => {
+  try {
+    const clientDir = path.join(CLIENTS_DIR, clientCode);
+    if (!fs.existsSync(clientDir)) fs.mkdirSync(clientDir, { recursive: true });
+    fs.writeFileSync(path.join(clientDir, filename), content, 'utf-8');
+    return true;
+  } catch (e) { return false; }
+});
+
+// Create a new client directory with seed files
+ipcMain.handle('client:create', async (_, clientCode) => {
+  try {
+    const clientDir = path.join(CLIENTS_DIR, clientCode);
+    if (!fs.existsSync(clientDir)) fs.mkdirSync(clientDir, { recursive: true });
+    return true;
+  } catch (e) { return false; }
+});
+
+// Weekly check-in scheduler — runs every hour, checks if Sunday 7pm
+let weeklyCheckInTimer = null;
+function startWeeklyCheckInScheduler() {
+  if (weeklyCheckInTimer) return;
+  weeklyCheckInTimer = setInterval(() => {
+    const now = new Date();
+    if (now.getDay() === 0 && now.getHours() === 19 && now.getMinutes() < 5) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('client:weekly-checkin-due');
+      }
+    }
+  }, 5 * 60 * 1000); // Check every 5 minutes
+}
+
+// Start scheduler when app is ready
+app.on('ready', () => {
+  setTimeout(startWeeklyCheckInScheduler, 10000);
+});
+
+// Client alerts check — runs hourly
+let alertCheckTimer = null;
+function startAlertChecker() {
+  if (alertCheckTimer) return;
+  alertCheckTimer = setInterval(async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    try {
+      const clientDirs = fs.readdirSync(CLIENTS_DIR, { withFileTypes: true })
+        .filter(d => d.isDirectory()).map(d => d.name);
+      for (const code of clientDirs) {
+        const spendingPath = path.join(CLIENTS_DIR, code, 'spending_log.json');
+        if (fs.existsSync(spendingPath)) {
+          const log = JSON.parse(fs.readFileSync(spendingPath, 'utf-8'));
+          if (log.entries.length > 0) {
+            const last = log.entries[log.entries.length - 1];
+            const daysSince = Math.floor((Date.now() - new Date(last.logged_at || last.date).getTime()) / 86400000);
+            if (daysSince >= 5) {
+              mainWindow.webContents.send('client:alert', { client: code, type: 'inactivity', days: daysSince });
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }, 60 * 60 * 1000);
+}
+
+app.on('ready', () => {
+  setTimeout(startAlertChecker, 30000);
+});
 

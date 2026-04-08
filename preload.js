@@ -158,5 +158,13 @@ contextBridge.exposeInMainWorld('avis', {
   workflowSave: (name, desc, steps) => ipcRenderer.invoke('workflow:save', name, desc, steps),
   workflowList: () => ipcRenderer.invoke('workflow:list'),
   workflowLoad: (filename) => ipcRenderer.invoke('workflow:load', filename),
-  workflowFind: (message) => ipcRenderer.invoke('workflow:find', message)
+  workflowFind: (message) => ipcRenderer.invoke('workflow:find', message),
+
+  // Client Platform
+  clientList: () => ipcRenderer.invoke('client:list'),
+  clientReadFile: (code, file) => ipcRenderer.invoke('client:read-file', code, file),
+  clientWriteFile: (code, file, content) => ipcRenderer.invoke('client:write-file', code, file, content),
+  clientCreate: (code) => ipcRenderer.invoke('client:create', code),
+  onWeeklyCheckin: (cb) => ipcRenderer.on('client:weekly-checkin-due', (_, data) => cb(data)),
+  onClientAlert: (cb) => ipcRenderer.on('client:alert', (_, data) => cb(data))
 });

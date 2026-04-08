@@ -22,6 +22,17 @@ const AVIS = {
     await HotConfig.init();
     FileHandler.init();
 
+    // Client Platform init
+    if (typeof ClientManager !== 'undefined') {
+      await ClientManager.init();
+      // Register AMB-001 if not already in list
+      await ClientManager.registerClient('AMB-001');
+      // If client mode is active, transform UI after full init
+      if (ClientManager.isClientMode()) {
+        setTimeout(() => this.enterClientMode(ClientManager.getActiveClient()), 500);
+      }
+    }
+
     this.setupTabs();
     this.setupInput();
     this.updateProviderStatus();
@@ -1281,6 +1292,133 @@ const AVIS = {
       btn.classList.add('glow-pulse');
       setTimeout(() => btn.classList.remove('glow-pulse'), 500);
     }
+  },
+
+  // ====================================================================
+  // CLIENT MODE — enter/exit client experience
+  // ====================================================================
+  async enterClientMode(clientCode) {
+    if (!clientCode) return;
+    await ClientManager.setActiveClient(clientCode);
+    const profile = await ClientManager.getProfile(clientCode);
+    if (!profile) { this.showToast('Client not found', 'error'); return; }
+
+    this._clientModeActive = true;
+    this._operatorState = {
+      title: document.title,
+      titleText: document.getElementById('app-title')?.textContent
+    };
+
+    // Hide operator chrome
+    document.body.classList.add('client-mode');
+
+    // Update title
+    document.title = `${profile.display_name}'s Coach`;
+    const titleEl = document.getElementById('app-title');
+    if (titleEl) titleEl.textContent = `${profile.display_name}'s Coach`;
+
+    // Hide operator tabs
+    const titleCenter = document.querySelector('.titlebar-center');
+    if (titleCenter) titleCenter.style.display = 'none';
+
+    // Hide left panel
+    const leftPanel = document.querySelector('.left-panel');
+    if (leftPanel) leftPanel.style.display = 'none';
+
+    // Apply theme
+    if (typeof ThemeManager !== 'undefined' && profile.theme) {
+      ThemeManager.applyTheme(profile.theme);
+    }
+
+    // Show client mode UI
+    this.renderClientUI(profile);
+
+    // Load conversation history
+    const convLog = await ClientManager.getConversationLog(clientCode);
+    const chatArea = document.getElementById('chat-area');
+    if (chatArea) {
+      chatArea.innerHTML = '';
+      const recent = convLog.messages.slice(-20);
+      for (const msg of recent) {
+        this.addMessageToChat(msg.role === 'user' ? 'user' : 'ai', msg.text, 'claude', 'Coach');
+      }
+    }
+
+    // Check for pending recommendations
+    const pending = await ClientManager.getRecommendations(clientCode, 'pending');
+    if (pending.length > 0) {
+      this.showClientNotification(`💌 ${pending.length} new from Coach`, pending);
+    }
+
+    // Welcome flow for first-time
+    if (!profile.welcome_completed) {
+      this.showWelcomeFlow(profile);
+    }
+
+    this.showToast(`Client mode: ${profile.display_name}`, 'success');
+  },
+
+  async exitClientMode(password) {
+    const correctPassword = await window.avis.storeGet('operatorPassword', 'avis2026');
+    if (password !== correctPassword) {
+      this.showToast('Incorrect password', 'error');
+      return false;
+    }
+
+    this._clientModeActive = false;
+    await ClientManager.setActiveClient(null);
+
+    // Restore operator chrome
+    document.body.classList.remove('client-mode');
+
+    // Restore title
+    document.title = this._operatorState?.title || 'AVIS - Avel Intelligence Services';
+    const titleEl = document.getElementById('app-title');
+    if (titleEl) titleEl.textContent = this._operatorState?.titleText || 'AVIS';
+
+    // Show operator tabs
+    const titleCenter = document.querySelector('.titlebar-center');
+    if (titleCenter) titleCenter.style.display = '';
+
+    // Show left panel
+    const leftPanel = document.querySelector('.left-panel');
+    if (leftPanel) leftPanel.style.display = '';
+
+    // Remove client UI
+    const clientUI = document.getElementById('client-mode-container');
+    if (clientUI) clientUI.remove();
+
+    // Reset theme
+    if (typeof ThemeManager !== 'undefined') {
+      ThemeManager.resetTheme();
+    }
+
+    // Clear chat and reload operator view
+    const chatArea = document.getElementById('chat-area');
+    if (chatArea) chatArea.innerHTML = '';
+
+    this.showToast('Operator mode restored', 'success');
+    return true;
+  },
+
+  renderClientUI(profile) {
+    // Will be fully built in Phase 3 — placeholder structure
+    let container = document.getElementById('client-mode-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'client-mode-container';
+      document.querySelector('.main-layout').prepend(container);
+    }
+    // The full client UI will be built in subsequent phases
+  },
+
+  showClientNotification(message, recs) {
+    // Will be built in Phase 7
+    this.showToast(message, 'info');
+  },
+
+  showWelcomeFlow(profile) {
+    // Will be built in Phase 8
   },
 
   // ====================================================================

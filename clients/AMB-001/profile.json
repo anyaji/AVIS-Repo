@@ -1,0 +1,48 @@
+{
+  "client_code": "AMB-001",
+  "name": "Amber",
+  "display_name": "Amber",
+  "created_at": "2026-04-08",
+  "status": "active",
+  "relationship_to_operator": "girlfriend",
+  "operator_code": "AVL-000",
+  "demographics": {
+    "lives_with": "AVL-000",
+    "housing_costs": 0,
+    "insurance_covered_by": "mother"
+  },
+  "income": {
+    "base_pay_monthly": 1440,
+    "frequency": "biweekly",
+    "pay_dates": "varies"
+  },
+  "plan_start_date": "2026-04-01",
+  "plan_duration_months": 8,
+  "plan_end_date": "2026-12-31",
+  "theme": {
+    "id": "pink-kitty",
+    "name": "Pink Kitty",
+    "color_primary": "#ff69b4",
+    "color_secondary": "#ffb6d5",
+    "color_accent": "#ff1493",
+    "color_background": "#fff0f7",
+    "color_card": "#ffffff",
+    "color_text_primary": "#3d1f2e",
+    "color_text_secondary": "#7a4458",
+    "color_success": "#ff77aa",
+    "color_warning": "#ffa500",
+    "color_danger": "#dc143c",
+    "font_heading": "Quicksand",
+    "font_body": "Nunito",
+    "border_radius": "20px",
+    "mascot": "kitty",
+    "mascot_position": "top_right",
+    "background_pattern": "kitty_hearts",
+    "button_style": "rounded_soft",
+    "icon_style": "cute_filled",
+    "animation_style": "bouncy",
+    "sound_effects": true,
+    "confetti_color": "pink"
+  },
+  "welcome_completed": false
+}

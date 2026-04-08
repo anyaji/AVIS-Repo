@@ -1,0 +1,67 @@
+{
+  "last_updated": "2026-04-08",
+  "credit_score": 641,
+  "credit_score_target": 680,
+  "credit_score_target_date": "2026-11-30",
+  "accounts": [
+    {
+      "id": "wealthfront_cash",
+      "name": "Wealthfront Cash",
+      "type": "high_yield_savings",
+      "balance": 200.00,
+      "apy": 5.0,
+      "purpose": "house_savings",
+      "target_balance": 2100,
+      "target_date": "2026-12-31"
+    },
+    {
+      "id": "pfcu_checking",
+      "name": "PFCU Checking",
+      "type": "checking",
+      "balance": 0,
+      "purpose": "everyday"
+    },
+    {
+      "id": "pfcu_savings",
+      "name": "PFCU Savings",
+      "type": "savings",
+      "balance": 0,
+      "purpose": "legacy"
+    }
+  ],
+  "debts": [
+    {
+      "id": "personal_loan",
+      "name": "Personal Loan",
+      "balance": 426.50,
+      "minimum_payment": 53.32,
+      "status": "auto_grinding",
+      "target_payoff_date": "2026-12-31"
+    },
+    {
+      "id": "credit_card",
+      "name": "Credit Card",
+      "balance": 524.77,
+      "minimum_payment": 25.00,
+      "status": "attacking_month_3",
+      "target_payoff_date": "2026-08-31",
+      "attack_amount": 200
+    }
+  ],
+  "monthly_budget": {
+    "food": 300,
+    "subscriptions": 25,
+    "shopping_personal": 100,
+    "gas_transport": 80,
+    "entertainment": 50,
+    "bills_utilities": 0,
+    "health_beauty": 30,
+    "gifts": 20,
+    "buffer": 50
+  },
+  "fixed_expenses": {
+    "loan_payment": 53.32,
+    "credit_card_minimum": 25.00,
+    "subscriptions": 50
+  }
+}
