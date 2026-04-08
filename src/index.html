@@ -134,6 +134,7 @@
             <button class="dev-tab" onclick="AVIS.switchDevTab('patch')">Patch</button>
             <button class="dev-tab" onclick="AVIS.switchDevTab('console')">Console</button>
             <button class="dev-tab" onclick="AVIS.switchDevTab('licenses')">Licenses</button>
+            <button class="dev-tab" onclick="AVIS.switchDevTab('cockpit')" style="color:#ff69b4;">Cockpit</button>
           </div>
 
           <!-- File Editor -->
@@ -173,6 +174,58 @@
               <button class="dev-filter-btn" onclick="AVIS.loadLicensePanel()" style="margin-left:auto;">Refresh</button>
             </div>
             <div id="license-mgmt-list" style="font-size:12px;color:var(--text-secondary);">Loading...</div>
+          </div>
+
+          <!-- Cockpit — Client Platform Management -->
+          <div class="dev-panel" id="dev-cockpit">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+              <span style="font-size:13px;font-weight:600;color:#ff69b4;">Client Cockpit</span>
+              <button class="dev-filter-btn" onclick="AVIS.refreshCockpit()" style="margin-left:auto;">Refresh</button>
+              <button class="dev-filter-btn" onclick="AVIS.showNewClientForm()" style="background:#ff69b4;color:#fff;">+ New Client</button>
+            </div>
+
+            <!-- Client Cards Grid -->
+            <div id="cockpit-client-grid" style="display:flex;flex-direction:column;gap:8px;"></div>
+
+            <!-- New Client Form (hidden) -->
+            <div id="cockpit-new-client" style="display:none;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;padding:12px;margin-top:8px;">
+              <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Create New Client</div>
+              <input id="new-client-code" class="search-box" placeholder="Client code (e.g., NIY-001)" style="margin-bottom:6px;width:100%;">
+              <input id="new-client-name" class="search-box" placeholder="Display name" style="margin-bottom:6px;width:100%;">
+              <select id="new-client-theme" class="search-box" style="margin-bottom:6px;width:100%;"></select>
+              <div style="display:flex;gap:6px;">
+                <button class="dev-save-btn" onclick="AVIS.createNewClient()" style="flex:1;">Create</button>
+                <button class="dev-filter-btn" onclick="document.getElementById('cockpit-new-client').style.display='none'">Cancel</button>
+              </div>
+            </div>
+
+            <!-- Client Detail View (hidden) -->
+            <div id="cockpit-detail" style="display:none;margin-top:8px;">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+                <button class="dev-filter-btn" onclick="AVIS.closeCockpitDetail()">← Back</button>
+                <span id="cockpit-detail-name" style="font-size:13px;font-weight:600;color:var(--text-primary);"></span>
+              </div>
+              <div class="dev-tabs" id="cockpit-detail-tabs">
+                <button class="dev-tab active" onclick="AVIS.switchCockpitTab('overview')">Overview</button>
+                <button class="dev-tab" onclick="AVIS.switchCockpitTab('spending')">Spending</button>
+                <button class="dev-tab" onclick="AVIS.switchCockpitTab('recs')">Recs</button>
+                <button class="dev-tab" onclick="AVIS.switchCockpitTab('notes')">Notes</button>
+                <button class="dev-tab" onclick="AVIS.switchCockpitTab('convos')">Chat Log</button>
+              </div>
+              <div id="cockpit-detail-content" style="font-size:12px;color:var(--text-secondary);margin-top:8px;max-height:400px;overflow-y:auto;"></div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div style="margin-top:10px;">
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;margin-bottom:6px;">Recent Activity</div>
+              <div id="cockpit-activity-feed" style="font-size:11px;color:var(--text-secondary);"></div>
+            </div>
+
+            <!-- Alerts -->
+            <div style="margin-top:10px;">
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;margin-bottom:6px;">Alerts</div>
+              <div id="cockpit-alerts" style="font-size:11px;"></div>
+            </div>
           </div>
         </div>
 

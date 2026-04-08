@@ -3730,6 +3730,348 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
 
     if (tab === 'editor') this.loadDevFileTree();
     if (tab === 'licenses') this.loadLicensePanel();
+    if (tab === 'cockpit') this.refreshCockpit();
+  },
+
+  // ================================================================
+  // COCKPIT — Client Platform Management
+  // ================================================================
+  async refreshCockpit() {
+    const grid = document.getElementById('cockpit-client-grid');
+    if (!grid) return;
+
+    // Get client list from IPC (scan directory)
+    let clients = [];
+    try {
+      clients = await window.avis.clientList();
+    } catch (e) {
+      grid.innerHTML = '<span style="color:var(--accent-red);font-size:11px;">Could not load clients</span>';
+      return;
+    }
+
+    if (clients.length === 0) {
+      grid.innerHTML = '<span style="font-size:11px;color:var(--text-secondary);">No clients yet. Click "+ New Client" to start.</span>';
+      return;
+    }
+
+    grid.innerHTML = '';
+    for (const code of clients) {
+      try {
+        const profile = await ClientManager.getProfile(code);
+        const finances = await ClientManager.getFinances(code);
+        const monthSpending = await ClientManager.getMonthSpending(code);
+        const alerts = await ClientManager.getAlerts(code);
+        const pending = await ClientManager.getRecommendations(code, 'pending');
+
+        const totalBudget = finances ? Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0) : 0;
+        const savings = finances?.accounts?.find(a => a.purpose === 'house_savings');
+        const healthScore = ClientManager.getClientHealthScore(finances, monthSpending);
+
+        const statusColor = healthScore >= 70 ? '#00ff88' : healthScore >= 40 ? '#ffa500' : '#ff4444';
+        const themeColor = profile?.theme?.color_primary || '#888';
+
+        const card = document.createElement('div');
+        card.style.cssText = `background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;padding:10px;cursor:pointer;border-left:3px solid ${themeColor};`;
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${statusColor};margin-right:4px;"></span>
+                ${profile?.display_name || code} <span style="font-size:10px;color:var(--text-secondary);">${code}</span>
+              </div>
+              <div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">
+                Spent $${monthSpending.total.toFixed(0)} / $${totalBudget} this month
+                ${savings ? ` · Saved $${savings.balance.toFixed(0)} / $${savings.target_balance}` : ''}
+                ${pending.length > 0 ? ` · ${pending.length} pending recs` : ''}
+                ${alerts.length > 0 ? ` · ⚠ ${alerts.length} alert(s)` : ''}
+              </div>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button class="dev-filter-btn" onclick="event.stopPropagation();AVIS.openCockpitDetail('${code}')" style="font-size:10px;">Details</button>
+              <button class="dev-filter-btn" onclick="event.stopPropagation();AVIS.launchClientMode('${code}')" style="font-size:10px;background:${themeColor};color:#fff;">Launch</button>
+            </div>
+          </div>
+        `;
+        card.onclick = () => this.openCockpitDetail(code);
+        grid.appendChild(card);
+      } catch (e) {
+        const errCard = document.createElement('div');
+        errCard.style.cssText = 'font-size:11px;color:var(--accent-red);padding:6px;';
+        errCard.textContent = `${code}: ${e.message}`;
+        grid.appendChild(errCard);
+      }
+    }
+
+    // Activity feed
+    this.refreshCockpitActivity();
+    this.refreshCockpitAlerts(clients);
+  },
+
+  async refreshCockpitActivity() {
+    const feed = document.getElementById('cockpit-activity-feed');
+    if (!feed) return;
+    const events = await ClientManager.getActivityFeed(10);
+    if (events.length === 0) {
+      feed.innerHTML = '<span style="opacity:0.5">No recent activity</span>';
+      return;
+    }
+    feed.innerHTML = events.map(e => {
+      const time = new Date(e.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      return `<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);">${e.message} <span style="opacity:0.4">${time}</span></div>`;
+    }).join('');
+  },
+
+  async refreshCockpitAlerts(clients) {
+    const alertsEl = document.getElementById('cockpit-alerts');
+    if (!alertsEl) return;
+    let allAlerts = [];
+    for (const code of clients) {
+      const alerts = await ClientManager.getAlerts(code);
+      allAlerts.push(...alerts.map(a => ({ ...a, client: code })));
+    }
+    if (allAlerts.length === 0) {
+      alertsEl.innerHTML = '<span style="color:#00ff88;">All clear ✓</span>';
+      return;
+    }
+    alertsEl.innerHTML = allAlerts.map(a => {
+      const color = a.severity === 'high' ? '#ff4444' : a.severity === 'medium' ? '#ffa500' : '#888';
+      return `<div style="padding:3px 0;color:${color};">⚠ [${a.client}] ${a.message}</div>`;
+    }).join('');
+  },
+
+  async launchClientMode(code) {
+    if (confirm(`Switch to ${code} client mode? AVIS UI will transform.`)) {
+      await this.enterClientMode(code);
+    }
+  },
+
+  _cockpitDetailCode: null,
+
+  async openCockpitDetail(code) {
+    this._cockpitDetailCode = code;
+    document.getElementById('cockpit-client-grid').style.display = 'none';
+    document.getElementById('cockpit-detail').style.display = 'block';
+
+    const profile = await ClientManager.getProfile(code);
+    document.getElementById('cockpit-detail-name').textContent = `${profile?.display_name || code} (${code})`;
+
+    this.switchCockpitTab('overview');
+  },
+
+  closeCockpitDetail() {
+    document.getElementById('cockpit-detail').style.display = 'none';
+    document.getElementById('cockpit-client-grid').style.display = 'flex';
+    this._cockpitDetailCode = null;
+  },
+
+  async switchCockpitTab(tab) {
+    const code = this._cockpitDetailCode;
+    if (!code) return;
+
+    // Update tab active state
+    document.querySelectorAll('#cockpit-detail-tabs .dev-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`#cockpit-detail-tabs .dev-tab[onclick*="${tab}"]`)?.classList.add('active');
+
+    const content = document.getElementById('cockpit-detail-content');
+    if (!content) return;
+
+    switch (tab) {
+      case 'overview': {
+        const profile = await ClientManager.getProfile(code);
+        const finances = await ClientManager.getFinances(code);
+        const monthSpending = await ClientManager.getMonthSpending(code);
+        const remaining = await ClientManager.getRemainingBudget(code);
+        const healthScore = ClientManager.getClientHealthScore(finances, monthSpending);
+
+        const totalBudget = finances ? Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0) : 0;
+        const savings = finances?.accounts?.find(a => a.purpose === 'house_savings');
+
+        content.innerHTML = `
+          <div style="margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text-primary);">Health Score: ${healthScore}/100</div>
+          <div>Plan Month: ${ClientManager.getPlanMonth(profile)} of ${profile?.plan_duration_months || 8}</div>
+          <div>Income: $${profile?.income?.base_pay_monthly || 0}/month</div>
+          <div>This Month: $${monthSpending.total.toFixed(2)} / $${totalBudget} budget</div>
+          <div>Savings: $${savings?.balance || 0} / $${savings?.target_balance || 0}</div>
+          <div>Credit Score: ${finances?.credit_score || 'N/A'} (target ${finances?.credit_score_target || 'N/A'})</div>
+          <div style="margin-top:8px;font-weight:600;">Debts:</div>
+          ${finances?.debts?.map(d => `<div>- ${d.name}: $${d.balance.toFixed(2)} ($${d.minimum_payment}/mo)</div>`).join('') || 'None'}
+          <div style="margin-top:8px;font-weight:600;">Budget Remaining:</div>
+          ${remaining ? Object.entries(remaining).filter(([k]) => k !== '_total').map(([cat, data]) =>
+            `<div style="color:${data.remaining < 0 ? '#ff4444' : 'inherit'}">- ${cat}: $${data.spent.toFixed(0)} / $${data.limit} (${data.remaining >= 0 ? '$' + data.remaining.toFixed(0) + ' left' : '$' + Math.abs(data.remaining).toFixed(0) + ' OVER'})</div>`
+          ).join('') : 'No data'}
+          <div style="margin-top:8px;">
+            <button class="dev-save-btn" onclick="AVIS.launchClientMode('${code}')" style="background:${profile?.theme?.color_primary || '#ff69b4'};border:none;">Launch as ${profile?.display_name || code}</button>
+          </div>
+        `;
+        break;
+      }
+
+      case 'spending': {
+        const log = await ClientManager.getSpendingLog(code);
+        const recent = log.entries.slice(-20).reverse();
+        content.innerHTML = recent.length === 0 ? '<div style="opacity:0.5">No spending entries</div>' :
+          '<table style="width:100%;font-size:11px;"><tr style="color:var(--text-secondary);"><th style="text-align:left;">Date</th><th style="text-align:left;">Category</th><th style="text-align:right;">Amount</th><th>Note</th></tr>' +
+          recent.map(e => `<tr><td>${e.date}</td><td>${e.category}</td><td style="text-align:right;">$${e.amount.toFixed(2)}</td><td style="opacity:0.6">${e.note || ''}</td></tr>`).join('') +
+          '</table>';
+        break;
+      }
+
+      case 'recs': {
+        const recs = await ClientManager.getRecommendations(code);
+        content.innerHTML = `
+          <div style="margin-bottom:8px;">
+            <button class="dev-save-btn" onclick="AVIS.showPushRecForm('${code}')">+ Push Recommendation</button>
+          </div>
+          <div id="cockpit-rec-form-${code}" style="display:none;background:var(--secondary-bg);border-radius:6px;padding:8px;margin-bottom:8px;">
+            <input id="rec-title-${code}" class="search-box" placeholder="Title" style="width:100%;margin-bottom:4px;">
+            <textarea id="rec-body-${code}" class="search-box" placeholder="Message body..." style="width:100%;height:60px;resize:vertical;margin-bottom:4px;"></textarea>
+            <select id="rec-type-${code}" class="search-box" style="width:100%;margin-bottom:4px;">
+              <option value="informational">Informational</option>
+              <option value="action_required">Action Required</option>
+              <option value="decision">Decision</option>
+              <option value="reflection">Reflection</option>
+              <option value="celebration">Celebration</option>
+            </select>
+            <div style="display:flex;gap:4px;">
+              <button class="dev-save-btn" onclick="AVIS.pushRecToClient('${code}')" style="flex:1;">Send</button>
+              <button class="dev-filter-btn" onclick="document.getElementById('cockpit-rec-form-${code}').style.display='none'">Cancel</button>
+            </div>
+          </div>
+          ${recs.length === 0 ? '<div style="opacity:0.5">No recommendations</div>' :
+            recs.reverse().map(r => `
+              <div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                <div style="font-weight:600;color:var(--text-primary);">${r.title}</div>
+                <div style="font-size:10px;opacity:0.6;">${r.action_type} · ${r.status} · ${new Date(r.created_at).toLocaleDateString()}</div>
+                <div style="margin-top:2px;">${r.body.substring(0, 100)}${r.body.length > 100 ? '...' : ''}</div>
+                ${r.response ? `<div style="color:#00ff88;margin-top:2px;">Response: ${r.response}</div>` : ''}
+              </div>
+            `).join('')}
+        `;
+        break;
+      }
+
+      case 'notes': {
+        const notes = await ClientManager.getCoachingNotes(code);
+        content.innerHTML = `
+          <div style="margin-bottom:8px;">
+            <textarea id="cockpit-new-note" class="search-box" placeholder="Add coaching note..." style="width:100%;height:40px;resize:vertical;"></textarea>
+            <button class="dev-save-btn" onclick="AVIS.addCockpitNote('${code}')" style="margin-top:4px;">Add Note</button>
+          </div>
+          ${notes.notes.reverse().map(n => `
+            <div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+              <div style="font-size:10px;opacity:0.5;">${n.date} — ${n.author}</div>
+              <div>${n.note}</div>
+            </div>
+          `).join('')}
+        `;
+        break;
+      }
+
+      case 'convos': {
+        const convLog = await ClientManager.getConversationLog(code);
+        const recent = convLog.messages.slice(-30);
+        content.innerHTML = recent.length === 0 ? '<div style="opacity:0.5">No conversation history</div>' :
+          recent.map(m => {
+            const time = new Date(m.timestamp).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+            const color = m.role === 'user' ? '#ff69b4' : '#00a8ff';
+            return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03);">
+              <span style="color:${color};font-weight:600;font-size:10px;">${m.role === 'user' ? 'Client' : 'Coach'}</span>
+              <span style="opacity:0.3;font-size:9px;margin-left:4px;">${time}</span>
+              <div style="margin-top:1px;">${this.escapeHtml(m.text?.substring(0, 200) || '')}${(m.text?.length || 0) > 200 ? '...' : ''}</div>
+            </div>`;
+          }).join('');
+        break;
+      }
+    }
+  },
+
+  showPushRecForm(code) {
+    const form = document.getElementById(`cockpit-rec-form-${code}`);
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  },
+
+  async pushRecToClient(code) {
+    const title = document.getElementById(`rec-title-${code}`)?.value.trim();
+    const body = document.getElementById(`rec-body-${code}`)?.value.trim();
+    const actionType = document.getElementById(`rec-type-${code}`)?.value;
+    if (!title || !body) { this.showToast('Title and body required', 'warning'); return; }
+
+    const rec = await ClientManager.pushRecommendation(code, { title, body, action_type: actionType });
+    if (rec) {
+      this.showToast(`Recommendation pushed to ${code}`, 'success');
+      document.getElementById(`cockpit-rec-form-${code}`).style.display = 'none';
+      this.switchCockpitTab('recs');
+    }
+  },
+
+  async addCockpitNote(code) {
+    const noteEl = document.getElementById('cockpit-new-note');
+    const note = noteEl?.value.trim();
+    if (!note) return;
+    await ClientManager.addCoachingNote(code, note);
+    noteEl.value = '';
+    this.showToast('Note added', 'success');
+    this.switchCockpitTab('notes');
+  },
+
+  showNewClientForm() {
+    const form = document.getElementById('cockpit-new-client');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+
+    // Populate theme dropdown
+    const select = document.getElementById('new-client-theme');
+    if (select && select.children.length === 0 && typeof ThemeManager !== 'undefined') {
+      const presets = ThemeManager.getPresetList();
+      select.innerHTML = presets.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    }
+  },
+
+  async createNewClient() {
+    const code = document.getElementById('new-client-code')?.value.trim().toUpperCase();
+    const name = document.getElementById('new-client-name')?.value.trim();
+    const themeId = document.getElementById('new-client-theme')?.value;
+
+    if (!code || !name) { this.showToast('Code and name required', 'warning'); return; }
+    if (!/^[A-Z]{3}-\d{3}$/.test(code)) { this.showToast('Code format: XXX-000 (e.g., NIY-001)', 'warning'); return; }
+
+    // Create directory
+    await window.avis.clientCreate(code);
+
+    // Get theme preset
+    const theme = ThemeManager?.getPreset(themeId) || ThemeManager?.PRESETS['corporate-clean'];
+
+    // Write seed files
+    const profile = {
+      client_code: code, name, display_name: name,
+      created_at: new Date().toISOString().split('T')[0],
+      status: 'active', relationship_to_operator: 'client', operator_code: 'AVL-000',
+      demographics: { lives_with: '', housing_costs: 0, insurance_covered_by: '' },
+      income: { base_pay_monthly: 0, frequency: 'monthly', pay_dates: 'varies' },
+      plan_start_date: new Date().toISOString().split('T')[0],
+      plan_duration_months: 12, plan_end_date: '',
+      theme, welcome_completed: false
+    };
+
+    const finances = {
+      last_updated: new Date().toISOString().split('T')[0],
+      credit_score: 0, credit_score_target: 0, credit_score_target_date: '',
+      accounts: [], debts: [],
+      monthly_budget: { food: 0, subscriptions: 0, shopping_personal: 0, gas_transport: 0, entertainment: 0, bills_utilities: 0, health_beauty: 0, gifts: 0, buffer: 0 },
+      fixed_expenses: {}
+    };
+
+    await window.avis.clientWriteFile(code, 'profile.json', JSON.stringify(profile, null, 2));
+    await window.avis.clientWriteFile(code, 'finances.json', JSON.stringify(finances, null, 2));
+    await window.avis.clientWriteFile(code, 'spending_log.json', JSON.stringify({ entries: [] }));
+    await window.avis.clientWriteFile(code, 'progress_log.json', JSON.stringify({ events: [{ date: new Date().toISOString().split('T')[0], type: 'plan_initiated', note: `Client ${name} created.` }] }));
+    await window.avis.clientWriteFile(code, 'conversation_log.json', JSON.stringify({ messages: [] }));
+    await window.avis.clientWriteFile(code, 'coaching_notes.json', JSON.stringify({ notes: [] }));
+    await window.avis.clientWriteFile(code, 'recommendations.json', JSON.stringify({ recommendations: [] }));
+
+    await ClientManager.registerClient(code);
+    document.getElementById('cockpit-new-client').style.display = 'none';
+    this.showToast(`Client ${code} created`, 'success');
+    this.refreshCockpit();
   },
 
   async loadDevFileTree() {
