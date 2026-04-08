@@ -25,8 +25,11 @@ const AVIS = {
     // Client Platform init
     if (typeof ClientManager !== 'undefined') {
       await ClientManager.init();
-      // Register AMB-001 if not already in list
-      await ClientManager.registerClient('AMB-001');
+      // Register clients if not already in list
+      const clientDirs = await window.avis.clientList();
+      for (const code of clientDirs) {
+        await ClientManager.registerClient(code);
+      }
       // If client mode is active, transform UI after full init
       if (ClientManager.isClientMode()) {
         setTimeout(() => this.enterClientMode(ClientManager.getActiveClient()), 500);

@@ -1,0 +1,47 @@
+{
+  "client_code": "NIY-001",
+  "name": "Niyatori Test",
+  "display_name": "Niyatori Test",
+  "created_at": "2026-04-08",
+  "status": "active",
+  "relationship_to_operator": "test_client",
+  "operator_code": "AVL-000",
+  "demographics": {
+    "lives_with": "",
+    "housing_costs": 0,
+    "insurance_covered_by": ""
+  },
+  "income": {
+    "base_pay_monthly": 3000,
+    "frequency": "monthly",
+    "pay_dates": "1st"
+  },
+  "plan_start_date": "2026-04-01",
+  "plan_duration_months": 12,
+  "plan_end_date": "2027-03-31",
+  "theme": {
+    "id": "niyatori-luxe",
+    "name": "Niyatori Luxe",
+    "color_primary": "#c8a96e",
+    "color_secondary": "#1a1a1f",
+    "color_accent": "#d4af37",
+    "color_background": "#0a0a0c",
+    "color_card": "#161618",
+    "color_text_primary": "#e8e4dc",
+    "color_text_secondary": "#8a8478",
+    "color_success": "#7fba5c",
+    "color_warning": "#d4a537",
+    "color_danger": "#c45c5c",
+    "font_heading": "Fraunces",
+    "font_body": "DM Sans",
+    "border_radius": "8px",
+    "mascot": null,
+    "background_pattern": "geometric",
+    "button_style": "sharp",
+    "icon_style": "minimal_line",
+    "animation_style": "smooth",
+    "sound_effects": false,
+    "confetti_color": "gold"
+  },
+  "welcome_completed": false
+}

@@ -1,0 +1,31 @@
+{
+  "last_updated": "2026-04-08",
+  "credit_score": 720,
+  "credit_score_target": 750,
+  "credit_score_target_date": "2027-03-31",
+  "accounts": [
+    {
+      "id": "savings_main",
+      "name": "Main Savings",
+      "type": "high_yield_savings",
+      "balance": 500.00,
+      "apy": 4.5,
+      "purpose": "house_savings",
+      "target_balance": 5000,
+      "target_date": "2027-03-31"
+    }
+  ],
+  "debts": [],
+  "monthly_budget": {
+    "food": 400,
+    "subscriptions": 50,
+    "shopping_personal": 200,
+    "gas_transport": 100,
+    "entertainment": 100,
+    "bills_utilities": 100,
+    "health_beauty": 50,
+    "gifts": 30,
+    "buffer": 100
+  },
+  "fixed_expenses": {}
+}
