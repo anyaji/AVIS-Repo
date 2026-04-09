@@ -27,6 +27,7 @@
       "preload.js",
       "src/**/*",
       "assets/**/*",
+      "clients/**/*",
       "node_modules/**/*"
     ],
     "publish": {

@@ -6,3 +6,7 @@ C:/Users/anyaj/Desktop/AVIS-Installer*/
 *.blockmap
 builder-debug.yml
 .env
+.env.*
+*.token
+*.key
+clients/
