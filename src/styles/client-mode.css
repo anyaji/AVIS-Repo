@@ -603,22 +603,33 @@ body.client-mode .client-fab {
 /* ================================================================
    COACH CHAT — client mode
    ================================================================ */
+body.client-mode .center-panel {
+  background: #fdf2f8 !important;
+}
+
 body.client-mode .chat-area {
   padding-bottom: 130px;
+  background: transparent !important;
 }
 
 body.client-mode .message.user .message-bubble {
-  background: var(--client-primary, #ff69b4) !important;
-  color: #fff !important;
+  background: #f472b6 !important;
+  color: #ffffff !important;
   border-radius: 20px 20px 4px 20px !important;
-  border: none !important;
+  border: 2px solid #ec4899 !important;
+  padding: 12px 16px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
 }
 
 body.client-mode .message.ai .message-bubble {
-  background: var(--client-card, #fff) !important;
-  color: var(--client-text, #3d1f2e) !important;
-  border: 1.5px solid var(--client-secondary, #ffb6d5) !important;
+  background: #ffffff !important;
+  color: #4a1942 !important;
+  border: 1.5px solid #fce7f3 !important;
   border-radius: 20px 20px 20px 4px !important;
+  padding: 12px 16px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
 }
 
 body.client-mode .message .provider-badge {
@@ -640,30 +651,35 @@ body.client-mode .message.ai .message-bubble::before {
 
 /* Chat input override */
 body.client-mode .input-wrap {
-  background: var(--client-card, #fff);
-  border: 2px solid var(--client-secondary, #ffb6d5);
-  border-radius: var(--client-radius, 20px);
+  background: #ffffff !important;
+  border: 2px solid #fce7f3 !important;
+  border-radius: 20px !important;
   max-width: 480px;
   margin: 0 auto;
 }
 
 body.client-mode .input-wrap:focus-within {
-  border-color: var(--client-primary, #ff69b4);
+  border-color: #f472b6 !important;
 }
 
 body.client-mode #chat-input {
-  color: var(--client-text, #3d1f2e);
+  color: #4a1942 !important;
   font-family: var(--client-font-body, 'Nunito', sans-serif);
+  background: transparent !important;
 }
 
 body.client-mode #chat-input::placeholder {
-  color: var(--client-text-secondary, #7a4458);
+  color: #9d5c8a;
 }
 
 body.client-mode #send-btn {
-  background: linear-gradient(135deg, var(--client-primary, #ff69b4), var(--client-accent, #ff1493));
-  color: #fff;
-  border-radius: 50%;
+  background: linear-gradient(135deg, #f472b6, #ec4899) !important;
+  color: #fff !important;
+  border-radius: 50% !important;
+}
+
+body.client-mode .input-area {
+  background: transparent !important;
 }
 
 /* Quick prompt chips */
@@ -1011,27 +1027,30 @@ body.client-mode .client-quick-prompts {
 .client-chat-toolbar {
   display: none;
   gap: 8px;
-  padding: 6px 16px;
+  padding: 8px 16px;
   max-width: 480px;
   margin: 0 auto;
+  background: transparent;
 }
 
 .client-chat-toolbar-btn {
-  padding: 6px 14px;
-  border-radius: 14px;
-  border: 1.5px solid var(--client-secondary, #ffb6d5);
-  background: var(--client-card, #fff);
-  color: var(--client-text-secondary, #7a4458);
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1.5px solid #fce7f3;
+  background: rgba(255, 255, 255, 0.6);
+  color: #9d5c8a;
   font-size: 12px;
   font-weight: 600;
   font-family: var(--client-font-body, 'Nunito', sans-serif);
   cursor: pointer;
   transition: all 0.15s ease;
+  backdrop-filter: blur(4px);
 }
 
 .client-chat-toolbar-btn:hover {
-  background: var(--client-secondary, #ffb6d5);
-  color: var(--client-text, #3d1f2e);
+  background: #f472b6;
+  color: #fff;
+  border-color: #f472b6;
 }
 
 /* ================================================================
