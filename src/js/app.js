@@ -25,30 +25,9 @@ const AVIS = {
       });
     }
 
-    // ROUTING: persisted client → skip everything, go to client mode
-    if (persistedClient && persistedMode !== 'operator') {
-      // Minimal init for client mode
-      this._paths = await window.avis.getPaths();
-      await MemoryManager.init();
-      await HotConfig.init();
-      this.setupTabs();
-      this.setupInput();
-      Orchestrator.onStep = (id, type, message, status) => this.handleStep(id, type, message, status);
-      Orchestrator.onStreamChunk = (chunk, fullText) => this.handleStreamChunk(chunk, fullText);
-      this.startClock();
-      setTimeout(() => this.enterClientMode(persistedClient), 200);
-      return;
-    }
-
-    // ROUTING: operator mode persisted or no client → check for code entry
-    if (persistedMode === 'operator') {
-      // Operator chose to skip code entry — full operator boot
-      await this._operatorBoot();
-      return;
-    }
-
-    // FIRST LAUNCH / NO PERSISTED STATE → show code entry screen
-    this._showCodeEntryScreen();
+    // ALWAYS show code entry screen — auto-fill last used code
+    const lastCode = persistedClient || (persistedMode === 'operator' ? 'AVL-000' : null);
+    this._showCodeEntryScreen(lastCode);
   },
 
   // Full operator mode initialization
@@ -130,7 +109,7 @@ const AVIS = {
   // ================================================================
   // CODE ENTRY SCREEN — universal AVIS welcome
   // ================================================================
-  _showCodeEntryScreen() {
+  _showCodeEntryScreen(prefillCode) {
     // Hide all AVIS operator UI
     document.querySelector('.titlebar')?.style.setProperty('display', 'none');
     document.querySelector('.main-layout')?.style.setProperty('display', 'none');
@@ -166,7 +145,7 @@ const AVIS = {
 
         <!-- Code entry -->
         <div style="margin-bottom:12px;">
-          <input type="text" id="client-code-input" placeholder="Enter your code"
+          <input type="text" id="client-code-input" placeholder="Enter your code" value="${prefillCode || ''}"
             style="width:240px;padding:14px 20px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);
             background:rgba(255,255,255,0.05);color:#fff;font-size:15px;font-weight:600;
             text-align:center;letter-spacing:3px;text-transform:uppercase;
