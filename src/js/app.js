@@ -2244,6 +2244,63 @@ const AVIS = {
     document.getElementById('client-export-modal').classList.add('active');
   },
 
+  async copyExportCardAsImage() {
+    const cardEl = document.getElementById('client-export-card');
+    if (!cardEl) return;
+
+    try {
+      const canvas = await html2canvas(cardEl, {
+        backgroundColor: null,
+        scale: 2, // retina quality
+        useCORS: true,
+        borderRadius: 20
+      });
+
+      canvas.toBlob(async (blob) => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          this.showToast('Image copied! Paste it anywhere 📸');
+        } catch (e) {
+          // Fallback: save to file instead
+          this.showToast('Could not copy image — try Save to Desktop instead');
+        }
+      }, 'image/png');
+    } catch (e) {
+      this.showToast('Could not capture card');
+    }
+  },
+
+  async saveExportCardAsImage() {
+    const cardEl = document.getElementById('client-export-card');
+    if (!cardEl) return;
+
+    try {
+      const canvas = await html2canvas(cardEl, {
+        backgroundColor: null,
+        scale: 2,
+        useCORS: true
+      });
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const profile = await ClientManager.getProfile();
+      const name = profile?.display_name || 'Client';
+      const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).replace(' ', '-');
+      const filename = `${name}-Progress-${month}.png`;
+
+      // Use Electron's save dialog via IPC or download trick
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+
+      this.showToast(`Saved as ${filename} 💾`);
+    } catch (e) {
+      this.showToast('Could not save image');
+    }
+  },
+
   async copyExportCard() {
     const cardEl = document.getElementById('client-export-card');
     if (!cardEl) return;

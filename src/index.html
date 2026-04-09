@@ -791,7 +791,9 @@
       <div class="sheet-handle"></div>
       <div class="sheet-title">My Monthly Summary 📸</div>
       <div id="client-export-card" class="export-card"></div>
-      <button class="client-submit-btn" onclick="AVIS.copyExportCard()" style="margin-top:12px;">Copy to Clipboard 📋</button>
+      <button class="client-submit-btn" onclick="AVIS.copyExportCardAsImage()" style="margin-top:12px;">Copy as Image 📸</button>
+      <button class="client-submit-btn" onclick="AVIS.saveExportCardAsImage()" style="margin-top:8px;background:var(--client-secondary, #ffb6d5);color:var(--client-text, #3d1f2e);">Save to Desktop 💾</button>
+      <button class="client-submit-btn" onclick="AVIS.copyExportCard()" style="margin-top:8px;background:var(--client-card, #fff);color:var(--client-text-secondary);border:1.5px solid var(--client-secondary);">Copy as Text 📋</button>
       <button style="width:100%;padding:10px;border:none;background:none;color:var(--client-text-secondary);font-size:13px;cursor:pointer;margin-top:6px;" onclick="document.getElementById('client-export-modal').classList.remove('active')">Close</button>
     </div>
   </div>
@@ -1090,6 +1092,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.0/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
   <script src="js/providers/claude.js"></script>
   <script src="js/providers/deepseek.js"></script>
