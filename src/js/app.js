@@ -1726,6 +1726,7 @@ const AVIS = {
     // This Month card
     const totalBudget = Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0);
     document.getElementById('client-month-spent').textContent = `$${monthSpending.total.toFixed(2)}`;
+    document.getElementById('client-month-budget').textContent = `/ $${totalBudget.toFixed(0)} budget`;
     const remTotal = remaining?._total?.remaining || 0;
     const now = new Date();
     const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
@@ -2710,22 +2711,82 @@ Powered by AVIS 💕`;
     if (entry) {
       this.closeSpendingLogger();
 
-      // Get remaining budget for this category
+      // Get remaining budget for this category + totals
       const remaining = await ClientManager.getRemainingBudget();
+      const finances = await ClientManager.getFinances();
       const catRemaining = remaining?.[this._spendCategory]?.remaining || 0;
+      const totalBudget = finances ? Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0) : 0;
+      const totalRemaining = remaining?._total?.remaining || 0;
+      const catName = this._formatCategoryName(this._spendCategory);
 
       // Sound + confetti
       const theme = ThemeManager?.getTheme();
       if (catRemaining >= 0) {
         ThemeManager?.burst(theme, window.innerWidth / 2, window.innerHeight / 2);
-        this.showToast(`Logged $${amount.toFixed(2)} to ${this._formatCategoryName(this._spendCategory)} — $${catRemaining.toFixed(2)} left 👍`, 'success');
-      } else {
-        this.showToast(`Logged $${amount.toFixed(2)} — ${this._formatCategoryName(this._spendCategory)} is $${Math.abs(catRemaining).toFixed(2)} over budget`, 'warning');
       }
+
+      // Show detailed budget summary popup
+      this.showSpendingConfirmation(amount, catName, catRemaining, totalBudget, totalRemaining);
 
       // Refresh dashboard
       this.refreshClientDashboard();
     }
+  },
+
+  showSpendingConfirmation(amount, catName, catRemaining, totalBudget, totalRemaining) {
+    // Create a confirmation overlay showing budget impact
+    const isOver = catRemaining < 0;
+    const totalOver = totalRemaining < 0;
+
+    let overlay = document.getElementById('spend-confirm-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'spend-confirm-overlay';
+      document.body.appendChild(overlay);
+    }
+
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:15000;background:rgba(0,0,0,0.4);
+      display:flex;align-items:center;justify-content:center;
+      backdrop-filter:blur(4px);animation:fadeIn 0.2s ease;
+    `;
+
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:20px;padding:24px;max-width:340px;width:90%;text-align:center;animation:sheet-up 0.3s ease-out;">
+        <div style="font-size:32px;margin-bottom:8px;">${isOver ? '⚠️' : '✅'}</div>
+        <div style="font-size:16px;font-weight:700;font-family:var(--client-font-heading,Quicksand);color:#4a1942;margin-bottom:4px;">
+          $${amount.toFixed(2)} logged to ${catName}
+        </div>
+        <div style="font-size:12px;color:${isOver ? '#dc143c' : '#9d5c8a'};margin-bottom:16px;">
+          ${isOver ? `⚠️ ${catName} is $${Math.abs(catRemaining).toFixed(2)} over budget` : `$${catRemaining.toFixed(2)} left in ${catName}`}
+        </div>
+
+        <div style="background:#fdf2f8;border-radius:14px;padding:14px;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11px;color:#9d5c8a;">Monthly Budget</span>
+            <span style="font-size:13px;font-weight:700;color:#4a1942;">$${totalBudget.toFixed(0)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span style="font-size:11px;color:#9d5c8a;">Remaining</span>
+            <span style="font-size:13px;font-weight:700;color:${totalOver ? '#dc143c' : '#4a1942'};">
+              ${totalOver ? '-' : ''}$${Math.abs(totalRemaining).toFixed(2)}
+            </span>
+          </div>
+          <div style="height:6px;background:#fce7f3;border-radius:3px;overflow:hidden;margin-top:8px;">
+            <div style="height:100%;width:${Math.min(100, ((totalBudget - totalRemaining) / totalBudget) * 100)}%;background:${totalOver ? '#dc143c' : 'linear-gradient(90deg,#f472b6,#ec4899)'};border-radius:3px;"></div>
+          </div>
+        </div>
+
+        <div style="font-size:10px;color:#b89aaa;margin-bottom:12px;">🔒 Entry locked — resets end of month</div>
+
+        <button onclick="document.getElementById('spend-confirm-overlay').remove()" style="
+          width:100%;padding:12px;border-radius:16px;border:none;
+          background:linear-gradient(135deg,#f472b6,#ec4899);color:#fff;
+          font-size:14px;font-weight:700;cursor:pointer;
+          font-family:var(--client-font-heading,Quicksand);
+        ">Got it 💕</button>
+      </div>
+    `;
   },
 
   renderCategoryGrid(theme) {
@@ -2983,6 +3044,7 @@ Powered by AVIS 💕`;
             ${e.note ? `<div style="font-size:10px;color:var(--client-text-secondary);margin-top:1px;">${e.note}</div>` : ''}
           </div>
           <div style="font-size:13px;font-weight:700;">-$${e.amount.toFixed(2)}</div>
+          <div style="font-size:10px;color:var(--client-text-secondary);flex-shrink:0;" title="${e.locked !== false ? 'Locked — cannot be edited' : 'Unlocked'}">${e.locked !== false ? '🔒' : '🔓'}</div>
         </div>
       `).join('');
       return `

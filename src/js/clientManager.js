@@ -196,6 +196,7 @@ const ClientManager = {
         amount: parseFloat(entry.amount),
         category: entry.category,
         note: entry.note || '',
+        locked: true,
         logged_at: new Date().toISOString()
       };
       log.entries.push(newEntry);
@@ -203,6 +204,46 @@ const ClientManager = {
       // Also log to progress
       await this.logProgress(code, 'spending_logged', `$${newEntry.amount} on ${newEntry.category}`);
       return newEntry;
+    } catch (e) { return false; }
+  },
+
+  async unlockSpendingEntry(clientCode, entryId) {
+    const code = clientCode || this._activeClient;
+    if (!code) return false;
+    try {
+      const log = await this.getSpendingLog(code);
+      const entry = log.entries.find(e => e.id === entryId);
+      if (entry) {
+        entry.locked = false;
+        await this._writeClientFile(code, 'spending_log.json', log);
+      }
+      return true;
+    } catch (e) { return false; }
+  },
+
+  async deleteSpendingEntry(clientCode, entryId) {
+    const code = clientCode || this._activeClient;
+    if (!code) return false;
+    try {
+      const log = await this.getSpendingLog(code);
+      const entry = log.entries.find(e => e.id === entryId);
+      if (entry && entry.locked) return false; // can't delete locked entries
+      log.entries = log.entries.filter(e => e.id !== entryId);
+      await this._writeClientFile(code, 'spending_log.json', log);
+      return true;
+    } catch (e) { return false; }
+  },
+
+  async editSpendingEntry(clientCode, entryId, updates) {
+    const code = clientCode || this._activeClient;
+    if (!code) return false;
+    try {
+      const log = await this.getSpendingLog(code);
+      const entry = log.entries.find(e => e.id === entryId);
+      if (!entry || entry.locked) return false; // can't edit locked entries
+      Object.assign(entry, updates);
+      await this._writeClientFile(code, 'spending_log.json', log);
+      return true;
     } catch (e) { return false; }
   },
 

@@ -644,7 +644,10 @@
     <!-- This Month at a Glance -->
     <div class="client-card" id="client-month-card">
       <div class="client-card-title">This Month</div>
-      <div class="client-card-value" id="client-month-spent">$0.00</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <div class="client-card-value" id="client-month-spent">$0.00</div>
+        <div style="font-size:13px;font-weight:600;color:var(--client-text-secondary,#9d5c8a);" id="client-month-budget">/ $0 budget</div>
+      </div>
       <div class="client-card-sub" id="client-month-remaining">Loading...</div>
       <div class="client-progress-bar">
         <div class="client-progress-fill" id="client-budget-bar" style="width:0%"></div>
