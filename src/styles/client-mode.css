@@ -35,7 +35,7 @@ body.client-mode .titlebar-center {
 }
 
 body.client-mode .titlebar-right .live-clock {
-  color: var(--client-text-secondary, #7a4458);
+  display: none !important;
 }
 
 body.client-mode .titlebar-right .window-btn {
@@ -181,6 +181,13 @@ body.client-mode .client-header {
 .client-subgreeting {
   font-size: 13px;
   color: var(--client-text-secondary, #7a4458);
+}
+
+.client-date-line {
+  font-size: 11px;
+  color: var(--client-text-secondary, #7a4458);
+  opacity: 0.7;
+  margin-top: 4px;
 }
 
 .client-header .mascot-container {
@@ -601,20 +608,28 @@ body.client-mode .chat-area {
 }
 
 body.client-mode .message.user .message-bubble {
-  background: var(--client-primary, #ff69b4);
-  color: #fff;
-  border-radius: 20px 20px 4px 20px;
-  border: none;
+  background: var(--client-primary, #ff69b4) !important;
+  color: #fff !important;
+  border-radius: 20px 20px 4px 20px !important;
+  border: none !important;
 }
 
 body.client-mode .message.ai .message-bubble {
-  background: var(--client-card, #fff);
-  color: var(--client-text, #3d1f2e);
-  border: 1.5px solid var(--client-secondary, #ffb6d5);
-  border-radius: 20px 20px 20px 4px;
+  background: var(--client-card, #fff) !important;
+  color: var(--client-text, #3d1f2e) !important;
+  border: 1.5px solid var(--client-secondary, #ffb6d5) !important;
+  border-radius: 20px 20px 20px 4px !important;
 }
 
 body.client-mode .message .provider-badge {
+  display: none;
+}
+
+body.client-mode .message .copy-prompt-btn {
+  display: none;
+}
+
+body.client-mode .message .retry-provider-bar {
   display: none;
 }
 

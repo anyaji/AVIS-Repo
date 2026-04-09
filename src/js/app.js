@@ -2475,6 +2475,15 @@ Powered by AVIS 💕`;
 
     document.getElementById('client-greeting').textContent = greeting;
     document.getElementById('client-subgreeting').textContent = sub;
+
+    // Date line under greeting
+    const dateLineEl = document.getElementById('client-date-line');
+    if (dateLineEl) {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      dateLineEl.textContent = `${dateStr} · ${timeStr}`;
+    }
   },
 
   // ================================================================
