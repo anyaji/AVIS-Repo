@@ -228,39 +228,70 @@ const ThemeManager = {
   },
 
   _kittyMascotSVG() {
-    return `<svg viewBox="0 0 120 120" width="80" class="mascot-kitty">
+    return `<svg viewBox="0 0 120 130" width="80" class="mascot-kitty">
+      <!-- Flower behind ear -->
+      <g transform="translate(88,8)">
+        <circle cx="0" cy="0" r="5" fill="#f9a8d4"/>
+        <circle cx="5" cy="-3" r="5" fill="#f472b6"/>
+        <circle cx="5" cy="4" r="5" fill="#fce7f3"/>
+        <circle cx="-3" cy="-5" r="4" fill="#ec4899"/>
+        <circle cx="-4" cy="3" r="4.5" fill="#f9a8d4"/>
+        <circle cx="1" cy="0" r="3" fill="#fbbf24"/>
+      </g>
       <!-- Body -->
-      <ellipse cx="60" cy="75" rx="35" ry="30" fill="#fff" stroke="#ff69b4" stroke-width="2"/>
+      <ellipse cx="60" cy="80" rx="32" ry="28" fill="#fff" stroke="#f472b6" stroke-width="2"/>
+      <!-- Tiny paw pads -->
+      <ellipse cx="42" cy="102" rx="9" ry="5.5" fill="#fff" stroke="#f472b6" stroke-width="1.5"/>
+      <circle cx="39" cy="100" r="2" fill="#fce7f3"/>
+      <circle cx="42" cy="99" r="2" fill="#fce7f3"/>
+      <circle cx="45" cy="100" r="2" fill="#fce7f3"/>
+      <ellipse cx="78" cy="102" rx="9" ry="5.5" fill="#fff" stroke="#f472b6" stroke-width="1.5"/>
+      <circle cx="75" cy="100" r="2" fill="#fce7f3"/>
+      <circle cx="78" cy="99" r="2" fill="#fce7f3"/>
+      <circle cx="81" cy="100" r="2" fill="#fce7f3"/>
       <!-- Head -->
-      <circle cx="60" cy="40" r="28" fill="#fff" stroke="#ff69b4" stroke-width="2"/>
+      <circle cx="60" cy="42" r="28" fill="#fff" stroke="#f472b6" stroke-width="2"/>
       <!-- Ears -->
-      <path d="M38 18 L32 2 L48 14Z" fill="#fff" stroke="#ff69b4" stroke-width="2"/>
-      <path d="M82 18 L88 2 L72 14Z" fill="#fff" stroke="#ff69b4" stroke-width="2"/>
-      <path d="M40 17 L36 6 L47 15Z" fill="#ffb6d5"/>
-      <path d="M80 17 L84 6 L73 15Z" fill="#ffb6d5"/>
-      <!-- Eyes -->
-      <ellipse cx="48" cy="38" rx="5" ry="6" fill="#3d1f2e"/>
-      <ellipse cx="72" cy="38" rx="5" ry="6" fill="#3d1f2e"/>
-      <circle cx="46" cy="36" r="2" fill="#fff"/>
-      <circle cx="70" cy="36" r="2" fill="#fff"/>
-      <!-- Nose -->
-      <ellipse cx="60" cy="46" rx="3" ry="2" fill="#ff69b4"/>
+      <path d="M38 20 L30 2 L48 16Z" fill="#fff" stroke="#f472b6" stroke-width="2"/>
+      <path d="M82 20 L90 2 L72 16Z" fill="#fff" stroke="#f472b6" stroke-width="2"/>
+      <path d="M39 19 L34 6 L47 16Z" fill="#fce7f3"/>
+      <path d="M81 19 L86 6 L73 16Z" fill="#fce7f3"/>
+      <!-- Blush cheeks -->
+      <ellipse cx="40" cy="48" rx="7" ry="4" fill="#fce7f3" opacity="0.7"/>
+      <ellipse cx="80" cy="48" rx="7" ry="4" fill="#fce7f3" opacity="0.7"/>
+      <!-- Eyes — big sparkly anime style -->
+      <ellipse cx="48" cy="40" rx="6" ry="7" fill="#4a1942"/>
+      <ellipse cx="72" cy="40" rx="6" ry="7" fill="#4a1942"/>
+      <circle cx="45" cy="37" r="2.5" fill="#fff"/>
+      <circle cx="69" cy="37" r="2.5" fill="#fff"/>
+      <circle cx="50" cy="42" r="1.5" fill="#fff" opacity="0.6"/>
+      <circle cx="74" cy="42" r="1.5" fill="#fff" opacity="0.6"/>
+      <!-- Nose — tiny pink heart shape -->
+      <path d="M59 48 C59 46.5 57.5 46 57.5 47.2 C57.5 46 56 46.5 56 48 C56 49.5 57.75 51 57.75 51 C57.75 51 59 49.5 59 48Z" fill="#f472b6" transform="translate(2.25,0)"/>
       <!-- Mouth -->
-      <path d="M55 49 Q60 54 65 49" stroke="#ff69b4" fill="none" stroke-width="1.5"/>
+      <path d="M55 52 Q60 57 65 52" stroke="#f472b6" fill="none" stroke-width="1.5" stroke-linecap="round"/>
       <!-- Whiskers -->
-      <line x1="30" y1="42" x2="44" y2="44" stroke="#ffb6d5" stroke-width="1"/>
-      <line x1="30" y1="48" x2="44" y2="48" stroke="#ffb6d5" stroke-width="1"/>
-      <line x1="76" y1="44" x2="90" y2="42" stroke="#ffb6d5" stroke-width="1"/>
-      <line x1="76" y1="48" x2="90" y2="48" stroke="#ffb6d5" stroke-width="1"/>
-      <!-- Bow -->
-      <circle cx="82" cy="22" r="4" fill="#ff1493"/>
-      <path d="M74 18 Q82 22 82 14 Q82 22 90 18 Q82 22 82 30 Q82 22 74 18Z" fill="#ff1493"/>
-      <!-- Paws -->
-      <ellipse cx="40" cy="98" rx="10" ry="6" fill="#fff" stroke="#ff69b4" stroke-width="1.5"/>
-      <ellipse cx="80" cy="98" rx="10" ry="6" fill="#fff" stroke="#ff69b4" stroke-width="1.5"/>
-      <!-- Sparkles -->
-      <text x="95" y="15" font-size="12" fill="#ff69b4">✨</text>
-      <text x="15" y="65" font-size="10" fill="#ffb6d5">💕</text>
+      <line x1="28" y1="44" x2="42" y2="46" stroke="#fce7f3" stroke-width="1" stroke-linecap="round"/>
+      <line x1="28" y1="50" x2="42" y2="50" stroke="#fce7f3" stroke-width="1" stroke-linecap="round"/>
+      <line x1="78" y1="46" x2="92" y2="44" stroke="#fce7f3" stroke-width="1" stroke-linecap="round"/>
+      <line x1="78" y1="50" x2="92" y2="50" stroke="#fce7f3" stroke-width="1" stroke-linecap="round"/>
+      <!-- Bow with flower center -->
+      <path d="M76 22 Q84 26 84 18 Q84 26 92 22 Q84 26 84 32 Q84 26 76 22Z" fill="#ec4899"/>
+      <circle cx="84" cy="24" r="3" fill="#fbbf24"/>
+      <!-- Tail with curl -->
+      <path d="M90 75 Q100 60 95 50 Q92 44 96 40" stroke="#f472b6" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <!-- Nail polish on paw -->
+      <circle cx="39" cy="107" r="1.5" fill="#ec4899"/>
+      <circle cx="42" cy="106.5" r="1.5" fill="#ec4899"/>
+      <circle cx="45" cy="107" r="1.5" fill="#ec4899"/>
+      <circle cx="75" cy="107" r="1.5" fill="#ec4899"/>
+      <circle cx="78" cy="106.5" r="1.5" fill="#ec4899"/>
+      <circle cx="81" cy="107" r="1.5" fill="#ec4899"/>
+      <!-- Sparkles + flowers -->
+      <text x="98" y="15" font-size="10">🌸</text>
+      <text x="12" y="30" font-size="8">✨</text>
+      <text x="16" y="70" font-size="9">🌺</text>
+      <text x="100" y="95" font-size="8">💅</text>
     </svg>`;
   },
 
@@ -280,12 +311,37 @@ const ThemeManager = {
   },
 
   _kittyHeartsPattern() {
-    return `<svg width="80" height="80" xmlns="http://www.w3.org/2000/svg">
-      <path d="M20 18 C20 14 15 12 13 15 C11 12 6 14 6 18 C6 23 13 27 13 27 C13 27 20 23 20 18Z" fill="rgba(255,105,180,0.04)"/>
-      <path d="M60 50 C60 47 57 46 55 48 C53 46 50 47 50 50 C50 53 55 56 55 56 C55 56 60 53 60 50Z" fill="rgba(255,105,180,0.03)"/>
-      <ellipse cx="45" cy="15" rx="4" ry="3.5" fill="rgba(255,182,213,0.03)"/>
-      <path d="M44 11 L43 7 L46 10Z" fill="rgba(255,182,213,0.03)"/>
-      <path d="M48 11 L49 7 L46 10Z" fill="rgba(255,182,213,0.03)"/>
+    return `<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Heart -->
+      <path d="M20 18 C20 14 15 12 13 15 C11 12 6 14 6 18 C6 23 13 27 13 27 C13 27 20 23 20 18Z" fill="rgba(244,114,182,0.04)"/>
+      <!-- Flower -->
+      <g transform="translate(65,20)" opacity="0.04">
+        <circle cx="0" cy="-5" r="4" fill="#f472b6"/>
+        <circle cx="5" cy="-2" r="4" fill="#f472b6"/>
+        <circle cx="4" cy="4" r="4" fill="#f472b6"/>
+        <circle cx="-4" cy="4" r="4" fill="#f472b6"/>
+        <circle cx="-5" cy="-2" r="4" fill="#f472b6"/>
+        <circle cx="0" cy="0" r="3" fill="#fbbf24"/>
+      </g>
+      <!-- Cat face -->
+      <g transform="translate(45,60)" opacity="0.03">
+        <circle cx="0" cy="0" r="6" fill="#f472b6"/>
+        <path d="M-5 -4 L-7 -10 L-2 -5Z" fill="#f472b6"/>
+        <path d="M5 -4 L7 -10 L2 -5Z" fill="#f472b6"/>
+        <circle cx="-2" cy="-1" r="1" fill="#fff"/>
+        <circle cx="2" cy="-1" r="1" fill="#fff"/>
+      </g>
+      <!-- Tiny paw -->
+      <g transform="translate(20,75)" opacity="0.03">
+        <ellipse cx="0" cy="0" rx="4" ry="3" fill="#f472b6"/>
+        <circle cx="-2" cy="-3" r="1.5" fill="#f472b6"/>
+        <circle cx="0" cy="-3.5" r="1.5" fill="#f472b6"/>
+        <circle cx="2" cy="-3" r="1.5" fill="#f472b6"/>
+      </g>
+      <!-- Another heart -->
+      <path d="M82 70 C82 67 79 66 77 68 C75 66 72 67 72 70 C72 73 77 76 77 76 C77 76 82 73 82 70Z" fill="rgba(244,114,182,0.03)"/>
+      <!-- Sparkle -->
+      <path d="M85 45 L86 42 L87 45 L90 46 L87 47 L86 50 L85 47 L82 46Z" fill="rgba(244,114,182,0.035)"/>
     </svg>`;
   },
 
@@ -294,7 +350,7 @@ const ThemeManager = {
   // ================================================================
   getConfettiConfig(theme) {
     const colorSets = {
-      pink: ['#ff69b4', '#ffb6d5', '#ff1493', '#ff77aa', '#fff0f7'],
+      pink: ['#f472b6', '#fce7f3', '#ec4899', '#f9a8d4', '#fbbf24', '#fb7185', '#fda4af'],
       gold: ['#c8a96e', '#d4af37', '#b8960c', '#e8d5a0', '#fff4d6'],
       blue: ['#2c6fbb', '#1e3a5f', '#6ba3d6', '#a3c4e0', '#dbeafe'],
       orange: ['#ff6b35', '#ff8c61', '#ffd4c0', '#ffa07a', '#fff5f0'],

@@ -1752,26 +1752,67 @@ const AVIS = {
   generateClientGreeting(profile) {
     const hour = new Date().getHours();
     const name = profile.display_name;
+    const day = new Date().getDay();
     let greeting, sub;
 
-    if (hour < 12) {
-      greeting = `Good morning, ${name}! 🌸`;
-      sub = 'Let\'s check in on your goals';
-    } else if (hour < 17) {
-      greeting = `Hey ${name}! 💕`;
-      sub = 'How\'s your day going?';
-    } else if (hour < 21) {
-      greeting = `Hi ${name} 🌙`;
-      sub = 'How was your day?';
-    } else {
-      greeting = `Night, ${name} ✨`;
-      sub = 'Quick check before bed?';
-    }
+    // Girly greetings for Amber-style themes
+    const isGirly = profile.theme?.id === 'pink-kitty';
 
-    // Sunday special
-    if (new Date().getDay() === 0 && hour >= 17) {
-      greeting = `Hi ${name}! ✨`;
-      sub = 'Want to see your week recap?';
+    if (isGirly) {
+      if (hour < 12) {
+        const mornings = [
+          [`Good morning gorgeous! 🌸`, `Let's get this bread today 💅`],
+          [`Rise and shine ${name}! 🌺`, `You're glowing today ✨`],
+          [`Morning babe! 💕`, `Ready to slay your goals?`],
+          [`Hey pretty girl! 🌷`, `Let's check in on your money 💰`]
+        ];
+        const pick = mornings[Math.floor(Math.random() * mornings.length)];
+        greeting = pick[0]; sub = pick[1];
+      } else if (hour < 17) {
+        const afts = [
+          [`Hey ${name}! 💕`, `How's your day going babe?`],
+          [`Hi cutie! 🌸`, `Let's see how you're doing 💅`],
+          [`Hey girl! 🌺`, `Quick check-in? ✨`],
+          [`What's up ${name}! 💖`, `You're doing amazing`]
+        ];
+        const pick = afts[Math.floor(Math.random() * afts.length)];
+        greeting = pick[0]; sub = pick[1];
+      } else if (hour < 21) {
+        const eves = [
+          [`Hey ${name} 🌙`, `How was your day babe?`],
+          [`Evening gorgeous! ✨`, `Time to wind down 🌸`],
+          [`Hi ${name}! 💕`, `Let's see today's wins`],
+          [`Hey girl 🌺`, `Almost done for the day!`]
+        ];
+        const pick = eves[Math.floor(Math.random() * eves.length)];
+        greeting = pick[0]; sub = pick[1];
+      } else {
+        greeting = `Night night ${name} 🌙💕`;
+        sub = 'Quick peek before bed? 😴';
+      }
+
+      // Special days
+      if (day === 5) { greeting = `It's Friday ${name}!! 🎉`; sub = 'You made it through the week 💅'; }
+      if (day === 6) { greeting = `Happy Saturday ${name}! 🌸`; sub = 'Self-care day? 💕'; }
+      if (day === 0 && hour >= 17) { greeting = `Sunday vibes ${name} ✨`; sub = 'Want to see your week recap? 🌺'; }
+    } else {
+      if (hour < 12) {
+        greeting = `Good morning, ${name}! 🌸`;
+        sub = 'Let\'s check in on your goals';
+      } else if (hour < 17) {
+        greeting = `Hey ${name}! 💕`;
+        sub = 'How\'s your day going?';
+      } else if (hour < 21) {
+        greeting = `Hi ${name} 🌙`;
+        sub = 'How was your day?';
+      } else {
+        greeting = `Night, ${name} ✨`;
+        sub = 'Quick check before bed?';
+      }
+      if (day === 0 && hour >= 17) {
+        greeting = `Hi ${name}! ✨`;
+        sub = 'Want to see your week recap?';
+      }
     }
 
     document.getElementById('client-greeting').textContent = greeting;
@@ -2476,13 +2517,21 @@ const AVIS = {
 
     const mascotSVG = ThemeManager?.getMascotSVG(profile.theme) || '';
 
-    overlay.innerHTML = `
+    const isGirly = profile.theme?.id === 'pink-kitty';
+    overlay.innerHTML = isGirly ? `
+      <div class="mascot-welcome" style="transform:scale(1.5);margin-bottom:30px;">${mascotSVG}</div>
+      <h1>Hiii ${profile.display_name}! 💕🌸</h1>
+      <p style="font-size:15px;">Welcome to your glow-up bestie ✨</p>
+      <p style="margin-top:16px;font-size:13px;">We're saving for that dream house together! 🏠💅<br>$2,100 by December — you got this girl</p>
+      <p style="margin-top:12px;font-size:12px;opacity:0.7;">🌺 Tap + to log when you spend<br>💬 Chat with me anytime — I got you<br>💌 Coach will send you tips too</p>
+      <button class="client-welcome-btn" onclick="AVIS.dismissWelcome()">Let's slay! 💅🌸</button>
+    ` : `
       <div class="mascot-welcome" style="transform:scale(1.5);margin-bottom:30px;">${mascotSVG}</div>
       <h1>Hi ${profile.display_name}! 💕</h1>
-      <p>Welcome to your money buddy</p>
-      <p style="margin-top:16px;font-size:13px;">Here's your plan to save $2,100 by December for the house ✨</p>
-      <p style="margin-top:8px;font-size:12px;opacity:0.7;">Tap the + button to log spending<br>Chat with me anytime for help<br>Coach Avel will check in too 💌</p>
-      <button class="client-welcome-btn" onclick="AVIS.dismissWelcome()">Let's do this! 🌸</button>
+      <p>Welcome to your personal coach</p>
+      <p style="margin-top:16px;font-size:13px;">Let's build something great together ✨</p>
+      <p style="margin-top:8px;font-size:12px;opacity:0.7;">Tap the + button to log spending<br>Chat with me anytime for help<br>Your coach will check in too 💌</p>
+      <button class="client-welcome-btn" onclick="AVIS.dismissWelcome()">Let's do this!</button>
     `;
 
     document.body.appendChild(overlay);
