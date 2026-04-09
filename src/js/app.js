@@ -1743,6 +1743,21 @@ const AVIS = {
     // Weekly progress graph
     this.renderWeeklyProgressGraph();
 
+    // Streak tracker
+    this.renderStreakTracker();
+
+    // Savings house visualizer
+    this.renderHouseVisualizer(finances);
+
+    // Partner goals
+    this.renderPartnerGoals(finances);
+
+    // Payday check
+    this.checkPayday();
+
+    // Monthly milestone check
+    this.checkMonthlyMilestone();
+
     // Spending breakdown by category
     this.renderSpendingBreakdown(finances, monthSpending, remaining);
 
@@ -1792,6 +1807,474 @@ const AVIS = {
       </div>
       ${weeklyBudget > 0 ? `<div style="text-align:center;font-size:10px;color:var(--client-text-secondary);margin-top:4px;">Weekly target: $${weeklyBudget.toFixed(0)}</div>` : ''}
     `;
+  },
+
+  // ================================================================
+  // FEATURE 1: STREAK TRACKER
+  // ================================================================
+  async renderStreakTracker() {
+    const card = document.getElementById('client-streak-card');
+    if (!card) return;
+
+    const log = await ClientManager.getSpendingLog();
+    if (log.entries.length === 0) { card.style.display = 'none'; return; }
+
+    // Count consecutive days with logging (going backwards from today)
+    const today = new Date();
+    let streak = 0;
+    for (let d = 0; d < 365; d++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(today.getDate() - d);
+      const dateStr = checkDate.toISOString().split('T')[0];
+      const hasEntry = log.entries.some(e => e.date === dateStr);
+      if (hasEntry) { streak++; } else if (d > 0) { break; } // allow today to not have entry yet
+    }
+
+    if (streak > 0) {
+      card.style.display = 'block';
+      document.getElementById('streak-count').textContent = `${streak} day streak`;
+      const fireEl = document.getElementById('streak-fire');
+      const subEl = document.getElementById('streak-sub');
+      if (streak >= 7) {
+        fireEl.textContent = '🔥🔥🔥';
+        subEl.textContent = 'You\'re on FIRE! Keep it up queen! 💅';
+      } else if (streak >= 3) {
+        fireEl.textContent = '🔥🔥';
+        subEl.textContent = 'Building that habit! 💕';
+      } else {
+        fireEl.textContent = '🔥';
+        subEl.textContent = 'Keep logging to build your streak!';
+      }
+    } else {
+      card.style.display = 'none';
+    }
+  },
+
+  // ================================================================
+  // FEATURE 2: SAVINGS HOUSE VISUALIZER
+  // ================================================================
+  renderHouseVisualizer(finances) {
+    const el = document.getElementById('client-house-visual');
+    const subEl = document.getElementById('client-house-sub');
+    if (!el || !finances) return;
+
+    const savings = finances.accounts.find(a => a.purpose === 'house_savings');
+    if (!savings) return;
+
+    const pct = Math.min(100, (savings.balance / savings.target_balance) * 100);
+    const primary = ThemeManager?.getTheme()?.color_primary || '#ff69b4';
+    const accent = ThemeManager?.getTheme()?.color_accent || '#ff1493';
+    const secondary = ThemeManager?.getTheme()?.color_secondary || '#ffb6d5';
+
+    // SVG house that builds progressively
+    const showFoundation = pct >= 5;
+    const showWalls = pct >= 25;
+    const showWindows = pct >= 50;
+    const showRoof = pct >= 75;
+    const showChimney = pct >= 90;
+    const complete = pct >= 100;
+
+    el.innerHTML = `
+      <svg viewBox="0 0 200 160" width="180" height="140" style="margin:0 auto;display:block;">
+        <!-- Ground -->
+        <rect x="20" y="135" width="160" height="8" rx="4" fill="${secondary}" opacity="0.5"/>
+
+        <!-- Foundation -->
+        <rect x="40" y="120" width="120" height="18" rx="3" fill="${showFoundation ? primary : secondary}" opacity="${showFoundation ? 1 : 0.2}"
+          style="transition:all 0.6s ease;"/>
+
+        <!-- Walls -->
+        <rect x="45" y="60" width="110" height="62" rx="2" fill="${showWalls ? accent : secondary}" opacity="${showWalls ? 0.85 : 0.15}"
+          style="transition:all 0.6s ease;"/>
+
+        <!-- Door -->
+        ${showWalls ? `<rect x="85" y="88" width="30" height="34" rx="15 15 0 0" fill="${primary}" opacity="0.9"/>` : ''}
+
+        <!-- Windows -->
+        ${showWindows ? `
+          <rect x="55" y="72" width="22" height="22" rx="3" fill="#fff" opacity="0.85"/>
+          <rect x="123" y="72" width="22" height="22" rx="3" fill="#fff" opacity="0.85"/>
+          <line x1="66" y1="72" x2="66" y2="94" stroke="${accent}" stroke-width="1.5" opacity="0.4"/>
+          <line x1="55" y1="83" x2="77" y2="83" stroke="${accent}" stroke-width="1.5" opacity="0.4"/>
+          <line x1="134" y1="72" x2="134" y2="94" stroke="${accent}" stroke-width="1.5" opacity="0.4"/>
+          <line x1="123" y1="83" x2="145" y2="83" stroke="${accent}" stroke-width="1.5" opacity="0.4"/>
+        ` : ''}
+
+        <!-- Roof -->
+        <polygon points="30,62 100,15 170,62" fill="${showRoof ? primary : secondary}" opacity="${showRoof ? 1 : 0.15}"
+          style="transition:all 0.6s ease;"/>
+
+        <!-- Chimney -->
+        ${showChimney ? `<rect x="130" y="20" width="16" height="30" rx="2" fill="${accent}"/>` : ''}
+
+        <!-- Heart on complete -->
+        ${complete ? `<text x="100" y="50" text-anchor="middle" font-size="20">💕</text>` : ''}
+
+        <!-- Progress label -->
+        <text x="100" y="155" text-anchor="middle" font-size="10" fill="${primary}" font-weight="700">${pct.toFixed(0)}%</text>
+      </svg>
+    `;
+
+    subEl.textContent = complete ? 'You did it!! 🎉🏠💕' : `$${savings.balance.toFixed(0)} / $${savings.target_balance.toLocaleString()} saved`;
+  },
+
+  // ================================================================
+  // FEATURE 3: CAN I AFFORD THIS? CALCULATOR
+  // ================================================================
+  _affordAmount: '',
+
+  openAffordCalculator() {
+    this._affordAmount = '';
+    document.getElementById('afford-amount-display').textContent = '0.00';
+    document.getElementById('afford-result').style.display = 'none';
+    document.getElementById('client-afford-modal').classList.add('active');
+  },
+
+  affordNumpad(key) {
+    if (key === 'del') {
+      this._affordAmount = this._affordAmount.slice(0, -1);
+    } else if (key === '.' && this._affordAmount.includes('.')) {
+      return;
+    } else {
+      this._affordAmount += key;
+    }
+    const val = parseFloat(this._affordAmount) || 0;
+    document.getElementById('afford-amount-display').textContent = val.toFixed(2);
+  },
+
+  async checkAffordability() {
+    const amount = parseFloat(this._affordAmount) || 0;
+    if (amount <= 0) return;
+
+    const category = document.getElementById('afford-category').value;
+    const remaining = await ClientManager.getRemainingBudget();
+    const resultEl = document.getElementById('afford-result');
+    if (!remaining || !resultEl) return;
+
+    const catBudget = remaining[category];
+    const totalBudget = remaining._total;
+    const catName = this._formatCategoryName(category);
+    const theme = ThemeManager?.getTheme();
+
+    let verdict, color, emoji;
+    if (catBudget && amount <= catBudget.remaining) {
+      verdict = `Yes! You have $${catBudget.remaining.toFixed(2)} left in ${catName}. Go for it!`;
+      color = theme?.color_success || '#ff77aa';
+      emoji = '✅';
+    } else if (catBudget && amount <= catBudget.remaining + 20) {
+      verdict = `It's tight — you'd have only $${(catBudget.remaining - amount).toFixed(2)} left in ${catName}. Maybe wait a few days?`;
+      color = theme?.color_warning || '#ffa500';
+      emoji = '🤔';
+    } else {
+      const over = catBudget ? Math.abs(catBudget.remaining - amount).toFixed(2) : amount.toFixed(2);
+      verdict = `That would put you $${over} over your ${catName} budget. Skip it this time babe — your goals are worth it! 💪`;
+      color = theme?.color_danger || '#dc143c';
+      emoji = '❌';
+    }
+
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = `
+      <div style="background:${color}15;border:1.5px solid ${color};border-radius:14px;padding:14px;text-align:center;">
+        <div style="font-size:24px;margin-bottom:6px;">${emoji}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--client-text);line-height:1.5;">${verdict}</div>
+      </div>
+    `;
+  },
+
+  // ================================================================
+  // FEATURE 4: PAYDAY AUTO-PROMPT
+  // ================================================================
+  async checkPayday() {
+    const banner = document.getElementById('client-payday-banner');
+    if (!banner) return;
+
+    const profile = await ClientManager.getProfile();
+    if (!profile) return;
+
+    // Check if dismissed today
+    const dismissKey = `payday_dismissed_${new Date().toISOString().split('T')[0]}`;
+    const dismissed = await window.avis.storeGet(dismissKey, false);
+    if (dismissed) { banner.style.display = 'none'; return; }
+
+    // Biweekly pay — show banner 1 day before and on payday
+    // Approximate: 1st and 15th of each month
+    const today = new Date().getDate();
+    const isNearPayday = (today >= 14 && today <= 15) || (today >= 28 || today <= 1);
+
+    if (isNearPayday) {
+      banner.style.display = 'block';
+      const title = document.getElementById('payday-title');
+      const sub = document.getElementById('payday-sub');
+      if (today === 15 || today === 1) {
+        title.textContent = 'It\'s payday! 💰';
+        sub.textContent = 'Let\'s set aside savings before spending!';
+      } else {
+        title.textContent = 'Payday\'s tomorrow! 💰';
+        sub.textContent = 'Want to plan your paycheck allocation?';
+      }
+    } else {
+      banner.style.display = 'none';
+    }
+  },
+
+  async dismissPayday() {
+    const dismissKey = `payday_dismissed_${new Date().toISOString().split('T')[0]}`;
+    await window.avis.storeSet(dismissKey, true);
+    document.getElementById('client-payday-banner').style.display = 'none';
+  },
+
+  // ================================================================
+  // FEATURE 5: MONTHLY MILESTONE CARD
+  // ================================================================
+  async checkMonthlyMilestone() {
+    const card = document.getElementById('client-milestone-card');
+    if (!card) return;
+
+    const profile = await ClientManager.getProfile();
+    if (!profile) return;
+
+    const now = new Date();
+    const planStart = new Date(profile.plan_start_date);
+    const monthsIn = (now.getFullYear() - planStart.getFullYear()) * 12 + (now.getMonth() - planStart.getMonth());
+
+    // Only show on first 3 days of a new plan month
+    if (now.getDate() > 3 || monthsIn < 1) return;
+
+    // Check if already dismissed this month
+    const milestoneKey = `milestone_${now.getFullYear()}_${now.getMonth()}`;
+    const dismissed = await window.avis.storeGet(milestoneKey, false);
+    if (dismissed) return;
+
+    const finances = await ClientManager.getFinances();
+    if (!finances) return;
+
+    const savings = finances.accounts.find(a => a.purpose === 'house_savings');
+    const cc = finances.debts.find(d => d.id === 'credit_card');
+
+    const emojiEl = document.getElementById('milestone-emoji');
+    const titleEl = document.getElementById('milestone-title');
+    const bodyEl = document.getElementById('milestone-body');
+
+    emojiEl.textContent = '🎉';
+    titleEl.textContent = `Month ${monthsIn} Complete!`;
+
+    let body = '<div style="text-align:left;font-size:13px;line-height:1.8;color:var(--client-text-secondary);">';
+    if (savings) body += `<div>🏠 Savings: <strong>$${savings.balance.toFixed(0)}</strong> / $${savings.target_balance.toLocaleString()}</div>`;
+    if (cc) body += `<div>💳 Credit Card: <strong>$${cc.balance.toFixed(2)}</strong> remaining</div>`;
+    body += `<div>📈 Credit Score: <strong>${finances.credit_score}</strong></div>`;
+    body += '</div>';
+
+    bodyEl.innerHTML = body;
+    card.style.display = 'block';
+
+    // Auto-dismiss when closed
+    const originalOnClick = card.querySelector('.client-submit-btn').onclick;
+    card.querySelector('.client-submit-btn').onclick = async () => {
+      card.style.display = 'none';
+      await window.avis.storeSet(milestoneKey, true);
+    };
+  },
+
+  // ================================================================
+  // FEATURE 6: PARTNER GOALS VIEW
+  // ================================================================
+  async renderPartnerGoals(finances) {
+    const card = document.getElementById('client-partner-card');
+    if (!card || !finances) return;
+
+    const savings = finances.accounts.find(a => a.purpose === 'house_savings');
+    if (!savings) return;
+
+    // Operator savings (stored in electron-store, operator updates this)
+    const operatorSavings = await window.avis.storeGet('operator_savings', 0);
+    const combined = savings.balance + operatorSavings;
+    const goal = savings.target_balance;
+
+    document.getElementById('partner-combined').textContent = `$${combined.toLocaleString()}`;
+    document.getElementById('partner-goal').textContent = `$${goal.toLocaleString()}`;
+    const pct = Math.min(100, (combined / goal) * 100);
+    document.getElementById('partner-progress-bar').style.width = `${pct}%`;
+
+    const remaining = goal - combined;
+    if (remaining <= 0) {
+      document.getElementById('partner-sub').textContent = 'You both did it!! 🏠💕🎉';
+    } else {
+      document.getElementById('partner-sub').textContent = `$${remaining.toLocaleString()} to go together ✨`;
+    }
+  },
+
+  // ================================================================
+  // FEATURE 7: SUBSCRIPTION AUDIT
+  // ================================================================
+  async renderSubscriptionAudit() {
+    const listEl = document.getElementById('client-sub-list');
+    if (!listEl) return;
+
+    const finances = await ClientManager.getFinances();
+    if (!finances) return;
+
+    // Get subscriptions from finances or a dedicated list
+    const subs = finances.subscriptions || [];
+    const theme = ThemeManager?.getTheme();
+
+    if (subs.length === 0) {
+      listEl.innerHTML = '<div class="client-empty"><p>No subscriptions tracked yet. Add yours below! 🌸</p></div>';
+      document.getElementById('client-sub-savings').style.display = 'none';
+      return;
+    }
+
+    listEl.innerHTML = subs.map((sub, i) => `
+      <div class="client-spending-row" style="padding:10px 0;">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--client-text);">${sub.name}</div>
+          <div style="font-size:11px;color:var(--client-text-secondary);">$${sub.cost.toFixed(2)}/month</div>
+        </div>
+        <button onclick="AVIS.toggleSubFlag(${i})" style="padding:6px 12px;border-radius:10px;border:1.5px solid ${sub.flagged ? 'var(--client-danger, #dc143c)' : 'var(--client-secondary)'};background:${sub.flagged ? 'var(--client-danger, #dc143c)15' : 'transparent'};color:${sub.flagged ? 'var(--client-danger, #dc143c)' : 'var(--client-text-secondary)'};font-size:11px;font-weight:600;cursor:pointer;">
+          ${sub.flagged ? '✂️ Cut' : 'Flag to cut'}
+        </button>
+        <button onclick="AVIS.removeSub(${i})" style="padding:6px 8px;border:none;background:none;color:var(--client-text-secondary);cursor:pointer;font-size:14px;">🗑️</button>
+      </div>
+    `).join('');
+
+    // Calculate savings
+    const flaggedTotal = subs.filter(s => s.flagged).reduce((s, sub) => s + sub.cost, 0);
+    const savingsEl = document.getElementById('client-sub-savings');
+    if (flaggedTotal > 0) {
+      savingsEl.style.display = 'block';
+      document.getElementById('client-sub-save-amount').textContent = `$${flaggedTotal.toFixed(2)}/month`;
+      document.getElementById('client-sub-save-yearly').textContent = `$${(flaggedTotal * 12).toFixed(0)}/year toward your goals`;
+    } else {
+      savingsEl.style.display = 'none';
+    }
+  },
+
+  async toggleSubFlag(index) {
+    const finances = await ClientManager.getFinances();
+    if (!finances || !finances.subscriptions) return;
+    finances.subscriptions[index].flagged = !finances.subscriptions[index].flagged;
+    await ClientManager.updateFinances(null, { subscriptions: finances.subscriptions });
+    this.renderSubscriptionAudit();
+  },
+
+  async removeSub(index) {
+    const finances = await ClientManager.getFinances();
+    if (!finances || !finances.subscriptions) return;
+    finances.subscriptions.splice(index, 1);
+    await ClientManager.updateFinances(null, { subscriptions: finances.subscriptions });
+    this.renderSubscriptionAudit();
+  },
+
+  async addSubscription() {
+    const nameEl = document.getElementById('sub-add-name');
+    const costEl = document.getElementById('sub-add-cost');
+    const name = nameEl?.value?.trim();
+    const cost = parseFloat(costEl?.value);
+    if (!name || !cost || cost <= 0) { this.showToast('Enter name and cost'); return; }
+
+    const finances = await ClientManager.getFinances();
+    if (!finances) return;
+    if (!finances.subscriptions) finances.subscriptions = [];
+    finances.subscriptions.push({ name, cost, flagged: false });
+    await ClientManager.updateFinances(null, { subscriptions: finances.subscriptions });
+    nameEl.value = '';
+    costEl.value = '';
+    this.renderSubscriptionAudit();
+    this.showToast(`Added ${name} 💕`);
+  },
+
+  // ================================================================
+  // FEATURE 8: EXPORT / SHARE PROGRESS CARD
+  // ================================================================
+  async openExportCard() {
+    const cardEl = document.getElementById('client-export-card');
+    if (!cardEl) return;
+
+    const profile = await ClientManager.getProfile();
+    const finances = await ClientManager.getFinances();
+    const monthSpending = await ClientManager.getMonthSpending();
+    const remaining = await ClientManager.getRemainingBudget();
+    if (!profile || !finances) return;
+
+    const savings = finances.accounts.find(a => a.purpose === 'house_savings');
+    const cc = finances.debts.find(d => d.id === 'credit_card');
+    const totalBudget = Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0);
+    const theme = profile.theme || {};
+    const now = new Date();
+    const monthName = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const planMonth = ClientManager.getPlanMonth(profile);
+
+    cardEl.innerHTML = `
+      <div style="background:linear-gradient(135deg, ${theme.color_primary || '#ff69b4'}, ${theme.color_accent || '#ff1493'});border-radius:20px;padding:24px;color:#fff;font-family:${theme.font_heading || 'Quicksand'},sans-serif;">
+        <div style="text-align:center;margin-bottom:16px;">
+          <div style="font-size:12px;opacity:0.8;text-transform:uppercase;letter-spacing:2px;">Monthly Summary</div>
+          <div style="font-size:22px;font-weight:700;margin-top:4px;">${profile.display_name}'s Progress</div>
+          <div style="font-size:11px;opacity:0.7;">${monthName} — Month ${planMonth} of ${profile.plan_duration_months}</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+          <div style="background:rgba(255,255,255,0.15);border-radius:14px;padding:12px;text-align:center;">
+            <div style="font-size:10px;opacity:0.8;">Spent</div>
+            <div style="font-size:20px;font-weight:700;">$${monthSpending.total.toFixed(0)}</div>
+            <div style="font-size:9px;opacity:0.7;">of $${totalBudget} budget</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.15);border-radius:14px;padding:12px;text-align:center;">
+            <div style="font-size:10px;opacity:0.8;">Saved</div>
+            <div style="font-size:20px;font-weight:700;">$${savings ? savings.balance.toFixed(0) : 0}</div>
+            <div style="font-size:9px;opacity:0.7;">of $${savings ? savings.target_balance.toLocaleString() : 0} goal</div>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.15);border-radius:14px;padding:12px;margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;">
+            <span>💳 Credit Card</span>
+            <span style="font-weight:700;">$${cc ? cc.balance.toFixed(2) : '0'}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;">
+            <span>📈 Credit Score</span>
+            <span style="font-weight:700;">${finances.credit_score} → ${finances.credit_score_target}</span>
+          </div>
+        </div>
+
+        <div style="text-align:center;font-size:9px;opacity:0.5;">
+          Powered by AVIS — Avel Productions LLC
+        </div>
+      </div>
+    `;
+
+    document.getElementById('client-export-modal').classList.add('active');
+  },
+
+  async copyExportCard() {
+    const cardEl = document.getElementById('client-export-card');
+    if (!cardEl) return;
+
+    // Copy the text content as formatted summary
+    const profile = await ClientManager.getProfile();
+    const finances = await ClientManager.getFinances();
+    const monthSpending = await ClientManager.getMonthSpending();
+    if (!profile || !finances) return;
+
+    const savings = finances.accounts.find(a => a.purpose === 'house_savings');
+    const cc = finances.debts.find(d => d.id === 'credit_card');
+    const totalBudget = Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0);
+    const now = new Date();
+    const monthName = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    const text = `✨ ${profile.display_name}'s Monthly Progress — ${monthName} ✨
+
+💰 Spent: $${monthSpending.total.toFixed(0)} / $${totalBudget} budget
+🏠 Saved: $${savings ? savings.balance.toFixed(0) : 0} / $${savings ? savings.target_balance.toLocaleString() : 0}
+💳 Credit Card: $${cc ? cc.balance.toFixed(2) : '0'} left
+📈 Credit Score: ${finances.credit_score} → ${finances.credit_score_target}
+
+Powered by AVIS 💕`;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      this.showToast('Copied to clipboard! 📋');
+    } catch (e) {
+      this.showToast('Could not copy — try selecting text manually');
+    }
   },
 
   renderSpendingBreakdown(finances, monthSpending, remaining) {
@@ -1937,7 +2420,8 @@ const AVIS = {
     // All hideable views
     const views = ['client-dashboard', 'chat-center', 'client-quick-prompts', 'client-header', 'client-fab',
       'client-history-view', 'client-trends-view', 'client-more-view', 'client-reports-view',
-      'client-debt-view', 'client-budget-view', 'client-profile-view', 'client-settings-view'];
+      'client-debt-view', 'client-budget-view', 'client-profile-view', 'client-settings-view',
+      'client-subscriptions-view', 'client-payday-banner', 'client-milestone-card', 'client-streak-card'];
     views.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 
     const show = id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; };
@@ -1988,6 +2472,10 @@ const AVIS = {
       case 'settings':
         show('client-settings-view');
         this.restoreClientSettings();
+        break;
+      case 'subscriptions':
+        show('client-subscriptions-view');
+        this.renderSubscriptionAudit();
         break;
     }
   },
@@ -2623,7 +3111,8 @@ const AVIS = {
     ['client-nav', 'client-fab', 'client-header', 'client-dashboard',
      'client-history-view', 'client-trends-view', 'client-more-view',
      'client-reports-view', 'client-debt-view', 'client-budget-view',
-     'client-profile-view', 'client-settings-view', 'client-quick-prompts'].forEach(id => {
+     'client-profile-view', 'client-settings-view', 'client-subscriptions-view',
+     'client-payday-banner', 'client-milestone-card', 'client-quick-prompts'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });

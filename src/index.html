@@ -604,8 +604,42 @@
     <div class="rec-badge" id="client-rec-badge" style="display:none;"></div>
   </div>
 
+  <!-- Payday Auto-Prompt Banner -->
+  <div class="client-payday-banner" id="client-payday-banner" style="display:none;">
+    <div class="payday-content">
+      <span class="payday-emoji">💰</span>
+      <div class="payday-text">
+        <div class="payday-title" id="payday-title">Payday's coming!</div>
+        <div class="payday-sub" id="payday-sub">Want to set aside savings before spending?</div>
+      </div>
+      <button class="payday-action" onclick="AVIS.clientQuickPrompt('Help me plan my paycheck allocation')">Plan it 💕</button>
+      <button class="payday-dismiss" onclick="AVIS.dismissPayday()">✕</button>
+    </div>
+  </div>
+
+  <!-- Monthly Milestone Card -->
+  <div class="client-milestone-card" id="client-milestone-card" style="display:none;">
+    <div class="milestone-content">
+      <div class="milestone-emoji" id="milestone-emoji">🎉</div>
+      <div class="milestone-title" id="milestone-title">Month 1 Complete!</div>
+      <div class="milestone-body" id="milestone-body"></div>
+      <button class="client-submit-btn" onclick="document.getElementById('client-milestone-card').style.display='none'" style="margin-top:12px;font-size:13px;">Got it! 💕</button>
+    </div>
+  </div>
+
   <!-- Client Dashboard -->
   <div class="client-dashboard" id="client-dashboard">
+    <!-- Streak Tracker -->
+    <div class="client-card client-streak-card" id="client-streak-card" style="display:none;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="streak-fire" id="streak-fire">🔥</div>
+        <div>
+          <div class="streak-count" id="streak-count">0 day streak</div>
+          <div class="streak-sub" id="streak-sub">Keep logging to build your streak!</div>
+        </div>
+      </div>
+    </div>
+
     <!-- This Month at a Glance -->
     <div class="client-card" id="client-month-card">
       <div class="client-card-title">This Month</div>
@@ -614,6 +648,32 @@
       <div class="client-progress-bar">
         <div class="client-progress-fill" id="client-budget-bar" style="width:0%"></div>
       </div>
+    </div>
+
+    <!-- Savings Visualizer (House) -->
+    <div class="client-card" id="client-house-card">
+      <div class="client-card-title">Building Your Home 🏠</div>
+      <div id="client-house-visual" style="text-align:center;padding:10px 0;"></div>
+      <div class="client-card-sub" style="text-align:center;" id="client-house-sub">$200 / $2,100</div>
+    </div>
+
+    <!-- Partner Goals -->
+    <div class="client-card" id="client-partner-card">
+      <div class="client-card-title">Together With Avel 💕</div>
+      <div style="display:flex;gap:12px;align-items:center;">
+        <div style="flex:1;">
+          <div style="font-size:11px;color:var(--client-text-secondary);margin-bottom:4px;">Combined Savings</div>
+          <div style="font-size:20px;font-weight:700;font-family:var(--client-font-heading);" id="partner-combined">$200</div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:11px;color:var(--client-text-secondary);margin-bottom:4px;">House Goal</div>
+          <div style="font-size:20px;font-weight:700;font-family:var(--client-font-heading);" id="partner-goal">$2,100</div>
+        </div>
+      </div>
+      <div class="client-progress-bar" style="margin-top:8px;">
+        <div class="client-progress-fill" id="partner-progress-bar" style="width:0%"></div>
+      </div>
+      <div class="client-card-sub" id="partner-sub">We're in this together ✨</div>
     </div>
 
     <!-- Goals -->
@@ -689,6 +749,52 @@
 
   <!-- Floating Add Button -->
   <button class="client-fab" id="client-fab" onclick="AVIS.openSpendingLogger()">+</button>
+
+  <!-- Can I Afford This? Calculator Modal -->
+  <div class="client-spend-modal" id="client-afford-modal">
+    <div class="client-spend-sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Can I Afford This? 🤔</div>
+      <div class="client-amount-display" id="afford-amount-display">0.00</div>
+      <div class="client-numpad">
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('1')">1</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('2')">2</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('3')">3</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('4')">4</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('5')">5</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('6')">6</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('7')">7</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('8')">8</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('9')">9</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('.')">.</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('0')">0</button>
+        <button class="client-numpad-btn" onclick="AVIS.affordNumpad('del')">⌫</button>
+      </div>
+      <select id="afford-category" style="width:100%;padding:10px 14px;border-radius:12px;border:1px solid var(--client-secondary);background:var(--client-bg);color:var(--client-text);font-family:var(--client-font-body);font-size:13px;margin:8px 0;">
+        <option value="food">🍽️ Food</option>
+        <option value="gas_transport">🚗 Gas</option>
+        <option value="shopping_personal">🛍️ Shopping</option>
+        <option value="entertainment">🎬 Entertainment</option>
+        <option value="health_beauty">💅 Health & Beauty</option>
+        <option value="gifts">🎁 Gifts</option>
+        <option value="other">❓ Other</option>
+      </select>
+      <button class="client-submit-btn" onclick="AVIS.checkAffordability()">Check It 💕</button>
+      <div id="afford-result" style="margin-top:12px;display:none;"></div>
+      <button style="width:100%;padding:10px;border:none;background:none;color:var(--client-text-secondary);font-size:13px;cursor:pointer;margin-top:6px;" onclick="document.getElementById('client-afford-modal').classList.remove('active')">Close</button>
+    </div>
+  </div>
+
+  <!-- Export/Share Modal -->
+  <div class="client-spend-modal" id="client-export-modal">
+    <div class="client-spend-sheet" style="max-height:80vh;overflow-y:auto;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">My Monthly Summary 📸</div>
+      <div id="client-export-card" class="export-card"></div>
+      <button class="client-submit-btn" onclick="AVIS.copyExportCard()" style="margin-top:12px;">Copy to Clipboard 📋</button>
+      <button style="width:100%;padding:10px;border:none;background:none;color:var(--client-text-secondary);font-size:13px;cursor:pointer;margin-top:6px;" onclick="document.getElementById('client-export-modal').classList.remove('active')">Close</button>
+    </div>
+  </div>
 
   <!-- Spending Logger Modal -->
   <div class="client-spend-modal" id="client-spend-modal">
@@ -814,6 +920,26 @@
     </div>
   </div>
 
+  <!-- Subscription Audit View -->
+  <div class="client-dashboard" id="client-subscriptions-view" style="display:none;">
+    <div class="client-card">
+      <div class="client-card-title">Subscription Audit 📋</div>
+      <div class="client-card-sub" style="margin-bottom:12px;">Review your subscriptions and see how much you could save</div>
+      <div id="client-sub-list"></div>
+      <div id="client-sub-savings" style="margin-top:12px;padding:12px;border-radius:12px;background:var(--client-secondary);text-align:center;display:none;">
+        <div style="font-size:11px;color:var(--client-text-secondary);margin-bottom:4px;">If you cut flagged subscriptions:</div>
+        <div style="font-size:22px;font-weight:700;font-family:var(--client-font-heading);color:var(--client-primary);" id="client-sub-save-amount">$0/month</div>
+        <div style="font-size:11px;color:var(--client-text-secondary);margin-top:2px;" id="client-sub-save-yearly">$0/year toward your goals</div>
+      </div>
+    </div>
+    <div class="client-card">
+      <div class="client-card-title">Add Subscription</div>
+      <input type="text" id="sub-add-name" class="client-note-input" placeholder="Name (e.g. Netflix)" style="margin-top:0;margin-bottom:6px;">
+      <input type="number" id="sub-add-cost" class="client-note-input" placeholder="Monthly cost ($)" style="margin-top:0;margin-bottom:6px;">
+      <button class="client-submit-btn" onclick="AVIS.addSubscription()" style="font-size:13px;">Add 💕</button>
+    </div>
+  </div>
+
   <!-- Settings View -->
   <div class="client-dashboard" id="client-settings-view" style="display:none;">
     <div class="client-card" style="padding:0;overflow:hidden;">
@@ -893,6 +1019,18 @@
       </button>
       <button class="client-settings-row" onclick="AVIS.clientSwitchView('profile')" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);border-bottom:1px solid var(--client-secondary);">
         <span class="client-settings-label">👤 My Profile</span>
+        <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
+      </button>
+      <button class="client-settings-row" onclick="AVIS.openAffordCalculator()" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">🤔 Can I Afford This?</span>
+        <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
+      </button>
+      <button class="client-settings-row" onclick="AVIS.clientSwitchView('subscriptions')" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">📋 Subscription Audit</span>
+        <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
+      </button>
+      <button class="client-settings-row" onclick="AVIS.openExportCard()" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">📸 Share My Progress</span>
         <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
       </button>
       <button class="client-settings-row" onclick="AVIS.clientSwitchView('settings')" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);">

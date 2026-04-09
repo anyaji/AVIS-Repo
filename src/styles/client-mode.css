@@ -855,6 +855,150 @@ body.client-mode .client-quick-prompts {
 }
 
 /* ================================================================
+   PAYDAY BANNER
+   ================================================================ */
+.client-payday-banner {
+  display: none;
+  padding: 0 16px;
+  max-width: 480px;
+  margin: 0 auto 8px;
+}
+
+.payday-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, var(--client-primary, #ff69b4)15, var(--client-accent, #ff1493)10);
+  border: 1.5px solid var(--client-primary, #ff69b4);
+  border-radius: var(--client-radius, 20px);
+  padding: 12px 14px;
+  position: relative;
+}
+
+.payday-emoji {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.payday-text {
+  flex: 1;
+}
+
+.payday-title {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+}
+
+.payday-sub {
+  font-size: 11px;
+  color: var(--client-text-secondary, #7a4458);
+  margin-top: 2px;
+}
+
+.payday-action {
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--client-primary, #ff69b4);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.payday-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--client-text-secondary, #7a4458);
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+/* ================================================================
+   MILESTONE CARD
+   ================================================================ */
+.client-milestone-card {
+  display: none;
+  padding: 0 16px;
+  max-width: 480px;
+  margin: 0 auto 8px;
+}
+
+.milestone-content {
+  background: var(--client-card, #fff);
+  border: 2px solid var(--client-primary, #ff69b4);
+  border-radius: var(--client-radius, 20px);
+  padding: 20px;
+  text-align: center;
+  animation: milestone-pop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes milestone-pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.milestone-emoji {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.milestone-title {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+  margin-bottom: 10px;
+}
+
+/* ================================================================
+   STREAK TRACKER
+   ================================================================ */
+.client-streak-card {
+  background: linear-gradient(135deg, var(--client-primary, #ff69b4)10, var(--client-accent, #ff1493)05) !important;
+  border-color: var(--client-primary, #ff69b4) !important;
+}
+
+.streak-fire {
+  font-size: 32px;
+  animation: streak-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes streak-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.streak-count {
+  font-family: var(--client-font-heading, 'Quicksand', sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--client-text, #3d1f2e);
+}
+
+.streak-sub {
+  font-size: 12px;
+  color: var(--client-text-secondary, #7a4458);
+  margin-top: 2px;
+}
+
+/* ================================================================
+   EXPORT CARD
+   ================================================================ */
+.export-card {
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+/* ================================================================
    EMPTY STATES
    ================================================================ */
 .client-empty {

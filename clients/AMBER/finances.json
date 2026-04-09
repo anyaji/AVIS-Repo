@@ -63,5 +63,11 @@
     "loan_payment": 53.32,
     "credit_card_minimum": 25,
     "subscriptions": 50
-  }
+  },
+  "subscriptions": [
+    { "name": "Spotify", "cost": 10.99, "flagged": false },
+    { "name": "Netflix", "cost": 15.49, "flagged": false },
+    { "name": "iCloud Storage", "cost": 2.99, "flagged": false },
+    { "name": "YouTube Premium", "cost": 13.99, "flagged": false }
+  ]
 }
