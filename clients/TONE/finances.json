@@ -1,0 +1,20 @@
+{
+  "last_updated": "2026-04-08",
+  "credit_score": 0,
+  "credit_score_target": 0,
+  "credit_score_target_date": "",
+  "accounts": [],
+  "debts": [],
+  "monthly_budget": {
+    "food": 0,
+    "subscriptions": 0,
+    "shopping_personal": 0,
+    "gas_transport": 0,
+    "entertainment": 0,
+    "bills_utilities": 0,
+    "health_beauty": 0,
+    "gifts": 0,
+    "buffer": 0
+  },
+  "fixed_expenses": {}
+}

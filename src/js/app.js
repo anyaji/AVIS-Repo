@@ -26,7 +26,8 @@ const AVIS = {
     }
 
     // ALWAYS show code entry screen — auto-fill last used code
-    const lastCode = persistedClient || (persistedMode === 'operator' ? 'AVL-000' : null);
+    let lastCode = persistedClient || (persistedMode === 'operator' ? 'AVL' : null);
+    if (lastCode === 'AMB-001') lastCode = 'AMBER'; // migrate old code
     this._showCodeEntryScreen(lastCode);
   },
 
@@ -199,7 +200,7 @@ const AVIS = {
 
     // Special operator code — bypass to full AVIS
     const operatorPassword = await window.avis.storeGet('operatorPassword', 'avis2026');
-    if (code === 'OPERATOR' || code === 'AVL-000' || code === operatorPassword.toUpperCase()) {
+    if (code === 'OPERATOR' || code === 'AVL-000' || code === 'AVL' || code === operatorPassword.toUpperCase()) {
       await window.avis.storeSet('bootMode', 'operator');
       document.getElementById('code-entry-screen')?.remove();
       document.querySelector('.titlebar')?.style.setProperty('display', '');
