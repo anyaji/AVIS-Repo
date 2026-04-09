@@ -1231,8 +1231,10 @@ body.client-mode.client-dark .titlebar {
   background: #261a20 !important;
 }
 
-body.client-mode.client-dark .center-panel {
+body.client-mode.client-dark .center-panel,
+body.client-mode.client-dark #chat-center {
   background: #1a0e14 !important;
+  background-color: #1a0e14 !important;
 }
 
 body.client-mode.client-dark .message.user .message-bubble {
