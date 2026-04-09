@@ -2597,6 +2597,20 @@ function startSentinel() {
 // ====================================================================
 const CLIENTS_DIR = path.join(__dirname, 'clients');
 
+// Expose device ID + operator device ID for client code binding
+const OPERATOR_DEVICE_ID = getDeviceId();
+ipcMain.handle('get-device-id', () => OPERATOR_DEVICE_ID);
+ipcMain.handle('is-operator-device', () => {
+  // The device that built/installed AVIS is the operator device
+  const operatorId = store.get('operatorDeviceId', null);
+  if (!operatorId) {
+    // First run — this device becomes the operator
+    store.set('operatorDeviceId', OPERATOR_DEVICE_ID);
+    return true;
+  }
+  return operatorId === OPERATOR_DEVICE_ID;
+});
+
 // List client directories
 ipcMain.handle('client:list', async () => {
   try {

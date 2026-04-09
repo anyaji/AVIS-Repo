@@ -217,15 +217,30 @@ const AVIS = {
       return;
     }
 
-    // Valid client — load their experience
+    // Valid client — check device binding
+    const profile = await ClientManager.getProfile(code);
+    const deviceId = await window.avis.getDeviceId();
+    const isOperator = await window.avis.isOperatorDevice();
+
+    if (!isOperator) {
+      // Non-operator device — enforce single-device binding
+      if (profile.bound_device && profile.bound_device !== deviceId) {
+        if (errorEl) errorEl.textContent = 'This code is already activated on another device';
+        input.style.borderColor = '#ff4444';
+        setTimeout(() => { input.style.borderColor = 'rgba(255,255,255,0.1)'; }, 2000);
+        return;
+      }
+      // First activation on this device — bind it
+      if (!profile.bound_device) {
+        await ClientManager.updateProfile(code, { bound_device: deviceId, activated_at: new Date().toISOString() });
+      }
+    }
+
     if (errorEl) errorEl.textContent = '';
 
     // Brief loading animation
     input.disabled = true;
     input.style.borderColor = '#00a8ff';
-
-    // Load the client profile to get their theme
-    const profile = await ClientManager.getProfile(code);
 
     // Animate transition — fade the code screen to the client's primary color
     const overlay = document.getElementById('code-entry-screen');

@@ -160,6 +160,10 @@ contextBridge.exposeInMainWorld('avis', {
   workflowLoad: (filename) => ipcRenderer.invoke('workflow:load', filename),
   workflowFind: (message) => ipcRenderer.invoke('workflow:find', message),
 
+  // Device identity
+  getDeviceId: () => ipcRenderer.invoke('get-device-id'),
+  isOperatorDevice: () => ipcRenderer.invoke('is-operator-device'),
+
   // Client Platform
   clientList: () => ipcRenderer.invoke('client:list'),
   clientReadFile: (code, file) => ipcRenderer.invoke('client:read-file', code, file),
