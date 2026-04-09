@@ -888,8 +888,14 @@
 
   <!-- Reports View -->
   <div class="client-dashboard" id="client-reports-view" style="display:none;">
+    <!-- Live This Week Card -->
+    <div class="client-card" id="client-live-week-card">
+      <div class="client-card-title">This Week (Live)</div>
+      <div id="client-live-week-summary"></div>
+    </div>
+    <!-- Past Recaps -->
     <div class="client-card">
-      <div class="client-card-title">Weekly Recaps</div>
+      <div class="client-card-title">Past Recaps</div>
       <div id="client-reports-list"></div>
     </div>
   </div>
@@ -1056,18 +1062,6 @@
       </button>
     </div>
     <div class="client-card" style="padding:0;overflow:hidden;">
-      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
-        <span class="client-settings-label">🔔 Notifications</span>
-        <div class="client-toggle" id="toggle-notif" onclick="AVIS.toggleClientSetting('notifications')"></div>
-      </div>
-      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
-        <span class="client-settings-label">🔊 Sound Effects</span>
-        <div class="client-toggle" id="toggle-sound" onclick="AVIS.toggleClientSetting('sound')"></div>
-      </div>
-      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
-        <span class="client-settings-label">🌙 Dark Mode</span>
-        <div class="client-toggle" id="toggle-dark" onclick="AVIS.toggleClientSetting('dark')"></div>
-      </div>
       <div class="client-settings-row" style="padding:14px 18px;">
         <span class="client-settings-label">📱 About</span>
         <span style="color:var(--client-text-secondary);font-size:12px;">v4.5.0</span>

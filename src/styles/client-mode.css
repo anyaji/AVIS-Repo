@@ -1211,13 +1211,119 @@ body.client-mode .client-quick-prompts {
 }
 
 /* ================================================================
-   DARK MODE VARIANT (still themed)
+   DARK MODE VARIANT — full override for all hardcoded colors
    ================================================================ */
 body.client-mode.client-dark {
   --client-bg: #1a0e14;
   --client-card: #261a20;
   --client-text: #f0e0ea;
   --client-text-secondary: #b89aaa;
+  background: #1a0e14 !important;
+}
+
+body.client-mode.client-dark .titlebar {
+  background: #261a20 !important;
+}
+
+body.client-mode.client-dark .center-panel {
+  background: #1a0e14 !important;
+}
+
+body.client-mode.client-dark .message.user .message-bubble {
+  background: #be185d !important;
+  color: #fff !important;
+  border-color: #9d174d !important;
+}
+
+body.client-mode.client-dark .message.ai .message-bubble {
+  background: #261a20 !important;
+  color: #f0e0ea !important;
+  border-color: #3d2030 !important;
+}
+
+body.client-mode.client-dark .input-wrap {
+  background: #261a20 !important;
+  border-color: #3d2030 !important;
+}
+
+body.client-mode.client-dark .input-wrap:focus-within {
+  border-color: #be185d !important;
+}
+
+body.client-mode.client-dark #chat-input {
+  color: #f0e0ea !important;
+}
+
+body.client-mode.client-dark #chat-input::placeholder {
+  color: #b89aaa;
+}
+
+body.client-mode.client-dark .client-card {
+  background: #261a20 !important;
+  border-color: #3d2030 !important;
+}
+
+body.client-mode.client-dark .client-nav {
+  background: #261a20 !important;
+  border-color: #3d2030 !important;
+}
+
+body.client-mode.client-dark .client-chat-toolbar-btn {
+  background: rgba(38, 26, 32, 0.8) !important;
+  border-color: #3d2030 !important;
+  color: #b89aaa !important;
+}
+
+body.client-mode.client-dark .client-chat-toolbar-btn:hover {
+  background: #be185d !important;
+  color: #fff !important;
+}
+
+body.client-mode.client-dark .client-quick-chip {
+  background: #261a20 !important;
+  border-color: #3d2030 !important;
+  color: #b89aaa !important;
+}
+
+body.client-mode.client-dark .client-quick-chip:hover {
+  background: #3d2030 !important;
+  color: #f0e0ea !important;
+}
+
+body.client-mode.client-dark .client-numpad-btn {
+  background: #1a0e14 !important;
+  border-color: #3d2030 !important;
+  color: #f0e0ea !important;
+}
+
+body.client-mode.client-dark .client-note-input {
+  background: #1a0e14 !important;
+  border-color: #3d2030 !important;
+  color: #f0e0ea !important;
+}
+
+body.client-mode.client-dark .client-fab {
+  background: linear-gradient(135deg, #be185d, #9d174d) !important;
+}
+
+body.client-mode.client-dark .client-progress-bar {
+  background: #3d2030 !important;
+}
+
+body.client-mode.client-dark .client-archive-row {
+  border-color: #3d2030 !important;
+}
+
+body.client-mode.client-dark .client-archive-row:hover {
+  background: rgba(61, 32, 48, 0.5) !important;
+}
+
+body.client-mode.client-dark .client-spend-sheet {
+  background: #261a20 !important;
+}
+
+body.client-mode.client-dark .input-area {
+  background: #1a0e14 !important;
 }
 
 /* ================================================================

@@ -2824,18 +2824,10 @@ Powered by AVIS 💕`;
   // ================================================================
   toggleClientSetting(setting) {
     const toggleId = setting === 'notifications' ? 'notif' : setting;
-    // Find whichever toggle was clicked to determine new state
-    const toggle = document.getElementById(`toggle-${toggleId}`) || document.getElementById(`toggle-settings-${toggleId}`);
+    const toggle = document.getElementById(`toggle-settings-${toggleId}`);
     if (!toggle) return;
     toggle.classList.toggle('on');
     const isOn = toggle.classList.contains('on');
-
-    // Sync both toggle locations
-    const syncIds = [`toggle-${toggleId}`, `toggle-settings-${toggleId}`];
-    for (const tid of syncIds) {
-      const el = document.getElementById(tid);
-      if (el) el.classList.toggle('on', isOn);
-    }
 
     // Persist setting
     const code = ClientManager.getActiveClient();
@@ -2863,14 +2855,8 @@ Powered by AVIS 💕`;
     for (const setting of settings) {
       const isOn = await window.avis.storeGet(`client_${code}_${setting}`, false);
       const toggleId = setting === 'notifications' ? 'notif' : setting;
-      // Update both More menu toggles and Settings view toggles
-      const toggleIds = [`toggle-${toggleId}`, `toggle-settings-${toggleId}`];
-      for (const tid of toggleIds) {
-        const toggle = document.getElementById(tid);
-        if (toggle) {
-          toggle.classList.toggle('on', isOn);
-        }
-      }
+      const toggle = document.getElementById(`toggle-settings-${toggleId}`);
+      if (toggle) toggle.classList.toggle('on', isOn);
       if (isOn) {
         if (setting === 'dark') document.body.classList.add('client-dark');
         if (setting === 'sound') {
@@ -3037,6 +3023,67 @@ Powered by AVIS 💕`;
   // WEEKLY REPORTS
   // ================================================================
   async renderReports() {
+    // --- Live This Week Summary ---
+    const liveEl = document.getElementById('client-live-week-summary');
+    if (liveEl) {
+      const finances = await ClientManager.getFinances();
+      const weekSpending = await ClientManager.getWeekSpending();
+      const monthSpending = await ClientManager.getMonthSpending();
+      const remaining = await ClientManager.getRemainingBudget();
+      const profile = await ClientManager.getProfile();
+
+      if (finances && profile) {
+        const totalBudget = Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0);
+        const weeklyBudget = totalBudget / 4;
+        const savings = finances.accounts?.find(a => a.purpose === 'house_savings');
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0=Sun
+        const daysLeft = 7 - dayOfWeek;
+
+        // Category breakdown for the week
+        const catBreakdown = Object.entries(weekSpending.byCategory)
+          .sort((a, b) => b[1] - a[1])
+          .map(([cat, amount]) => {
+            const budget = finances.monthly_budget[cat] || 0;
+            const weekBudget = budget / 4;
+            const pct = weekBudget > 0 ? Math.round((amount / weekBudget) * 100) : 0;
+            return `<div style="display:flex;justify-content:space-between;padding:3px 0;">
+              <span>${this._formatCategoryName(cat)}</span>
+              <span style="font-weight:600;${pct > 100 ? 'color:var(--client-danger,#dc143c)' : ''}">$${amount.toFixed(2)} ${weekBudget > 0 ? `(${pct}%)` : ''}</span>
+            </div>`;
+          }).join('');
+
+        const weekStatus = weekSpending.total <= weeklyBudget ? 'on track' : 'over budget';
+        const statusColor = weekSpending.total <= weeklyBudget ? 'var(--client-success,#ff77aa)' : 'var(--client-danger,#dc143c)';
+        const statusEmoji = weekSpending.total <= weeklyBudget ? '✅' : '⚠️';
+
+        liveEl.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div>
+              <div style="font-size:22px;font-weight:700;font-family:var(--client-font-heading);">$${weekSpending.total.toFixed(2)}</div>
+              <div style="font-size:11px;color:var(--client-text-secondary);">spent this week</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:13px;font-weight:600;color:${statusColor};">${statusEmoji} ${weekStatus}</div>
+              <div style="font-size:11px;color:var(--client-text-secondary);">${daysLeft} days left</div>
+            </div>
+          </div>
+          <div style="height:6px;background:var(--client-secondary,#fce7f3);border-radius:3px;overflow:hidden;margin-bottom:12px;">
+            <div style="height:100%;width:${Math.min(100, (weekSpending.total / weeklyBudget) * 100)}%;background:${statusColor};border-radius:3px;transition:width 0.4s;"></div>
+          </div>
+          <div style="font-size:11px;color:var(--client-text-secondary);margin-bottom:6px;">Weekly target: $${weeklyBudget.toFixed(0)}</div>
+          ${weekSpending.entries.length > 0 ? `
+            <div style="font-size:12px;margin-top:8px;">
+              <div style="font-weight:600;margin-bottom:4px;font-size:11px;color:var(--client-text-secondary);">BREAKDOWN</div>
+              ${catBreakdown}
+            </div>
+            <div style="font-size:11px;color:var(--client-text-secondary);margin-top:8px;">${weekSpending.entries.length} transaction${weekSpending.entries.length !== 1 ? 's' : ''} logged</div>
+          ` : '<div style="font-size:12px;color:var(--client-text-secondary);text-align:center;padding:8px 0;">No spending logged this week yet 🌸</div>'}
+        `;
+      }
+    }
+
+    // --- Past Recaps ---
     const list = document.getElementById('client-reports-list');
     if (!list) return;
 
