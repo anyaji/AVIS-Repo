@@ -655,6 +655,12 @@
       </div>
     </div>
 
+    <!-- Weekly Progress Graph -->
+    <div class="client-card" id="client-progress-graph">
+      <div class="client-card-title">Weekly Progress</div>
+      <div id="client-weekly-graph" style="min-height:120px;"></div>
+    </div>
+
     <!-- Spending Breakdown -->
     <div class="client-card" id="client-spending-breakdown">
       <div class="client-card-title">Spending Breakdown</div>
@@ -808,6 +814,34 @@
     </div>
   </div>
 
+  <!-- Settings View -->
+  <div class="client-dashboard" id="client-settings-view" style="display:none;">
+    <div class="client-card" style="padding:0;overflow:hidden;">
+      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">🔔 Notifications</span>
+        <div class="client-toggle" id="toggle-settings-notif" onclick="AVIS.toggleClientSetting('notifications')"></div>
+      </div>
+      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">🔊 Sound Effects</span>
+        <div class="client-toggle" id="toggle-settings-sound" onclick="AVIS.toggleClientSetting('sound')"></div>
+      </div>
+      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">🌙 Dark Mode</span>
+        <div class="client-toggle" id="toggle-settings-dark" onclick="AVIS.toggleClientSetting('dark')"></div>
+      </div>
+    </div>
+    <div class="client-card" style="padding:0;overflow:hidden;">
+      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">📱 App Version</span>
+        <span style="color:var(--client-text-secondary);font-size:12px;">v4.5.0</span>
+      </div>
+      <div class="client-settings-row" style="padding:14px 18px;">
+        <span class="client-settings-label">💕 Powered by AVIS</span>
+        <span style="color:var(--client-text-secondary);font-size:11px;">Avel Productions LLC</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Recommendations Modal -->
   <div class="client-spend-modal" id="client-rec-modal">
     <div class="client-spend-sheet" style="max-height:70vh;overflow-y:auto;">
@@ -861,8 +895,20 @@
         <span class="client-settings-label">👤 My Profile</span>
         <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
       </button>
+      <button class="client-settings-row" onclick="AVIS.clientSwitchView('settings')" style="width:100%;background:none;border:none;cursor:pointer;padding:14px 18px;text-align:left;font-family:var(--client-font-body);">
+        <span class="client-settings-label">⚙️ Settings</span>
+        <span style="color:var(--client-text-secondary);font-size:14px;">›</span>
+      </button>
     </div>
     <div class="client-card" style="padding:0;overflow:hidden;">
+      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">🔔 Notifications</span>
+        <div class="client-toggle" id="toggle-notif" onclick="AVIS.toggleClientSetting('notifications')"></div>
+      </div>
+      <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
+        <span class="client-settings-label">🔊 Sound Effects</span>
+        <div class="client-toggle" id="toggle-sound" onclick="AVIS.toggleClientSetting('sound')"></div>
+      </div>
       <div class="client-settings-row" style="padding:14px 18px;border-bottom:1px solid var(--client-secondary);">
         <span class="client-settings-label">🌙 Dark Mode</span>
         <div class="client-toggle" id="toggle-dark" onclick="AVIS.toggleClientSetting('dark')"></div>

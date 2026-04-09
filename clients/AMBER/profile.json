@@ -4,6 +4,7 @@
   "display_name": "Amber",
   "created_at": "2026-04-08",
   "status": "active",
+  "client_type": "finance_coach",
   "relationship_to_operator": "girlfriend",
   "operator_code": "AVL-000",
   "demographics": {

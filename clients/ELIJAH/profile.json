@@ -4,6 +4,7 @@
   "display_name": "Elijah",
   "created_at": "2026-04-08",
   "status": "active",
+  "client_type": "standard",
   "relationship_to_operator": "client",
   "operator_code": "AVL-000",
   "demographics": {
@@ -43,5 +44,5 @@
     "sound_effects": false,
     "confetti_color": "blue"
   },
-  "welcome_completed": false
+  "welcome_completed": true
 }

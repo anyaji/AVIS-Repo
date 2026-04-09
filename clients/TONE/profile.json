@@ -4,6 +4,7 @@
   "display_name": "Tone",
   "created_at": "2026-04-08",
   "status": "active",
+  "client_type": "standard",
   "relationship_to_operator": "client",
   "operator_code": "AVL-000",
   "demographics": {

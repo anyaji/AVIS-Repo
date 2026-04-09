@@ -254,23 +254,63 @@ const AVIS = {
     await ClientManager.setActiveClient(code);
     await window.avis.storeSet('bootMode', null); // clear operator flag
 
-    // Minimal init for client mode
-    this._paths = await window.avis.getPaths();
-    await MemoryManager.init();
-    await HotConfig.init();
-    this.setupTabs();
-    this.setupInput();
-    Orchestrator.onStep = (id, type, message, status) => this.handleStep(id, type, message, status);
-    Orchestrator.onStreamChunk = (chunk, fullText) => this.handleStreamChunk(chunk, fullText);
-    this.startClock();
+    // Determine client type — finance_coach gets full coach UI, standard gets themed AVIS
+    const clientType = profile.client_type || 'standard';
 
-    // Remove code entry screen
-    setTimeout(() => {
-      overlay?.remove();
-      document.querySelector('.titlebar')?.style.setProperty('display', '');
-      document.querySelector('.main-layout')?.style.setProperty('display', '');
-      this.enterClientMode(code);
-    }, 600);
+    if (clientType === 'standard') {
+      // STANDARD CLIENT — boot into regular AVIS with their theme applied
+      // Skip license check for standard clients
+      this._licenseVerified = true;
+      this._standardClientCode = code;
+      await window.avis.storeSet('bootMode', 'operator');
+      setTimeout(async () => {
+        overlay?.remove();
+        document.querySelector('.titlebar')?.style.setProperty('display', '');
+        document.querySelector('.main-layout')?.style.setProperty('display', '');
+        await this._operatorBoot();
+
+        // Apply client theme on top of regular AVIS
+        if (typeof ThemeManager !== 'undefined' && profile.theme) {
+          ThemeManager.applyTheme(profile.theme);
+          const bgCSS = ThemeManager.getBackgroundCSS(profile.theme);
+          if (bgCSS) document.body.style.backgroundImage = bgCSS;
+        }
+
+        // Update title with client name
+        document.title = `AVIS — ${profile.display_name}`;
+        const titleEl = document.getElementById('app-title');
+        if (titleEl) titleEl.textContent = `AVIS — ${profile.display_name}`;
+
+        // Hide operator-only elements for standard clients
+        const devBtn = document.getElementById('dev-tab-btn');
+        if (devBtn) devBtn.style.display = 'none';
+        const councilTab = document.querySelector('.council-tab');
+        if (councilTab) councilTab.style.display = 'none';
+        // Hide right panel (usage meters)
+        const rightPanel = document.querySelector('.right-panel');
+        if (rightPanel) rightPanel.style.display = 'none';
+
+        this.showToast(`Welcome, ${profile.display_name}`, 'success');
+      }, 600);
+    } else {
+      // FINANCE COACH CLIENT — full coach experience
+      this._paths = await window.avis.getPaths();
+      await MemoryManager.init();
+      await HotConfig.init();
+      this.setupTabs();
+      this.setupInput();
+      Orchestrator.onStep = (id, type, message, status) => this.handleStep(id, type, message, status);
+      Orchestrator.onStreamChunk = (chunk, fullText) => this.handleStreamChunk(chunk, fullText);
+      this.startClock();
+
+      // Remove code entry screen
+      setTimeout(() => {
+        overlay?.remove();
+        document.querySelector('.titlebar')?.style.setProperty('display', '');
+        document.querySelector('.main-layout')?.style.setProperty('display', '');
+        this.enterClientMode(code);
+      }, 600);
+    }
   },
 
   async checkResumableSession() {
@@ -1411,6 +1451,15 @@ const AVIS = {
       this.showClientNotification(`💌 ${pending.length} new from Coach`, pending);
     }
 
+    // Clean up operator artifacts from chat input
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) chatInput.placeholder = 'Ask your coach anything...';
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) sendBtn.textContent = '💕';
+
+    // Restore persisted settings (dark mode, sound, notifications)
+    this.restoreClientSettings();
+
     // Welcome flow for first-time
     if (!profile.welcome_completed) {
       this.showWelcomeFlow(profile);
@@ -1465,6 +1514,12 @@ const AVIS = {
     if (clientNav) clientNav.style.display = '';
     const clientFab = document.getElementById('client-fab');
     if (clientFab) clientFab.style.display = '';
+
+    // Restore operator chat input
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) chatInput.placeholder = 'Type your message... (search, navigate, run code, open files)';
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) sendBtn.textContent = 'SEND';
 
     // Clear chat and reload operator view
     const chatArea = document.getElementById('chat-area');
@@ -1685,11 +1740,58 @@ const AVIS = {
     // Credit score
     document.getElementById('client-score-detail').textContent = `${finances.credit_score} → ${finances.credit_score_target}`;
 
+    // Weekly progress graph
+    this.renderWeeklyProgressGraph();
+
     // Spending breakdown by category
     this.renderSpendingBreakdown(finances, monthSpending, remaining);
 
     // Recent activity
     this.renderRecentActivity();
+  },
+
+  async renderWeeklyProgressGraph() {
+    const graphEl = document.getElementById('client-weekly-graph');
+    if (!graphEl) return;
+
+    const log = await ClientManager.getSpendingLog();
+    const finances = await ClientManager.getFinances();
+    const theme = ThemeManager?.getTheme();
+    const primary = theme?.color_primary || '#ff69b4';
+    const accent = theme?.color_accent || '#ff1493';
+    const success = theme?.color_success || '#ff77aa';
+
+    // Calculate weekly spending for last 4 weeks
+    const weeks = [];
+    const totalBudget = finances ? Object.values(finances.monthly_budget).reduce((s, v) => s + v, 0) : 0;
+    const weeklyBudget = totalBudget / 4;
+
+    for (let w = 3; w >= 0; w--) {
+      const start = new Date(); start.setDate(start.getDate() - (w + 1) * 7);
+      const end = new Date(); end.setDate(end.getDate() - w * 7);
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+      const total = log.entries.filter(e => e.date >= startStr && e.date < endStr).reduce((s, e) => s + e.amount, 0);
+      const underBudget = total <= weeklyBudget;
+      weeks.push({ label: w === 0 ? 'This Week' : `${w}w ago`, total, underBudget });
+    }
+
+    const max = Math.max(...weeks.map(w => w.total), weeklyBudget, 1);
+
+    graphEl.innerHTML = `
+      <div style="display:flex;align-items:flex-end;gap:16px;height:100px;padding:8px 0;">
+        ${weeks.map(w => `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+            <div style="font-size:10px;font-weight:700;margin-bottom:4px;color:${w.underBudget ? success : 'var(--client-danger, #dc143c)'};">
+              ${w.total > 0 ? '$' + w.total.toFixed(0) : '-'}
+            </div>
+            <div style="width:100%;background:${w.underBudget ? `linear-gradient(180deg,${primary},${accent})` : 'var(--client-danger, #dc143c)'};border-radius:10px 10px 0 0;height:${Math.max(6, (w.total / max) * 80)}px;transition:height 0.4s ease;"></div>
+            <div style="font-size:9px;color:var(--client-text-secondary);margin-top:4px;font-weight:600;">${w.label}</div>
+          </div>
+        `).join('')}
+      </div>
+      ${weeklyBudget > 0 ? `<div style="text-align:center;font-size:10px;color:var(--client-text-secondary);margin-top:4px;">Weekly target: $${weeklyBudget.toFixed(0)}</div>` : ''}
+    `;
   },
 
   renderSpendingBreakdown(finances, monthSpending, remaining) {
@@ -1835,7 +1937,7 @@ const AVIS = {
     // All hideable views
     const views = ['client-dashboard', 'chat-center', 'client-quick-prompts', 'client-header', 'client-fab',
       'client-history-view', 'client-trends-view', 'client-more-view', 'client-reports-view',
-      'client-debt-view', 'client-budget-view', 'client-profile-view'];
+      'client-debt-view', 'client-budget-view', 'client-profile-view', 'client-settings-view'];
     views.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 
     const show = id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; };
@@ -1882,6 +1984,10 @@ const AVIS = {
       case 'profile':
         show('client-profile-view');
         this.renderProfileEditor();
+        break;
+      case 'settings':
+        show('client-settings-view');
+        this.restoreClientSettings();
         break;
     }
   },
@@ -2007,10 +2113,25 @@ const AVIS = {
   // CLIENT SETTINGS TOGGLES
   // ================================================================
   toggleClientSetting(setting) {
-    const toggle = document.getElementById(`toggle-${setting === 'notifications' ? 'notif' : setting}`);
+    const toggleId = setting === 'notifications' ? 'notif' : setting;
+    // Find whichever toggle was clicked to determine new state
+    const toggle = document.getElementById(`toggle-${toggleId}`) || document.getElementById(`toggle-settings-${toggleId}`);
     if (!toggle) return;
     toggle.classList.toggle('on');
     const isOn = toggle.classList.contains('on');
+
+    // Sync both toggle locations
+    const syncIds = [`toggle-${toggleId}`, `toggle-settings-${toggleId}`];
+    for (const tid of syncIds) {
+      const el = document.getElementById(tid);
+      if (el) el.classList.toggle('on', isOn);
+    }
+
+    // Persist setting
+    const code = ClientManager.getActiveClient();
+    if (code) {
+      window.avis.storeSet(`client_${code}_${setting}`, isOn);
+    }
 
     switch (setting) {
       case 'sound':
@@ -2020,6 +2141,33 @@ const AVIS = {
       case 'dark':
         document.body.classList.toggle('client-dark', isOn);
         break;
+      case 'notifications':
+        break;
+    }
+  },
+
+  async restoreClientSettings() {
+    const code = ClientManager.getActiveClient();
+    if (!code) return;
+    const settings = ['notifications', 'sound', 'dark'];
+    for (const setting of settings) {
+      const isOn = await window.avis.storeGet(`client_${code}_${setting}`, false);
+      const toggleId = setting === 'notifications' ? 'notif' : setting;
+      // Update both More menu toggles and Settings view toggles
+      const toggleIds = [`toggle-${toggleId}`, `toggle-settings-${toggleId}`];
+      for (const tid of toggleIds) {
+        const toggle = document.getElementById(tid);
+        if (toggle) {
+          toggle.classList.toggle('on', isOn);
+        }
+      }
+      if (isOn) {
+        if (setting === 'dark') document.body.classList.add('client-dark');
+        if (setting === 'sound') {
+          const theme = ThemeManager?.getTheme();
+          if (theme) theme.sound_effects = true;
+        }
+      }
     }
   },
 
@@ -2475,7 +2623,7 @@ const AVIS = {
     ['client-nav', 'client-fab', 'client-header', 'client-dashboard',
      'client-history-view', 'client-trends-view', 'client-more-view',
      'client-reports-view', 'client-debt-view', 'client-budget-view',
-     'client-profile-view', 'client-quick-prompts'].forEach(id => {
+     'client-profile-view', 'client-settings-view', 'client-quick-prompts'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });

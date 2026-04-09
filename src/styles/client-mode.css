@@ -55,6 +55,50 @@ body.client-mode .left-panel {
   display: none !important;
 }
 
+body.client-mode .right-panel {
+  display: none !important;
+}
+
+body.client-mode .provider-status {
+  display: none !important;
+}
+
+body.client-mode #dev-tab-btn {
+  display: none !important;
+}
+
+body.client-mode .status-bar {
+  display: none !important;
+}
+
+body.client-mode .model-selector {
+  display: none !important;
+}
+
+body.client-mode .input-extras {
+  display: none !important;
+}
+
+body.client-mode .input-actions {
+  display: none !important;
+}
+
+body.client-mode .context-display {
+  display: none !important;
+}
+
+body.client-mode #file-preview-area {
+  display: none !important;
+}
+
+body.client-mode .council-center {
+  display: none !important;
+}
+
+body.client-mode .council-tab {
+  display: none !important;
+}
+
 body.client-mode .main-layout {
   grid-template-columns: 1fr;
   max-width: 480px;
