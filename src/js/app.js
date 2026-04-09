@@ -2802,6 +2802,7 @@ Powered by AVIS 💕`;
       { id: 'bills_utilities', label: 'Bills' },
       { id: 'health_beauty', label: 'Beauty' },
       { id: 'gifts', label: 'Gifts' },
+      { id: 'pets', label: 'Cat 🐱' },
       { id: 'other', label: 'Other' }
     ];
 
@@ -3134,7 +3135,7 @@ Powered by AVIS 💕`;
       document.body.appendChild(overlay);
     }
 
-    const categories = ['food','gas_transport','subscriptions','shopping_personal','entertainment','bills_utilities','health_beauty','gifts','other'];
+    const categories = ['food','gas_transport','subscriptions','shopping_personal','entertainment','bills_utilities','health_beauty','gifts','pets','other'];
 
     overlay.style.cssText = `
       position:fixed;inset:0;z-index:15000;background:rgba(0,0,0,0.4);

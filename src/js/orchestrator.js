@@ -580,6 +580,7 @@ DELEGATION RULES (follow these always):
             bills_utilities: ['bills', 'utilities', 'electric', 'water', 'internet', 'phone'],
             health_beauty: ['health', 'beauty', 'nails', 'hair', 'makeup', 'pharmacy', 'medicine'],
             gifts: ['gift', 'present', 'birthday'],
+            pets: ['cat', 'pet', 'kitten', 'kitty', 'litter', 'cat food', 'vet', 'meow'],
             other: ['other']
           };
           let category = 'other';

@@ -712,7 +712,7 @@ COACHING RULES:
 SPENDING LOGGING:
 If ${profile.display_name} says something like "I spent $X on Y" or "add $X to Z", parse it and respond with a JSON tool call:
 {"action": "log_spending", "amount": X, "category": "matching_category", "note": "optional context"}
-Valid categories: food, gas_transport, subscriptions, shopping_personal, entertainment, bills_utilities, health_beauty, gifts, other
+Valid categories: food, gas_transport, subscriptions, shopping_personal, entertainment, bills_utilities, health_beauty, gifts, pets, other
 
 After logging, confirm: "Logged $X to [Category]. You have $Y left in that budget this ${daysLeft > 14 ? 'month' : 'week'}."
 
