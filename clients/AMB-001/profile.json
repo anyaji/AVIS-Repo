@@ -44,5 +44,5 @@
     "sound_effects": true,
     "confetti_color": "pink"
   },
-  "welcome_completed": false
+  "welcome_completed": true
 }

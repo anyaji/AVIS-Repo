@@ -8,8 +8,12 @@ const AVIS = {
   lastUserFiles: null,
 
   async init() {
-    // License check FIRST — block everything until valid
-    if (!this._licenseVerified) {
+    // Check if a client mode is persisted — if so, skip license/onboarding
+    const persistedClient = await window.avis.storeGet('activeClient', null);
+    const isClientBoot = !!persistedClient;
+
+    // License check — skip for client mode (they don't need to see this)
+    if (!isClientBoot && !this._licenseVerified) {
       const licenseOk = await this.checkLicense();
       if (!licenseOk) return;
     }
@@ -30,7 +34,7 @@ const AVIS = {
       for (const code of clientDirs) {
         await ClientManager.registerClient(code);
       }
-      // If client mode is active, transform UI after full init
+      // If client mode is active, transform UI immediately — skip onboarding
       if (ClientManager.isClientMode()) {
         setTimeout(() => this.enterClientMode(ClientManager.getActiveClient()), 500);
       }
@@ -74,8 +78,11 @@ const AVIS = {
       this.updateRateLimits(data);
     });
 
-    const firstRun = await window.avis.isFirstRun();
-    if (firstRun) this.showOnboarding();
+    // Skip onboarding for client mode — they don't set up API keys
+    if (!isClientBoot) {
+      const firstRun = await window.avis.isFirstRun();
+      if (firstRun) this.showOnboarding();
+    }
 
     await this.detectProviders();
 
