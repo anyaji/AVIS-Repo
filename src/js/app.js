@@ -3036,17 +3036,32 @@ Powered by AVIS 💕`;
     const theme = ThemeManager?.getTheme();
     list.innerHTML = Object.entries(groups).map(([date, items]) => {
       const dayTotal = items.reduce((s, e) => s + e.amount, 0);
-      const rows = items.map(e => `
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--client-secondary, #ffb6d5)15;">
-          <div style="width:28px;flex-shrink:0;">${ThemeManager?.getCategoryIcon(e.category, theme) || ''}</div>
-          <div style="flex:1;">
-            <div style="font-size:12px;font-weight:600;">${this._formatCategoryName(e.category)}</div>
-            ${e.note ? `<div style="font-size:10px;color:var(--client-text-secondary);margin-top:1px;">${e.note}</div>` : ''}
+      const rows = items.map(e => {
+        const isLocked = e.locked !== false;
+        return `
+        <div class="txn-row" onclick="AVIS.toggleTxnActions('${e.id}')" style="cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
+            <div style="width:28px;flex-shrink:0;">${ThemeManager?.getCategoryIcon(e.category, theme) || ''}</div>
+            <div style="flex:1;">
+              <div style="font-size:12px;font-weight:600;">${this._formatCategoryName(e.category)}</div>
+              ${e.note ? `<div style="font-size:10px;color:var(--client-text-secondary);margin-top:1px;">${e.note}</div>` : ''}
+            </div>
+            <div style="font-size:13px;font-weight:700;">-$${e.amount.toFixed(2)}</div>
+            <div style="font-size:10px;flex-shrink:0;">${isLocked ? '🔒' : '🔓'}</div>
           </div>
-          <div style="font-size:13px;font-weight:700;">-$${e.amount.toFixed(2)}</div>
-          <div style="font-size:10px;color:var(--client-text-secondary);flex-shrink:0;" title="${e.locked !== false ? 'Locked — cannot be edited' : 'Unlocked'}">${e.locked !== false ? '🔒' : '🔓'}</div>
-        </div>
-      `).join('');
+          <div id="txn-actions-${e.id}" style="display:none;padding:6px 0 8px;border-bottom:1px solid var(--client-secondary,#fce7f3);">
+            <div style="display:flex;gap:6px;">
+              ${isLocked ? `
+                <button onclick="event.stopPropagation();AVIS.unlockTxn('${e.id}')" style="flex:1;padding:7px;border-radius:10px;border:1.5px solid var(--client-secondary,#fce7f3);background:none;color:var(--client-text-secondary);font-size:11px;font-weight:600;cursor:pointer;">🔓 Unlock</button>
+              ` : `
+                <button onclick="event.stopPropagation();AVIS.editTxn('${e.id}')" style="flex:1;padding:7px;border-radius:10px;border:1.5px solid #f472b6;background:none;color:#f472b6;font-size:11px;font-weight:600;cursor:pointer;">✏️ Edit</button>
+                <button onclick="event.stopPropagation();AVIS.deleteTxn('${e.id}')" style="flex:1;padding:7px;border-radius:10px;border:1.5px solid #dc143c;background:none;color:#dc143c;font-size:11px;font-weight:600;cursor:pointer;">🗑️ Delete</button>
+                <button onclick="event.stopPropagation();AVIS.relockTxn('${e.id}')" style="flex:1;padding:7px;border-radius:10px;border:1.5px solid var(--client-secondary,#fce7f3);background:none;color:var(--client-text-secondary);font-size:11px;font-weight:600;cursor:pointer;">🔒 Lock</button>
+              `}
+            </div>
+          </div>
+        </div>`;
+      }).join('');
       return `
         <div style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--client-text-secondary);margin-bottom:4px;">
@@ -3061,6 +3076,119 @@ Powered by AVIS 💕`;
   filterTransactions() {
     const filter = document.getElementById('client-history-filter')?.value;
     this.renderTransactionHistory(filter);
+  },
+
+  toggleTxnActions(id) {
+    const el = document.getElementById(`txn-actions-${id}`);
+    if (!el) return;
+    // Close all other open action panels
+    document.querySelectorAll('[id^="txn-actions-"]').forEach(panel => {
+      if (panel.id !== `txn-actions-${id}`) panel.style.display = 'none';
+    });
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  },
+
+  async unlockTxn(id) {
+    await ClientManager.unlockSpendingEntry(null, id);
+    this.renderTransactionHistory();
+    this.showToast('Entry unlocked — you can now edit or delete it');
+  },
+
+  async relockTxn(id) {
+    const log = await ClientManager.getSpendingLog();
+    const entry = log.entries.find(e => e.id === id);
+    if (entry) {
+      entry.locked = true;
+      await ClientManager._writeClientFile(
+        ClientManager.getActiveClient(),
+        'spending_log.json',
+        log
+      );
+    }
+    this.renderTransactionHistory();
+    this.showToast('Entry locked 🔒');
+  },
+
+  async deleteTxn(id) {
+    const ok = await ClientManager.deleteSpendingEntry(null, id);
+    if (ok) {
+      this.renderTransactionHistory();
+      this.refreshClientDashboard();
+      this.showToast('Entry deleted');
+    } else {
+      this.showToast('Unlock the entry first');
+    }
+  },
+
+  async editTxn(id) {
+    const log = await ClientManager.getSpendingLog();
+    const entry = log.entries.find(e => e.id === id);
+    if (!entry) return;
+    if (entry.locked) { this.showToast('Unlock the entry first'); return; }
+
+    // Show edit modal
+    let overlay = document.getElementById('txn-edit-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'txn-edit-overlay';
+      document.body.appendChild(overlay);
+    }
+
+    const categories = ['food','gas_transport','subscriptions','shopping_personal','entertainment','bills_utilities','health_beauty','gifts','other'];
+
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:15000;background:rgba(0,0,0,0.4);
+      display:flex;align-items:center;justify-content:center;
+      backdrop-filter:blur(4px);
+    `;
+
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:20px;padding:24px;max-width:340px;width:90%;animation:sheet-up 0.3s ease-out;">
+        <div style="font-size:16px;font-weight:700;font-family:var(--client-font-heading,Quicksand);color:#4a1942;margin-bottom:16px;text-align:center;">Edit Entry ✏️</div>
+
+        <label style="font-size:11px;font-weight:600;color:#9d5c8a;display:block;margin-bottom:4px;">Amount ($)</label>
+        <input type="number" id="edit-txn-amount" value="${entry.amount}" step="0.01" style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #fce7f3;background:#fdf2f8;color:#4a1942;font-size:15px;font-weight:600;margin-bottom:10px;outline:none;">
+
+        <label style="font-size:11px;font-weight:600;color:#9d5c8a;display:block;margin-bottom:4px;">Category</label>
+        <select id="edit-txn-category" style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #fce7f3;background:#fdf2f8;color:#4a1942;font-size:13px;margin-bottom:10px;">
+          ${categories.map(c => `<option value="${c}" ${c === entry.category ? 'selected' : ''}>${this._formatCategoryName(c)}</option>`).join('')}
+        </select>
+
+        <label style="font-size:11px;font-weight:600;color:#9d5c8a;display:block;margin-bottom:4px;">Note</label>
+        <input type="text" id="edit-txn-note" value="${entry.note || ''}" placeholder="Optional" style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #fce7f3;background:#fdf2f8;color:#4a1942;font-size:13px;margin-bottom:14px;outline:none;">
+
+        <button onclick="AVIS.saveEditTxn('${id}')" style="width:100%;padding:12px;border-radius:16px;border:none;background:linear-gradient(135deg,#f472b6,#ec4899);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--client-font-heading,Quicksand);">Save Changes 💕</button>
+        <button onclick="document.getElementById('txn-edit-overlay').remove()" style="width:100%;padding:10px;border:none;background:none;color:#9d5c8a;font-size:13px;cursor:pointer;margin-top:4px;">Cancel</button>
+      </div>
+    `;
+  },
+
+  async saveEditTxn(id) {
+    const amount = parseFloat(document.getElementById('edit-txn-amount')?.value);
+    const category = document.getElementById('edit-txn-category')?.value;
+    const note = document.getElementById('edit-txn-note')?.value?.trim() || '';
+
+    if (!amount || amount <= 0) { this.showToast('Enter a valid amount'); return; }
+
+    const log = await ClientManager.getSpendingLog();
+    const entry = log.entries.find(e => e.id === id);
+    if (!entry || entry.locked) { this.showToast('Entry is locked'); return; }
+
+    entry.amount = amount;
+    entry.category = category;
+    entry.note = note;
+    entry.edited_at = new Date().toISOString();
+
+    await ClientManager._writeClientFile(
+      ClientManager.getActiveClient(),
+      'spending_log.json',
+      log
+    );
+
+    document.getElementById('txn-edit-overlay')?.remove();
+    this.renderTransactionHistory();
+    this.refreshClientDashboard();
+    this.showToast('Entry updated 💕');
   },
 
   // ================================================================
