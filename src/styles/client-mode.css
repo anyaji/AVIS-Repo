@@ -991,6 +991,108 @@ body.client-mode .client-quick-prompts {
 }
 
 /* ================================================================
+   COACH CHAT TOOLBAR
+   ================================================================ */
+.client-chat-toolbar {
+  display: none;
+  gap: 8px;
+  padding: 6px 16px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.client-chat-toolbar-btn {
+  padding: 6px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--client-secondary, #ffb6d5);
+  background: var(--client-card, #fff);
+  color: var(--client-text-secondary, #7a4458);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--client-font-body, 'Nunito', sans-serif);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.client-chat-toolbar-btn:hover {
+  background: var(--client-secondary, #ffb6d5);
+  color: var(--client-text, #3d1f2e);
+}
+
+/* ================================================================
+   CHAT ARCHIVE
+   ================================================================ */
+.client-chat-archive {
+  display: none;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.client-archive-row {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--client-secondary, #ffb6d5);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  position: relative;
+}
+
+.client-archive-row:hover {
+  background: var(--client-secondary, #ffb6d5)20;
+}
+
+.client-archive-row.active {
+  background: var(--client-primary, #ff69b4)10;
+  border-left: 3px solid var(--client-primary, #ff69b4);
+}
+
+.client-archive-row:last-child {
+  border-bottom: none;
+}
+
+.archive-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.archive-date {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--client-text, #3d1f2e);
+}
+
+.archive-count {
+  font-size: 10px;
+  color: var(--client-text-secondary, #7a4458);
+}
+
+.archive-preview {
+  font-size: 12px;
+  color: var(--client-text-secondary, #7a4458);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.archive-active-badge {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--client-primary, #ff69b4);
+  background: var(--client-primary, #ff69b4)15;
+  padding: 2px 8px;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ================================================================
    EXPORT CARD
    ================================================================ */
 .export-card {

@@ -738,6 +738,20 @@
     </div>
   </div>
 
+  <!-- Coach Chat Toolbar -->
+  <div class="client-chat-toolbar" id="client-chat-toolbar" style="display:none;">
+    <button class="client-chat-toolbar-btn" onclick="AVIS.startNewCoachChat()" title="New conversation">✨ New Chat</button>
+    <button class="client-chat-toolbar-btn" onclick="AVIS.toggleChatArchive()" id="chat-archive-toggle" title="Past conversations">📂 Archive</button>
+  </div>
+
+  <!-- Chat Archive Panel -->
+  <div class="client-chat-archive" id="client-chat-archive" style="display:none;">
+    <div class="client-card" style="margin:0 16px;">
+      <div class="client-card-title">Past Conversations</div>
+      <div id="client-chat-archive-list"></div>
+    </div>
+  </div>
+
   <!-- Quick prompt chips -->
   <div class="client-quick-prompts" id="client-quick-prompts">
     <button class="client-quick-chip" onclick="AVIS.clientQuickPrompt('How am I doing?')">How am I doing? 💅</button>

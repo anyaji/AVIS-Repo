@@ -1434,14 +1434,21 @@ const AVIS = {
     // Show client mode UI
     this.renderClientUI(profile);
 
-    // Load conversation history
+    // Load last conversation session (will auto-continue or start fresh)
     const convLog = await ClientManager.getConversationLog(clientCode);
+    const sessions = ClientManager.getSessions(convLog);
     const chatArea = document.getElementById('chat-area');
     if (chatArea) {
       chatArea.innerHTML = '';
-      const recent = convLog.messages.slice(-20);
-      for (const msg of recent) {
-        this.addMessageToChat(msg.role === 'user' ? 'user' : 'ai', msg.text, 'claude', 'Coach');
+      if (sessions.length > 0) {
+        // Resume the most recent session
+        const latest = sessions[0];
+        ClientManager.setActiveSessionId(latest.id);
+        for (const msg of latest.messages) {
+          this.addMessageToChat(msg.role === 'user' ? 'user' : 'ai', msg.text, 'claude', 'Coach');
+        }
+      } else {
+        ClientManager.startNewSession();
       }
     }
 
@@ -2478,7 +2485,8 @@ Powered by AVIS 💕`;
     const views = ['client-dashboard', 'chat-center', 'client-quick-prompts', 'client-header', 'client-fab',
       'client-history-view', 'client-trends-view', 'client-more-view', 'client-reports-view',
       'client-debt-view', 'client-budget-view', 'client-profile-view', 'client-settings-view',
-      'client-subscriptions-view', 'client-payday-banner', 'client-milestone-card', 'client-streak-card'];
+      'client-subscriptions-view', 'client-payday-banner', 'client-milestone-card', 'client-streak-card',
+      'client-chat-toolbar', 'client-chat-archive'];
     views.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
 
     const show = id => { const el = document.getElementById(id); if (el) el.style.display = 'block'; };
@@ -2491,6 +2499,9 @@ Powered by AVIS 💕`;
         break;
       case 'chat':
         showFlex('chat-center'); showFlex('client-quick-prompts');
+        showFlex('client-chat-toolbar');
+        // Load last session on first visit
+        this.loadCoachChatSession();
         break;
       case 'history':
         show('client-history-view');
@@ -2647,11 +2658,126 @@ Powered by AVIS 💕`;
   // CLIENT QUICK PROMPTS
   // ================================================================
   clientQuickPrompt(text) {
+    // If archive is open, close it first
+    const archive = document.getElementById('client-chat-archive');
+    if (archive) archive.style.display = 'none';
+
     const input = document.getElementById('chat-input');
     if (input) {
       input.value = text;
       this.sendMessage();
     }
+  },
+
+  _coachChatLoaded: false,
+
+  async loadCoachChatSession(sessionId) {
+    const convLog = await ClientManager.getConversationLog();
+    const sessions = ClientManager.getSessions(convLog);
+    const chatArea = document.getElementById('chat-area');
+    if (!chatArea) return;
+
+    // Close archive if open
+    const archive = document.getElementById('client-chat-archive');
+    if (archive) archive.style.display = 'none';
+
+    if (sessions.length === 0) {
+      // No history — start fresh
+      chatArea.innerHTML = '';
+      ClientManager.startNewSession();
+      this._coachChatLoaded = true;
+      return;
+    }
+
+    // Load specific session or latest
+    const targetSession = sessionId
+      ? sessions.find(s => s.id === sessionId)
+      : sessions[0]; // most recent
+
+    if (!targetSession) {
+      chatArea.innerHTML = '';
+      ClientManager.startNewSession();
+      this._coachChatLoaded = true;
+      return;
+    }
+
+    // Set this as active session
+    ClientManager.setActiveSessionId(targetSession.id);
+
+    // Render messages
+    chatArea.innerHTML = '';
+    for (const msg of targetSession.messages) {
+      this.addMessageToChat(msg.role === 'user' ? 'user' : 'ai', msg.text, 'claude', 'Coach');
+    }
+
+    // Scroll to bottom
+    chatArea.scrollTop = chatArea.scrollHeight;
+    this._coachChatLoaded = true;
+  },
+
+  async startNewCoachChat() {
+    const chatArea = document.getElementById('chat-area');
+    if (chatArea) chatArea.innerHTML = '';
+
+    // Start a new session
+    ClientManager.startNewSession();
+
+    // Close archive if open
+    const archive = document.getElementById('client-chat-archive');
+    if (archive) archive.style.display = 'none';
+
+    // Focus input
+    const input = document.getElementById('chat-input');
+    if (input) input.focus();
+
+    this.showToast('New conversation started ✨');
+  },
+
+  async toggleChatArchive() {
+    const archive = document.getElementById('client-chat-archive');
+    if (!archive) return;
+
+    const isVisible = archive.style.display !== 'none';
+    if (isVisible) {
+      archive.style.display = 'none';
+      return;
+    }
+
+    // Load and render sessions
+    const convLog = await ClientManager.getConversationLog();
+    const sessions = ClientManager.getSessions(convLog);
+    const listEl = document.getElementById('client-chat-archive-list');
+    if (!listEl) return;
+
+    if (sessions.length === 0) {
+      listEl.innerHTML = '<div class="client-empty"><p>No conversations yet 🌸</p></div>';
+      archive.style.display = 'block';
+      return;
+    }
+
+    const activeSession = ClientManager.getActiveSessionId();
+
+    listEl.innerHTML = sessions.map(session => {
+      const date = new Date(session.started);
+      const timeStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+        ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const msgCount = session.messages.length;
+      const isActive = session.id === activeSession;
+      const preview = session.preview || 'No messages';
+
+      return `
+        <div class="client-archive-row ${isActive ? 'active' : ''}" onclick="AVIS.loadCoachChatSession('${session.id}')">
+          <div class="archive-row-top">
+            <span class="archive-date">${timeStr}</span>
+            <span class="archive-count">${msgCount} msg${msgCount !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="archive-preview">${this.escapeHtml(preview)}</div>
+          ${isActive ? '<div class="archive-active-badge">Current</div>' : ''}
+        </div>
+      `;
+    }).join('');
+
+    archive.style.display = 'block';
   },
 
   // ================================================================

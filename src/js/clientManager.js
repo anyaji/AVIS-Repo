@@ -222,21 +222,82 @@ const ClientManager = {
     } catch (e) { return false; }
   },
 
+  _activeSessionId: null,
+
   async saveConversationMessage(clientCode, role, text) {
     const code = clientCode || this._activeClient;
     if (!code) return false;
     try {
       const log = await this.getConversationLog(code);
+
+      // Ensure active session exists
+      if (!this._activeSessionId) {
+        this._activeSessionId = this._findOrCreateSession(log);
+      }
+
       log.messages.push({
         role,
         text,
+        session_id: this._activeSessionId,
         timestamp: new Date().toISOString()
       });
-      // Keep last 200 messages
-      if (log.messages.length > 200) log.messages = log.messages.slice(-200);
+      // Keep last 500 messages (increased for archive)
+      if (log.messages.length > 500) log.messages = log.messages.slice(-500);
       await this._writeClientFile(code, 'conversation_log.json', log);
       return true;
     } catch (e) { return false; }
+  },
+
+  _findOrCreateSession(log) {
+    // If there are recent messages with a session_id, reuse that session
+    // "Recent" means within the last 2 hours
+    const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+    for (let i = log.messages.length - 1; i >= 0; i--) {
+      const msg = log.messages[i];
+      if (msg.session_id && new Date(msg.timestamp).getTime() > twoHoursAgo) {
+        return msg.session_id;
+      }
+      break; // only check the last message
+    }
+    return `session_${Date.now()}`;
+  },
+
+  startNewSession() {
+    this._activeSessionId = `session_${Date.now()}`;
+    return this._activeSessionId;
+  },
+
+  getActiveSessionId() {
+    return this._activeSessionId;
+  },
+
+  setActiveSessionId(sessionId) {
+    this._activeSessionId = sessionId;
+  },
+
+  getSessions(log) {
+    // Group messages by session_id, return list of sessions with metadata
+    const sessions = {};
+    for (const msg of log.messages) {
+      const sid = msg.session_id || 'legacy';
+      if (!sessions[sid]) {
+        sessions[sid] = {
+          id: sid,
+          messages: [],
+          started: msg.timestamp,
+          lastMessage: msg.timestamp,
+          preview: ''
+        };
+      }
+      sessions[sid].messages.push(msg);
+      sessions[sid].lastMessage = msg.timestamp;
+      // Use last user message as preview
+      if (msg.role === 'user' && msg.text) {
+        sessions[sid].preview = msg.text.substring(0, 80);
+      }
+    }
+    // Return sorted by most recent first
+    return Object.values(sessions).sort((a, b) => new Date(b.lastMessage) - new Date(a.lastMessage));
   },
 
   async addCoachingNote(clientCode, note) {
