@@ -41,6 +41,7 @@
     </div>
     <div class="titlebar-right">
       <span id="live-clock" class="live-clock"></span>
+      <button class="window-btn" onclick="AVIS.signOut()" title="Sign Out" style="font-size:10px;letter-spacing:0.5px;">&#x2190;</button>
       <button class="window-btn" onclick="avis.minimize()" title="Minimize">&#x2500;</button>
       <button class="window-btn" onclick="avis.maximize()" title="Maximize">&#x25A1;</button>
       <button class="window-btn close" onclick="avis.close()" title="Close">&#x2715;</button>
@@ -869,6 +870,12 @@
         <span class="client-settings-label">📱 About</span>
         <span style="color:var(--client-text-secondary);font-size:12px;">v4.5.0</span>
       </div>
+    </div>
+    <div class="client-card" style="padding:0;overflow:hidden;">
+      <button onclick="AVIS.signOut()" style="width:100%;padding:14px 18px;background:none;border:none;cursor:pointer;font-family:var(--client-font-body);display:flex;align-items:center;justify-content:space-between;">
+        <span class="client-settings-label" style="color:var(--client-danger, #dc143c);">🚪 Sign Out</span>
+        <span style="color:var(--client-text-secondary);font-size:11px;">Switch code</span>
+      </button>
     </div>
   </div>
 

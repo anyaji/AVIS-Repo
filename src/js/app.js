@@ -2414,6 +2414,43 @@ const AVIS = {
   // ================================================================
   // OPERATOR ESCAPE
   // ================================================================
+  async signOut() {
+    // Clear persisted state
+    this._clientModeActive = false;
+    await ClientManager.setActiveClient(null);
+    await window.avis.storeSet('bootMode', null);
+    await window.avis.storeSet('activeClient', null);
+
+    // Remove client mode styling
+    document.body.classList.remove('client-mode');
+    document.body.style.backgroundImage = '';
+    if (typeof ThemeManager !== 'undefined') ThemeManager.resetTheme();
+
+    // Hide everything
+    document.querySelector('.titlebar')?.style.setProperty('display', 'none');
+    document.querySelector('.main-layout')?.style.setProperty('display', 'none');
+
+    // Hide client-only elements
+    ['client-nav', 'client-fab', 'client-header', 'client-dashboard',
+     'client-history-view', 'client-trends-view', 'client-more-view',
+     'client-reports-view', 'client-debt-view', 'client-budget-view',
+     'client-profile-view', 'client-quick-prompts'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    // Reset titlebar
+    const titleCenter = document.querySelector('.titlebar-center');
+    if (titleCenter) titleCenter.style.cssText = '';
+    const leftPanel = document.querySelector('.left-panel');
+    if (leftPanel) leftPanel.style.cssText = '';
+    const mainLayout = document.querySelector('.main-layout');
+    if (mainLayout) mainLayout.style.cssText = '';
+
+    // Show code entry screen (empty — no prefill so they enter fresh)
+    this._showCodeEntryScreen(null);
+  },
+
   async attemptOperatorEscape() {
     const pw = document.getElementById('operator-escape-password').value;
     const success = await this.exitClientMode(pw);
