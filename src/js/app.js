@@ -8,115 +8,100 @@ const AVIS = {
   lastUserFiles: null,
 
   async init() {
-    // Check if a client mode is persisted — if so, skip license/onboarding
+    // Check if a client code is persisted — boot directly into their experience
     const persistedClient = await window.avis.storeGet('activeClient', null);
-    const isClientBoot = !!persistedClient;
+    const persistedMode = await window.avis.storeGet('bootMode', null); // 'operator' or null
 
-    // License check — skip for client mode (they don't need to see this)
-    if (!isClientBoot && !this._licenseVerified) {
-      const licenseOk = await this.checkLicense();
-      if (!licenseOk) return;
-    }
-
-    // Load dynamic paths for this user/machine
-    this._paths = await window.avis.getPaths();
-
-    UsageMeter.init();
-    await MemoryManager.init();
-    await HotConfig.init();
-    FileHandler.init();
-
-    // Client Platform init
+    // CLIENT PLATFORM INIT (always — needed for code entry screen)
     if (typeof ClientManager !== 'undefined') {
       await ClientManager.init();
-      // Register clients if not already in list
       const clientDirs = await window.avis.clientList();
       for (const code of clientDirs) {
         await ClientManager.registerClient(code);
       }
-      // If client mode is active, transform UI immediately — skip onboarding
-      if (ClientManager.isClientMode()) {
-        setTimeout(() => this.enterClientMode(ClientManager.getActiveClient()), 500);
-      }
-      // Weekly check-in listener
       window.avis.onWeeklyCheckin(() => this.generateWeeklyCheckIn());
-      // Client alert listener
       window.avis.onClientAlert((alert) => {
         this.showToast(`[${alert.client}] ${alert.type}: ${alert.days || ''} days`, 'warning');
       });
     }
 
+    // ROUTING: persisted client → skip everything, go to client mode
+    if (persistedClient && persistedMode !== 'operator') {
+      // Minimal init for client mode
+      this._paths = await window.avis.getPaths();
+      await MemoryManager.init();
+      await HotConfig.init();
+      this.setupTabs();
+      this.setupInput();
+      Orchestrator.onStep = (id, type, message, status) => this.handleStep(id, type, message, status);
+      Orchestrator.onStreamChunk = (chunk, fullText) => this.handleStreamChunk(chunk, fullText);
+      this.startClock();
+      setTimeout(() => this.enterClientMode(persistedClient), 200);
+      return;
+    }
+
+    // ROUTING: operator mode persisted or no client → check for code entry
+    if (persistedMode === 'operator') {
+      // Operator chose to skip code entry — full operator boot
+      await this._operatorBoot();
+      return;
+    }
+
+    // FIRST LAUNCH / NO PERSISTED STATE → show code entry screen
+    this._showCodeEntryScreen();
+  },
+
+  // Full operator mode initialization
+  async _operatorBoot() {
+    if (!this._licenseVerified) {
+      const licenseOk = await this.checkLicense();
+      if (!licenseOk) return;
+    }
+
+    this._paths = await window.avis.getPaths();
     this.setupTabs();
     this.setupInput();
     this.updateProviderStatus();
     this.renderMeters();
     await this.loadHistoryList();
 
-    // Wire orchestrator callbacks
     Orchestrator.onStep = (id, type, message, status) => this.handleStep(id, type, message, status);
     Orchestrator.onStreamChunk = (chunk, fullText) => this.handleStreamChunk(chunk, fullText);
 
-    // Wire Sentinel health reports to Mission Control
     window.avis.onSentinelReport((report) => {
       const degraded = Object.entries(report.results).filter(([_, v]) => v !== 'healthy');
-      if (degraded.length > 0) {
-        this.showToast(`SENTINEL: ${degraded.length} provider(s) degraded`, 'warning');
-      }
-      if (typeof MissionControl !== 'undefined') {
-        MissionControl.updateHealthIndicators(report.results);
-      }
+      if (degraded.length > 0) this.showToast(`SENTINEL: ${degraded.length} provider(s) degraded`, 'warning');
+      if (typeof MissionControl !== 'undefined') MissionControl.updateHealthIndicators(report.results);
     });
 
-    // Render Mission Control initial state
     if (typeof MissionControl !== 'undefined') MissionControl.render();
-
-    // Claude Code lock status
     this.refreshClaudeCodeLock();
+    window.avis.onClaudeRateLimits((data) => this.updateRateLimits(data));
 
-    // Claude rate limit monitoring
-    window.avis.onClaudeRateLimits((data) => {
-      this.updateRateLimits(data);
-    });
-
-    // Skip onboarding for client mode — they don't set up API keys
-    if (!isClientBoot) {
-      const firstRun = await window.avis.isFirstRun();
-      if (firstRun) this.showOnboarding();
-    }
+    const firstRun = await window.avis.isFirstRun();
+    if (firstRun) this.showOnboarding();
 
     await this.detectProviders();
-
-    // FIX 3: Health check providers on startup (non-blocking)
     setTimeout(() => this.healthCheckAll(), 2000);
-    // Re-check every 15 minutes
     setInterval(() => this.healthCheckAll(), 15 * 60 * 1000);
-
-    // Auto-updater status listener
     window.avis.onUpdateStatus((data) => this.handleUpdateStatus(data));
 
-    // FIX 4: Show version in titlebar
     try {
       const ver = await window.avis.getAppVersion();
       const verEl = document.getElementById('app-version');
       if (verEl) verEl.textContent = `v${ver}`;
-      const welcomeVer = document.getElementById('welcome-version');
-      if (welcomeVer) welcomeVer.textContent = `v${ver}`;
     } catch (e) {}
 
-    // Render changelog + init dev console + live clock + Chrome status + sounds
     this.renderChangelog();
     this.initDevConsole();
     this.startClock();
     this.updateChromeStatus();
     setInterval(() => this.updateChromeStatus(), 10000);
 
-    // Listen for license revocation while app is running
     window.avis.onLicenseRevoked((data) => {
       document.getElementById('license-revoked').style.display = 'flex';
       document.getElementById('revoked-reason').textContent = data.reason || 'Your license has been deactivated.';
     });
-
-    // Show license tier in titlebar
     window.avis.onLicenseStatus((data) => {
       if (data.valid && data.tier === 'master') {
         const ver = document.getElementById('app-version');
@@ -124,61 +109,173 @@ const AVIS = {
       }
     });
 
-    // Global keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      // Ctrl+Shift+D: toggle Dev tab
       if (e.ctrlKey && e.shiftKey && e.key === 'D') {
         const devBtn = document.getElementById('dev-tab-btn');
-        if (devBtn) {
-          const visible = devBtn.style.display !== 'none';
-          devBtn.style.display = visible ? 'none' : '';
-          if (!visible) this.showToast('Dev panel enabled');
-        }
+        if (devBtn) { devBtn.style.display = devBtn.style.display !== 'none' ? 'none' : ''; }
         return;
       }
-      // Ctrl+K: command palette
-      if (e.ctrlKey && e.key === 'k') {
-        e.preventDefault();
-        this.toggleCommandPalette();
-        return;
-      }
-      // Ctrl+N: new chat
-      if (e.ctrlKey && e.key === 'n') {
-        e.preventDefault();
-        this.newConversation();
-        return;
-      }
-      // Ctrl+E: export chat
-      if (e.ctrlKey && e.key === 'e') {
-        e.preventDefault();
-        this.exportConversation();
-        return;
-      }
-      // Ctrl+1-9: switch tabs
-      if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
-        e.preventDefault();
-        const tabs = document.querySelectorAll('.nav-tab:not([style*="display:none"])');
-        const idx = parseInt(e.key) - 1;
-        if (tabs[idx]) tabs[idx].click();
-        return;
-      }
-      // Escape: close command palette or settings
-      if (e.key === 'Escape') {
-        this.closeCommandPalette();
-        return;
-      }
+      if (e.ctrlKey && e.key === 'k') { e.preventDefault(); this.toggleCommandPalette(); }
+      if (e.ctrlKey && e.key === 'n') { e.preventDefault(); this.newConversation(); }
+      if (e.ctrlKey && e.key === 'e') { e.preventDefault(); this.exportConversation(); }
+      if (e.ctrlKey && e.key >= '1' && e.key <= '9') { e.preventDefault(); const tabs = document.querySelectorAll('.nav-tab:not([style*="display:none"])'); const idx = parseInt(e.key) - 1; if (tabs[idx]) tabs[idx].click(); }
+      if (e.key === 'Escape') this.closeCommandPalette();
     });
 
-    // Welcome particle animation
     this.initParticles();
-
-    // Save session on window close
-    window.addEventListener('beforeunload', () => {
-      MemoryManager.saveLastSessionInfo();
-    });
-
-    // Check for resumable session
+    window.addEventListener('beforeunload', () => MemoryManager.saveLastSessionInfo());
     this.checkResumableSession();
+  },
+
+  // ================================================================
+  // CODE ENTRY SCREEN — universal AVIS welcome
+  // ================================================================
+  _showCodeEntryScreen() {
+    // Hide all AVIS operator UI
+    document.querySelector('.titlebar')?.style.setProperty('display', 'none');
+    document.querySelector('.main-layout')?.style.setProperty('display', 'none');
+
+    // Create the code entry overlay
+    let overlay = document.getElementById('code-entry-screen');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'code-entry-screen';
+      document.body.appendChild(overlay);
+    }
+
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:50000;
+      background:linear-gradient(135deg, #060810 0%, #0a0f1a 50%, #060810 100%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      font-family:'Inter','Segoe UI',sans-serif;
+      -webkit-app-region:drag;
+    `;
+
+    overlay.innerHTML = `
+      <div style="text-align:center;-webkit-app-region:no-drag;">
+        <!-- Logo -->
+        <div style="margin-bottom:24px;">
+          <div style="width:80px;height:80px;border-radius:50%;border:2px solid rgba(0,168,255,0.2);margin:0 auto;display:flex;align-items:center;justify-content:center;position:relative;">
+            <div style="position:absolute;inset:-4px;border:1px solid transparent;border-top-color:rgba(0,168,255,0.5);border-radius:50%;animation:spin 4s linear infinite;"></div>
+            <span style="font-size:32px;font-weight:800;color:#00a8ff;text-shadow:0 0 20px rgba(0,168,255,0.3);">A</span>
+          </div>
+        </div>
+
+        <h1 style="font-size:28px;font-weight:800;color:#fff;letter-spacing:8px;margin-bottom:4px;">AVIS</h1>
+        <p style="font-size:11px;color:rgba(255,255,255,0.3);letter-spacing:4px;text-transform:uppercase;margin-bottom:32px;">Avel Intelligence Services</p>
+
+        <!-- Code entry -->
+        <div style="margin-bottom:12px;">
+          <input type="text" id="client-code-input" placeholder="Enter your code"
+            style="width:240px;padding:14px 20px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);
+            background:rgba(255,255,255,0.05);color:#fff;font-size:15px;font-weight:600;
+            text-align:center;letter-spacing:3px;text-transform:uppercase;
+            font-family:'JetBrains Mono','Courier New',monospace;outline:none;
+            transition:border-color 0.2s;"
+            onfocus="this.style.borderColor='rgba(0,168,255,0.4)'"
+            onblur="this.style.borderColor='rgba(255,255,255,0.1)'"
+            onkeydown="if(event.key==='Enter')AVIS.submitClientCode()">
+        </div>
+
+        <div id="code-entry-error" style="font-size:11px;color:#ff4444;height:20px;margin-bottom:8px;"></div>
+
+        <button onclick="AVIS.submitClientCode()"
+          style="width:240px;padding:12px;border-radius:12px;border:none;
+          background:linear-gradient(135deg,#00a8ff,#0066cc);color:#fff;
+          font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px;
+          transition:transform 0.15s,box-shadow 0.15s;-webkit-app-region:no-drag;"
+          onmousedown="this.style.transform='scale(0.97)'"
+          onmouseup="this.style.transform='scale(1)'"
+        >Continue</button>
+
+        <div style="margin-top:40px;font-size:9px;color:rgba(255,255,255,0.12);letter-spacing:2px;">
+          AVEL PRODUCTIONS LLC
+        </div>
+      </div>
+
+      <!-- Window controls -->
+      <div style="position:fixed;top:8px;right:8px;display:flex;gap:4px;-webkit-app-region:no-drag;">
+        <button onclick="avis.minimize()" style="width:28px;height:28px;border:none;background:none;color:rgba(255,255,255,0.2);font-size:14px;cursor:pointer;">&#x2500;</button>
+        <button onclick="avis.maximize()" style="width:28px;height:28px;border:none;background:none;color:rgba(255,255,255,0.2);font-size:14px;cursor:pointer;">&#x25A1;</button>
+        <button onclick="avis.close()" style="width:28px;height:28px;border:none;background:none;color:rgba(255,255,255,0.2);font-size:14px;cursor:pointer;">&#x2715;</button>
+      </div>
+
+      <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+    `;
+
+    // Focus the input
+    setTimeout(() => document.getElementById('client-code-input')?.focus(), 300);
+  },
+
+  async submitClientCode() {
+    const input = document.getElementById('client-code-input');
+    const errorEl = document.getElementById('code-entry-error');
+    if (!input) return;
+
+    const code = input.value.trim().toUpperCase();
+    if (!code) {
+      if (errorEl) errorEl.textContent = 'Please enter a code';
+      return;
+    }
+
+    // Special operator code — bypass to full AVIS
+    const operatorPassword = await window.avis.storeGet('operatorPassword', 'avis2026');
+    if (code === 'OPERATOR' || code === 'AVL-000' || code === operatorPassword.toUpperCase()) {
+      await window.avis.storeSet('bootMode', 'operator');
+      document.getElementById('code-entry-screen')?.remove();
+      document.querySelector('.titlebar')?.style.setProperty('display', '');
+      document.querySelector('.main-layout')?.style.setProperty('display', '');
+      await this._operatorBoot();
+      return;
+    }
+
+    // Check if client exists
+    const clients = await window.avis.clientList();
+    if (!clients.includes(code)) {
+      if (errorEl) errorEl.textContent = 'Code not recognized';
+      input.style.borderColor = '#ff4444';
+      setTimeout(() => { input.style.borderColor = 'rgba(255,255,255,0.1)'; }, 1500);
+      return;
+    }
+
+    // Valid client — load their experience
+    if (errorEl) errorEl.textContent = '';
+
+    // Brief loading animation
+    input.disabled = true;
+    input.style.borderColor = '#00a8ff';
+
+    // Load the client profile to get their theme
+    const profile = await ClientManager.getProfile(code);
+
+    // Animate transition — fade the code screen to the client's primary color
+    const overlay = document.getElementById('code-entry-screen');
+    if (overlay && profile?.theme) {
+      overlay.style.transition = 'background 0.5s ease';
+      overlay.style.background = profile.theme.color_background || '#fff0f7';
+    }
+
+    // Set active client and persist
+    await ClientManager.setActiveClient(code);
+    await window.avis.storeSet('bootMode', null); // clear operator flag
+
+    // Minimal init for client mode
+    this._paths = await window.avis.getPaths();
+    await MemoryManager.init();
+    await HotConfig.init();
+    this.setupTabs();
+    this.setupInput();
+    Orchestrator.onStep = (id, type, message, status) => this.handleStep(id, type, message, status);
+    Orchestrator.onStreamChunk = (chunk, fullText) => this.handleStreamChunk(chunk, fullText);
+    this.startClock();
+
+    // Remove code entry screen
+    setTimeout(() => {
+      overlay?.remove();
+      document.querySelector('.titlebar')?.style.setProperty('display', '');
+      document.querySelector('.main-layout')?.style.setProperty('display', '');
+      this.enterClientMode(code);
+    }, 600);
   },
 
   async checkResumableSession() {
@@ -1336,6 +1433,7 @@ const AVIS = {
 
     this._clientModeActive = false;
     await ClientManager.setActiveClient(null);
+    await window.avis.storeSet('bootMode', 'operator');
 
     // Restore operator chrome
     document.body.classList.remove('client-mode');
@@ -1353,6 +1451,10 @@ const AVIS = {
     const leftPanel = document.querySelector('.left-panel');
     if (leftPanel) leftPanel.style.display = '';
 
+    // Reset main layout
+    const mainLayout = document.querySelector('.main-layout');
+    if (mainLayout) mainLayout.style.cssText = '';
+
     // Remove client UI
     const clientUI = document.getElementById('client-mode-container');
     if (clientUI) clientUI.remove();
@@ -1361,10 +1463,20 @@ const AVIS = {
     if (typeof ThemeManager !== 'undefined') {
       ThemeManager.resetTheme();
     }
+    document.body.style.backgroundImage = '';
+
+    // Hide client elements
+    const clientNav = document.getElementById('client-nav');
+    if (clientNav) clientNav.style.display = '';
+    const clientFab = document.getElementById('client-fab');
+    if (clientFab) clientFab.style.display = '';
 
     // Clear chat and reload operator view
     const chatArea = document.getElementById('chat-area');
     if (chatArea) chatArea.innerHTML = '';
+
+    // Boot into operator mode
+    await this._operatorBoot();
 
     this.showToast('Operator mode restored', 'success');
     return true;

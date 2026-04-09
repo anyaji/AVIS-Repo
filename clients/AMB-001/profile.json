@@ -44,5 +44,7 @@
     "sound_effects": true,
     "confetti_color": "pink"
   },
-  "welcome_completed": true
+  "welcome_completed": true,
+  "avatar_emoji": "✨",
+  "avatar_color": "#ff1493"
 }
