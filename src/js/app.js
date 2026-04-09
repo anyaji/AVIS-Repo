@@ -1447,10 +1447,19 @@ const AVIS = {
         for (const msg of latest.messages) {
           this.addMessageToChat(msg.role === 'user' ? 'user' : 'ai', msg.text, 'claude', 'Coach');
         }
+        // Rebuild Orchestrator conversation history
+        if (typeof Orchestrator !== 'undefined') {
+          Orchestrator.conversationHistory = latest.messages.map(msg => ({
+            role: msg.role === 'user' ? 'user' : 'assistant',
+            content: msg.text
+          }));
+        }
       } else {
         ClientManager.startNewSession();
       }
     }
+    // Mark chat as loaded so tab switching doesn't reload
+    this._coachChatLoaded = true;
 
     // Check for pending recommendations
     const pending = await ClientManager.getRecommendations(clientCode, 'pending');
@@ -2500,8 +2509,10 @@ Powered by AVIS 💕`;
       case 'chat':
         showFlex('chat-center'); showFlex('client-quick-prompts');
         showFlex('client-chat-toolbar');
-        // Load last session on first visit
-        this.loadCoachChatSession();
+        // Only load from disk on first visit — after that, keep live DOM
+        if (!this._coachChatLoaded) {
+          this.loadCoachChatSession();
+        }
         break;
       case 'history':
         show('client-history-view');
@@ -2682,7 +2693,6 @@ Powered by AVIS 💕`;
     if (archive) archive.style.display = 'none';
 
     if (sessions.length === 0) {
-      // No history — start fresh
       chatArea.innerHTML = '';
       ClientManager.startNewSession();
       this._coachChatLoaded = true;
@@ -2704,10 +2714,18 @@ Powered by AVIS 💕`;
     // Set this as active session
     ClientManager.setActiveSessionId(targetSession.id);
 
-    // Render messages
+    // Clear and render messages
     chatArea.innerHTML = '';
     for (const msg of targetSession.messages) {
       this.addMessageToChat(msg.role === 'user' ? 'user' : 'ai', msg.text, 'claude', 'Coach');
+    }
+
+    // Also rebuild Orchestrator conversation history so Claude has context
+    if (typeof Orchestrator !== 'undefined') {
+      Orchestrator.conversationHistory = targetSession.messages.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }));
     }
 
     // Scroll to bottom
@@ -2725,6 +2743,11 @@ Powered by AVIS 💕`;
     // Close archive if open
     const archive = document.getElementById('client-chat-archive');
     if (archive) archive.style.display = 'none';
+
+    // Reset Orchestrator conversation history so Claude starts fresh
+    if (typeof Orchestrator !== 'undefined') {
+      Orchestrator.conversationHistory = [];
+    }
 
     // Focus input
     const input = document.getElementById('chat-input');
@@ -2766,7 +2789,7 @@ Powered by AVIS 💕`;
       const preview = session.preview || 'No messages';
 
       return `
-        <div class="client-archive-row ${isActive ? 'active' : ''}" onclick="AVIS.loadCoachChatSession('${session.id}')">
+        <div class="client-archive-row ${isActive ? 'active' : ''}" onclick="AVIS.loadArchivedSession('${session.id}')">
           <div class="archive-row-top">
             <span class="archive-date">${timeStr}</span>
             <span class="archive-count">${msgCount} msg${msgCount !== 1 ? 's' : ''}</span>
@@ -2778,6 +2801,13 @@ Powered by AVIS 💕`;
     }).join('');
 
     archive.style.display = 'block';
+  },
+
+  async loadArchivedSession(sessionId) {
+    // Force reload from disk for the specific session
+    this._coachChatLoaded = false;
+    await this.loadCoachChatSession(sessionId);
+    this._coachChatLoaded = true;
   },
 
   // ================================================================
@@ -3277,6 +3307,7 @@ Powered by AVIS 💕`;
   async signOut() {
     // Clear persisted state
     this._clientModeActive = false;
+    this._coachChatLoaded = false;
     await ClientManager.setActiveClient(null);
     await window.avis.storeSet('bootMode', null);
     await window.avis.storeSet('activeClient', null);
