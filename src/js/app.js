@@ -1744,14 +1744,8 @@ const AVIS = {
       document.getElementById('client-savings-remaining').textContent = `$${(savings.target_balance - savings.balance).toLocaleString()} to go ✨`;
     }
 
-    // Debt card
-    const cc = finances.debts.find(d => d.id === 'credit_card');
-    if (cc) {
-      document.getElementById('client-debt-detail').textContent = `$${cc.balance.toFixed(2)} left`;
-      // Assume starting balance was ~800 for progress calc
-      const debtPct = Math.max(0, 100 - (cc.balance / 800) * 100);
-      document.getElementById('client-debt-bar').style.width = `${debtPct}%`;
-    }
+    // All debts
+    this.renderDebtsCards(finances);
 
     // Credit score
     document.getElementById('client-score-detail').textContent = `${finances.credit_score} → ${finances.credit_score_target}`;
@@ -1823,6 +1817,93 @@ const AVIS = {
       </div>
       ${weeklyBudget > 0 ? `<div style="text-align:center;font-size:10px;color:var(--client-text-secondary);margin-top:4px;">Weekly target: $${weeklyBudget.toFixed(0)}</div>` : ''}
     `;
+  },
+
+  // ================================================================
+  // ALL DEBTS — dynamic rendering + add/remove
+  // ================================================================
+  renderDebtsCards(finances) {
+    const listEl = document.getElementById('client-debts-list');
+    if (!listEl || !finances) return;
+
+    if (!finances.debts || finances.debts.length === 0) {
+      listEl.innerHTML = '<div class="client-empty" style="padding:12px;"><p>No debts — you\'re debt free! 🎉</p></div>';
+      return;
+    }
+
+    const icons = { credit_card: '💳', personal_loan: '📋', car_loan: '🚗', student_loan: '🎓' };
+
+    listEl.innerHTML = finances.debts.map((debt, i) => {
+      const icon = icons[debt.id] || '💰';
+      const startBalance = debt.start_balance || debt.balance * 1.5; // estimate if not tracked
+      const paidPct = Math.max(0, Math.min(100, ((startBalance - debt.balance) / startBalance) * 100));
+      const monthsLeft = debt.minimum_payment > 0 ? Math.ceil(debt.balance / (debt.attack_amount || debt.minimum_payment)) : 0;
+
+      return `
+        <div class="client-goal-card" style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--client-secondary,#fce7f3);">
+          <div class="client-goal-icon">${icon}</div>
+          <div class="client-goal-info" style="flex:1;">
+            <div class="client-goal-name">${debt.name}</div>
+            <div class="client-goal-detail">$${debt.balance.toFixed(2)} left · $${(debt.attack_amount || debt.minimum_payment).toFixed(2)}/mo</div>
+            <div class="client-progress-bar">
+              <div class="client-progress-fill" style="width:${paidPct}%"></div>
+            </div>
+            <div class="client-card-sub">${monthsLeft > 0 ? `~${monthsLeft} months to go` : ''} ${debt.status === 'auto_grinding' ? '(auto-pay)' : ''}</div>
+          </div>
+          <button onclick="AVIS.removeDebt(${i})" style="background:none;border:none;color:var(--client-text-secondary);cursor:pointer;font-size:16px;padding:4px;flex-shrink:0;" title="Remove">🗑️</button>
+        </div>
+      `;
+    }).join('');
+  },
+
+  showAddDebtForm() {
+    const form = document.getElementById('client-add-debt-form');
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  },
+
+  async addDebt() {
+    const name = document.getElementById('new-debt-name')?.value.trim();
+    const balance = parseFloat(document.getElementById('new-debt-balance')?.value);
+    const payment = parseFloat(document.getElementById('new-debt-payment')?.value);
+    if (!name || !balance || balance <= 0 || !payment || payment <= 0) {
+      this.showToast('Fill in all fields'); return;
+    }
+
+    const finances = await ClientManager.getFinances();
+    if (!finances) return;
+    if (!finances.debts) finances.debts = [];
+
+    const id = name.toLowerCase().replace(/\s+/g, '_');
+    finances.debts.push({
+      id,
+      name,
+      balance,
+      start_balance: balance,
+      minimum_payment: payment,
+      status: 'active',
+      target_payoff_date: ''
+    });
+
+    await ClientManager.updateFinances(null, { debts: finances.debts });
+
+    // Clear form
+    document.getElementById('new-debt-name').value = '';
+    document.getElementById('new-debt-balance').value = '';
+    document.getElementById('new-debt-payment').value = '';
+    document.getElementById('client-add-debt-form').style.display = 'none';
+
+    this.refreshClientDashboard();
+    this.showToast(`${name} added 💕`);
+  },
+
+  async removeDebt(index) {
+    const finances = await ClientManager.getFinances();
+    if (!finances || !finances.debts) return;
+    const name = finances.debts[index]?.name || 'Debt';
+    finances.debts.splice(index, 1);
+    await ClientManager.updateFinances(null, { debts: finances.debts });
+    this.refreshClientDashboard();
+    this.showToast(`${name} removed`);
   },
 
   // ================================================================

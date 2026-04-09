@@ -692,15 +692,18 @@
       </div>
     </div>
 
-    <div class="client-card" id="client-debt-card">
-      <div class="client-goal-card">
-        <div class="client-goal-icon">💳</div>
-        <div class="client-goal-info">
-          <div class="client-goal-name">Credit Card Payoff</div>
-          <div class="client-goal-detail" id="client-debt-detail">$524.77 left</div>
-          <div class="client-progress-bar">
-            <div class="client-progress-fill" id="client-debt-bar" style="width:0%"></div>
-          </div>
+    <!-- All Debts (dynamically rendered) -->
+    <div class="client-card" id="client-debts-card">
+      <div class="client-card-title">Debt Payoff</div>
+      <div id="client-debts-list"></div>
+      <button onclick="AVIS.showAddDebtForm()" style="width:100%;padding:10px;border:none;background:none;color:var(--client-primary,#f472b6);font-size:12px;font-weight:600;cursor:pointer;margin-top:6px;">+ Add Debt</button>
+      <div id="client-add-debt-form" style="display:none;margin-top:8px;">
+        <input type="text" id="new-debt-name" class="client-note-input" placeholder="Name (e.g. Car Loan)" style="margin-top:0;margin-bottom:6px;">
+        <input type="number" id="new-debt-balance" class="client-note-input" placeholder="Balance ($)" style="margin-top:0;margin-bottom:6px;">
+        <input type="number" id="new-debt-payment" class="client-note-input" placeholder="Monthly payment ($)" style="margin-top:0;margin-bottom:6px;">
+        <div style="display:flex;gap:6px;">
+          <button class="client-submit-btn" onclick="AVIS.addDebt()" style="font-size:12px;flex:1;">Add 💕</button>
+          <button onclick="document.getElementById('client-add-debt-form').style.display='none'" style="flex:1;padding:10px;border-radius:var(--client-radius,20px);border:1.5px solid var(--client-secondary,#fce7f3);background:none;color:var(--client-text-secondary);font-size:12px;cursor:pointer;">Cancel</button>
         </div>
       </div>
     </div>

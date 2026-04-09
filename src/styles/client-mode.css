@@ -7,8 +7,7 @@
    BASE — hide operator chrome, set client background
    ================================================================ */
 body.client-mode {
-  background: var(--client-bg, #fff0f7);
-  background-image: var(--client-pattern, none);
+  background-color: #fdf2f8 !important;
   color: var(--client-text, #3d1f2e);
   font-family: var(--client-font-body, 'Nunito', sans-serif);
 }
@@ -603,13 +602,20 @@ body.client-mode .client-fab {
 /* ================================================================
    COACH CHAT — client mode
    ================================================================ */
-body.client-mode .center-panel {
+body.client-mode .center-panel,
+body.client-mode #chat-center {
   background: #fdf2f8 !important;
+  background-color: #fdf2f8 !important;
 }
 
 body.client-mode .chat-area {
   padding-bottom: 130px;
   background: transparent !important;
+  background-color: transparent !important;
+}
+
+body.client-mode .message {
+  max-width: min(85%, 440px) !important;
 }
 
 body.client-mode .message.user .message-bubble {
@@ -1218,7 +1224,7 @@ body.client-mode.client-dark {
   --client-card: #261a20;
   --client-text: #f0e0ea;
   --client-text-secondary: #b89aaa;
-  background: #1a0e14 !important;
+  background-color: #1a0e14 !important;
 }
 
 body.client-mode.client-dark .titlebar {

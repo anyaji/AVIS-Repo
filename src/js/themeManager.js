@@ -313,9 +313,9 @@ const ThemeManager = {
   _kittyHeartsPattern() {
     return `<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
       <!-- Heart -->
-      <path d="M20 18 C20 14 15 12 13 15 C11 12 6 14 6 18 C6 23 13 27 13 27 C13 27 20 23 20 18Z" fill="rgba(244,114,182,0.04)"/>
+      <path d="M20 18 C20 14 15 12 13 15 C11 12 6 14 6 18 C6 23 13 27 13 27 C13 27 20 23 20 18Z" fill="rgba(244,114,182,0.12)"/>
       <!-- Flower -->
-      <g transform="translate(65,20)" opacity="0.04">
+      <g transform="translate(65,20)" opacity="0.12">
         <circle cx="0" cy="-5" r="4" fill="#f472b6"/>
         <circle cx="5" cy="-2" r="4" fill="#f472b6"/>
         <circle cx="4" cy="4" r="4" fill="#f472b6"/>
@@ -324,7 +324,7 @@ const ThemeManager = {
         <circle cx="0" cy="0" r="3" fill="#fbbf24"/>
       </g>
       <!-- Cat face -->
-      <g transform="translate(45,60)" opacity="0.03">
+      <g transform="translate(45,60)" opacity="0.10">
         <circle cx="0" cy="0" r="6" fill="#f472b6"/>
         <path d="M-5 -4 L-7 -10 L-2 -5Z" fill="#f472b6"/>
         <path d="M5 -4 L7 -10 L2 -5Z" fill="#f472b6"/>
@@ -332,16 +332,16 @@ const ThemeManager = {
         <circle cx="2" cy="-1" r="1" fill="#fff"/>
       </g>
       <!-- Tiny paw -->
-      <g transform="translate(20,75)" opacity="0.03">
+      <g transform="translate(20,75)" opacity="0.09">
         <ellipse cx="0" cy="0" rx="4" ry="3" fill="#f472b6"/>
         <circle cx="-2" cy="-3" r="1.5" fill="#f472b6"/>
         <circle cx="0" cy="-3.5" r="1.5" fill="#f472b6"/>
         <circle cx="2" cy="-3" r="1.5" fill="#f472b6"/>
       </g>
       <!-- Another heart -->
-      <path d="M82 70 C82 67 79 66 77 68 C75 66 72 67 72 70 C72 73 77 76 77 76 C77 76 82 73 82 70Z" fill="rgba(244,114,182,0.03)"/>
+      <path d="M82 70 C82 67 79 66 77 68 C75 66 72 67 72 70 C72 73 77 76 77 76 C77 76 82 73 82 70Z" fill="rgba(244,114,182,0.10)"/>
       <!-- Sparkle -->
-      <path d="M85 45 L86 42 L87 45 L90 46 L87 47 L86 50 L85 47 L82 46Z" fill="rgba(244,114,182,0.035)"/>
+      <path d="M85 45 L86 42 L87 45 L90 46 L87 47 L86 50 L85 47 L82 46Z" fill="rgba(244,114,182,0.12)"/>
     </svg>`;
   },
 
