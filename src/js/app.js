@@ -39,6 +39,9 @@ const AVIS = {
     }
 
     this._paths = await window.avis.getPaths();
+    if (typeof UsageMeter !== 'undefined' && UsageMeter.providers && Object.keys(UsageMeter.providers).length === 0) {
+      UsageMeter.init();   // populate per-provider usage state before any meter render
+    }
     this.setupTabs();
     this.setupInput();
     this.setupMacros();
@@ -5225,7 +5228,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       { obj: MistralProvider, key: 'mistral' },
       { obj: PerplexityProvider, key: 'perplexity' },     ];
     container.innerHTML = providers.map(p => {
-      const u = UsageMeter.providers[p.key];
+      const u = UsageMeter.providers[p.key] || { budgetLimit: 0, monthCost: 0, sessionCost: 0, sessionTokensIn: 0, sessionTokensOut: 0 };
       const pct = UsageMeter.getUsagePercent(p.key);
       const bar = pct >= 80 ? 'red' : pct >= 50 ? 'amber' : 'green';
       const st = p.obj.status === 'active' ? 'ACTIVE' : p.obj.status === 'limited' ? 'RATE LIMITED' : p.obj.status === 'stepped-down' ? 'STEPPED DOWN' : p.obj.status === 'offline' ? 'OFFLINE' : 'NOT SET';
@@ -5434,7 +5437,13 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
   // ====================================================================
   CHANGELOG: [
     {
-      version: '4.6.0', date: '2026-07-01', label: 'latest',
+      version: '4.6.1', date: '2026-07-01', label: 'latest',
+      items: [
+        'Fixed: chat messages/replies vanishing and provider dots never turning green — root cause was an uninitialized usage meter crashing operator boot (UsageMeter.init now runs; renderMeters is null-safe)'
+      ]
+    },
+    {
+      version: '4.6.0', date: '2026-07-01',
       items: [
         'Claude Fable 5 is now the default orchestrator model (claude-fable-5) — most capable Claude yet',
         'Automatic Opus 4.8 fallback if a request is declined by safety classifiers',
