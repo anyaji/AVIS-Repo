@@ -3403,6 +3403,35 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
   },
 
   // Apply theme preset
+    _clientActive: false,
+  async openClientDashboard() {
+    const input = document.getElementById('client-code-input');
+    const errorEl = document.getElementById('client-code-error');
+    const code = (input ? input.value.trim() : '').toUpperCase();
+    if (!code) { if (errorEl) errorEl.textContent = 'Enter your access code'; return; }
+    if (errorEl) errorEl.textContent = '';
+    const result = await window.avis.openClientDashboard(code);
+    if (!result.success) { if (errorEl) errorEl.textContent = result.error || 'Invalid code'; return; }
+    this.switchToTab('client');
+    this._clientActive = true;
+    document.getElementById('client-gate').style.display = 'none';
+    document.getElementById('client-active-info').style.display = 'block';
+    const n = document.getElementById('client-active-name'); if (n) n.textContent = result.name || 'Client';
+    const u = document.getElementById('client-active-url'); if (u) u.textContent = result.url || '';
+    const t = document.getElementById('client-tab-btn'); if (t) t.innerHTML = '&#128149; ' + result.name;
+    this.showToast(result.name + "'s dashboard is open! 🌸");
+  },
+  closeClientDashboard() {
+    window.avis.closeClientDashboard();
+    this._clientActive = false;
+    document.getElementById('client-gate').style.display = 'block';
+    document.getElementById('client-active-info').style.display = 'none';
+    const i = document.getElementById('client-code-input'); if (i) i.value = '';
+    const t = document.getElementById('client-tab-btn'); if (t) t.innerHTML = '&#128149; Client';
+    this.switchToTab('providers');
+    this.showToast('Dashboard closed');
+  },
+  reloadClientDashboard() { this.openClientDashboard(); },
   applyTheme(themeName) {
     document.body.className = document.body.className.replace(/theme-\S+/g, '');
     if (themeName && themeName !== 'default') {
