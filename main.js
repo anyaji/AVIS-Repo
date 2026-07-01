@@ -5,6 +5,7 @@ const vm = require('vm');
 const os = require('os');
 const { exec, execSync, spawn } = require('child_process');
 const WebSocket = require('ws');
+const macroEngine = require('./src/macro/macroEngine');
 
 // ====================================================================
 // Real Desktop Path — OneDrive-aware
@@ -687,9 +688,21 @@ app.whenReady().then(() => {
   });
 
   initAutoUpdater();
+
+  // Macro engine — native record/replay
+  try {
+    macroEngine.init({ logger: log, baseDir: APPDATA_DIR, config: { macroDir: 'macros' } });
+    macroEngine.setOnStateChange((s) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('macro-status', s);
+    });
+    log.info('Macro engine initialized');
+  } catch (e) {
+    log.warn('Macro engine init failed:', e.message);
+  }
 });
 
 app.on('window-all-closed', () => { app.quit(); });
+app.on('before-quit', () => { try { macroEngine.shutdown(); } catch (_) {} });
 app.on('activate', () => { if (!mainWindow) createWindow(); });
 
 // Window controls
@@ -699,6 +712,18 @@ ipcMain.on('win-maximize', () => {
   else mainWindow?.maximize();
 });
 ipcMain.on('win-close', () => mainWindow?.close());
+
+// ====================================================================
+// Macro engine IPC — native record / replay
+// ====================================================================
+ipcMain.handle('macro-record-start', () => macroEngine.startRecording());
+ipcMain.handle('macro-record-stop',  () => macroEngine.stopRecording());
+ipcMain.handle('macro-play',         (_, opts) => macroEngine.play(opts || {}));
+ipcMain.handle('macro-stop',         () => macroEngine.stop());
+ipcMain.handle('macro-save',         (_, name) => macroEngine.save(name));
+ipcMain.handle('macro-load',         (_, name) => macroEngine.load(name));
+ipcMain.handle('macro-list',         () => macroEngine.listMacros());
+ipcMain.handle('macro-state',        () => macroEngine.getState());
 
 // Config store
 ipcMain.handle('store-get', (_, key, def) => store.get(key, def));
@@ -2001,8 +2026,9 @@ ipcMain.handle('api-call-agentic', async (_, { model, messages, systemPrompt, to
       return { error: true, message: 'No valid message content to send.', code: 'EMPTY_CONTENT' };
     }
 
+    const chosenModel = model || 'claude-fable-5';
     const params = {
-      model: model || 'claude-sonnet-4-20250514',
+      model: chosenModel,
       max_tokens: 8192,
       system: systemPrompt || '',
       messages: claudeMessages
@@ -2012,10 +2038,22 @@ ipcMain.handle('api-call-agentic', async (_, { model, messages, systemPrompt, to
       params.tools = tools;
     }
 
-    const apiPromise = client.messages.create(params).withResponse();
+    // Fable 5: safety classifiers can decline a request; server-side fallback
+    // re-serves it on Opus 4.8 inside the same call
+    const apiPromise = chosenModel.startsWith('claude-fable')
+      ? client.beta.messages.create({
+          ...params,
+          betas: ['server-side-fallback-2026-06-01'],
+          fallbacks: [{ model: 'claude-opus-4-8' }]
+        }).withResponse()
+      : client.messages.create(params).withResponse();
     const { data: response, response: rawResponse } = await withTimeout(apiPromise, 120000, 'Claude agentic call');
 
     if (signal.aborted) return { error: true, message: 'Request cancelled', code: 'ABORT' };
+
+    if (response.stop_reason === 'refusal') {
+      return { error: true, message: 'Claude declined this request (safety classifiers). Try rephrasing.', code: 'REFUSAL' };
+    }
 
     // Capture rate limit headers and send to renderer
     try {
@@ -2172,12 +2210,20 @@ ipcMain.handle('api-call-stream-start', async (_, { model, messages, systemPromp
 
     if (signal.aborted) return { error: true, message: 'Request cancelled', code: 'ABORT' };
 
-    const stream = client.messages.stream({
-      model: model || 'claude-sonnet-4-20250514',
+    const streamModel = model || 'claude-fable-5';
+    const streamParams = {
+      model: streamModel,
       max_tokens: 4096,
       system: systemPrompt || '',
       messages: claudeMessages
-    });
+    };
+    const stream = streamModel.startsWith('claude-fable')
+      ? client.beta.messages.stream({
+          ...streamParams,
+          betas: ['server-side-fallback-2026-06-01'],
+          fallbacks: [{ model: 'claude-opus-4-8' }]
+        })
+      : client.messages.stream(streamParams);
 
     // Force-abort the stream when signal fires
     const onAbort = () => { try { stream.abort(); } catch (_) {} };
@@ -2193,6 +2239,9 @@ ipcMain.handle('api-call-stream-start', async (_, { model, messages, systemPromp
 
     try {
       const finalMessage = await stream.finalMessage();
+      if (finalMessage.stop_reason === 'refusal') {
+        return { error: true, message: 'Claude declined this request (safety classifiers). Try rephrasing.' };
+      }
       inputTokens = finalMessage.usage?.input_tokens || 0;
       outputTokens = finalMessage.usage?.output_tokens || 0;
       const fullText = finalMessage.content.map(b => b.text || '').join('');
@@ -2228,12 +2277,25 @@ async function callClaude(apiKey, model, messages, systemPrompt) {
     return { error: true, message: 'No valid message content to send.', code: 'EMPTY_CONTENT' };
   }
 
-  const { data: response, response: rawResponse } = await client.messages.create({
-    model: model || 'claude-sonnet-4-20250514',
+  const ccModel = model || 'claude-fable-5';
+  const ccParams = {
+    model: ccModel,
     max_tokens: 4096,
     system: systemPrompt || '',
     messages: claudeMessages
-  }).withResponse();
+  };
+  const { data: response, response: rawResponse } = await (ccModel.startsWith('claude-fable')
+    ? client.beta.messages.create({
+        ...ccParams,
+        betas: ['server-side-fallback-2026-06-01'],
+        fallbacks: [{ model: 'claude-opus-4-8' }]
+      })
+    : client.messages.create(ccParams)
+  ).withResponse();
+
+  if (response.stop_reason === 'refusal') {
+    return { error: true, message: 'Claude declined this request (safety classifiers). Try rephrasing.', code: 'REFUSAL' };
+  }
 
   // Capture rate limit headers
   try {

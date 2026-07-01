@@ -41,6 +41,7 @@ const AVIS = {
     this._paths = await window.avis.getPaths();
     this.setupTabs();
     this.setupInput();
+    this.setupMacros();
     this.updateProviderStatus();
     this.renderMeters();
     await this.loadHistoryList();
@@ -747,6 +748,83 @@ const AVIS = {
           if (councilCenter) councilCenter.style.display = 'none';
         }
       });
+    });
+  },
+
+  // ====================================================================
+  // Macros — native record / replay UI
+  // ====================================================================
+  setupMacros() {
+    if (!window.avis.macroRecordStart) return;   // engine unavailable
+    const dot = document.getElementById('macro-dot');
+    const statusText = document.getElementById('macro-status-text');
+    const eventCount = document.getElementById('macro-event-count');
+    const recBtn = document.getElementById('macro-rec-btn');
+
+    const applyState = (s) => {
+      if (!s) return;
+      const st = typeof s === 'string' ? { state: s } : s;
+      if (dot) dot.className = 'macro-status-dot ' + (st.state || 'idle');
+      if (statusText) statusText.textContent =
+        st.state === 'recording' ? 'Recording…' :
+        st.state === 'playing' ? 'Playing…' : 'Idle';
+      if (eventCount && typeof st.eventCount === 'number')
+        eventCount.textContent = st.eventCount ? `${st.eventCount} events` : '';
+      if (recBtn) recBtn.innerHTML = st.state === 'recording' ? '&#9632; Stop Rec' : '&#9679; Record';
+      if (st.slots) this.renderMacroList(st.slots);
+    };
+
+    window.avis.onMacroStatus(applyState);
+
+    recBtn?.addEventListener('click', async () => {
+      const cur = await window.avis.macroState();
+      const res = cur === 'recording'
+        ? await window.avis.macroRecordStop()
+        : await window.avis.macroRecordStart();
+      if (!res.ok) this.showToast(res.error || 'Macro error', 'error');
+    });
+
+    document.getElementById('macro-play-btn')?.addEventListener('click', async () => {
+      const speed = parseFloat(document.getElementById('macro-speed')?.value || '1');
+      const repeatCount = parseInt(document.getElementById('macro-repeat')?.value || '1');
+      const res = await window.avis.macroPlay({ speed, repeatCount });
+      if (!res.ok) this.showToast(res.error || 'Cannot play', 'error');
+    });
+
+    document.getElementById('macro-stop-btn')?.addEventListener('click', () => window.avis.macroStop());
+
+    document.getElementById('macro-save-btn')?.addEventListener('click', async () => {
+      const name = document.getElementById('macro-name')?.value?.trim();
+      const res = await window.avis.macroSave(name);
+      if (res.ok) { this.showToast(`Saved "${res.name}"`, 'success'); this.refreshMacroList(); }
+      else this.showToast(res.error || 'Save failed', 'error');
+    });
+
+    this.refreshMacroList();
+  },
+
+  async refreshMacroList() {
+    if (!window.avis.macroList) return;
+    this.renderMacroList(await window.avis.macroList());
+  },
+
+  renderMacroList(slots) {
+    const list = document.getElementById('macro-saved-list');
+    if (!list) return;
+    const names = (slots || []).filter(Boolean);
+    if (!names.length) { list.innerHTML = '<div class="macro-saved-empty">No saved macros yet.</div>'; return; }
+    list.innerHTML = '';
+    names.forEach(name => {
+      const row = document.createElement('div');
+      row.className = 'macro-saved-item';
+      row.innerHTML = `<span class="macro-saved-name">${this.escapeHtml(name)}</span>
+        <button class="macro-btn macro-btn-load">Load</button>`;
+      row.querySelector('.macro-btn-load').addEventListener('click', async () => {
+        const res = await window.avis.macroLoad(name);
+        if (res.ok) this.showToast(`Loaded "${name}" (${res.eventCount} events)`, 'success');
+        else this.showToast(res.error || 'Load failed', 'error');
+      });
+      list.appendChild(row);
     });
   },
 
@@ -4103,7 +4181,7 @@ Powered by AVIS 💕`;
     if (cursor) cursor.remove();
     // Update provider badge
     const badge = this._streamBubble.querySelector('.provider-badge');
-    if (badge) badge.textContent = `${provider || 'claude'} / ${model || 'sonnet'}`;
+    if (badge) badge.textContent = `${provider || 'claude'} / ${model || 'fable-5'}`;
     // Add copy buttons to code blocks
     this._streamBubble.querySelectorAll('pre').forEach(pre => {
       if (pre.querySelector('.code-copy-btn')) return;
@@ -4145,8 +4223,8 @@ Powered by AVIS 💕`;
 
     // Map selection to provider name and model
     const map = {
-      'claude': { provider: 'claude', model: 'claude-sonnet-4-20250514' },
-      'claude-opus': { provider: 'claude', model: 'claude-opus-4-20250514' },
+      'claude': { provider: 'claude', model: 'claude-fable-5' },
+      'claude-opus': { provider: 'claude', model: 'claude-opus-4-8' },
       'claude-haiku': { provider: 'claude', model: 'claude-haiku-4-5-20251001' },
       'openai': { provider: 'openai', model: 'gpt-4o' },
       'deepseek': { provider: 'deepseek', model: 'deepseek-chat' },
@@ -4363,7 +4441,7 @@ Powered by AVIS 💕`;
 
     // ===== ROUND 1: Plan + Execute =====
     const planResult = await window.avis.apiCall({
-      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      provider: 'claude', model: 'claude-fable-5',
       messages: [{ role: 'user', content: prompt }],
       systemPrompt: `You are the lead coordinator of an AI council. Specialists available:
 - GPT4: Code, structured output, math, creative writing, formatting
@@ -4461,7 +4539,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
         const prevContext = round > 1 ? `\n\nPrevious draft (improve upon this — keep what works, fix what was flagged):\n${synthesisText.substring(0, 4000)}` : '';
 
         synthResult = await window.avis.apiCall({
-          provider: 'claude', model: 'claude-sonnet-4-20250514',
+          provider: 'claude', model: 'claude-fable-5',
           messages: [{ role: 'user', content: `Task: ${prompt}\n\nSpecialist contributions:\n\n${contributions}${prevContext}\n\nSynthesize into a polished final response. Use markdown. Take the best from each contributor — don't repeat or pad. If contributors disagree, use the strongest-supported position.` }],
           systemPrompt: round > 1
             ? 'You are improving a draft. The review identified specific gaps — the new contributions address those gaps. Integrate fixes precisely without re-explaining unchanged sections. Be surgical.'
@@ -4503,7 +4581,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       let reviewResult;
       try {
         reviewResult = await window.avis.apiCall({
-          provider: 'claude', model: 'claude-opus-4-20250514',
+          provider: 'claude', model: 'claude-opus-4-8',
           messages: [{ role: 'user', content: `Task: ${prompt}\n\nDraft (Round ${round}):\n${synthesisText.substring(0, 6000)}\n\nScore 1-10. If below 8, assign fixes.\n\nSCORE: [1-10]\nSTRENGTHS: [brief]\nGAPS: [brief]\nFIX_GPT4: [task or NONE]\nFIX_DEEPSEEK: [task or NONE]\nFIX_GEMINI: [task or NONE]\nFIX_PERPLEXITY: [task or NONE]\nFIX_DALLE: [task or NONE]\nSUGGESTION_1: [improvement]\nSUGGESTION_2: [improvement]\nSUGGESTION_3: [improvement]` }],
           systemPrompt: `Quality reviewer, round ${round}/${this._councilMaxRounds}. Score honestly. Below 8 = assign FIX_ tasks. Be brief and structured.`,
           options: {}
@@ -4696,7 +4774,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       </div>`);
 
     const revResult = await window.avis.apiCall({
-      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      provider: 'claude', model: 'claude-fable-5',
       messages: [{ role: 'user', content: `Original task: ${this._councilPrompt}\n\nCurrent output:\n${this._councilLastResult}\n\nRevision: ${suggestion}` }],
       systemPrompt: 'Produce the complete improved version incorporating the revision request. Use markdown.',
       options: {}
@@ -4766,7 +4844,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
     const contributions = allResults.filter(r => !r.error && r.text && !r.text.startsWith('[Generated image')).map(r => `=== ${r.label} ===\n${r.text.substring(0, 3000)}`).join('\n\n');
 
     const synthResult = await window.avis.apiCall({
-      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      provider: 'claude', model: 'claude-fable-5',
       messages: [{ role: 'user', content: `Task: ${prompt}\n\nSpecialist contributions:\n\n${contributions}\n\nPrevious draft (improve upon this — keep what works, fix what was flagged):\n${synthesisText.substring(0, 4000)}\n\nSynthesize into a polished final response. Use markdown.` }],
       systemPrompt: 'You are improving a draft. Integrate fixes precisely without re-explaining unchanged sections. Be surgical. Quality over length.',
       options: {}
@@ -4831,7 +4909,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
 
     const fixList = fixes.map((f, i) => `${i + 1}. ${f}`).join('\n');
     const result = await window.avis.apiCall({
-      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      provider: 'claude', model: 'claude-fable-5',
       messages: [{ role: 'user', content: `Original task: ${this._councilPrompt}\n\nCurrent output:\n${this._councilLastResult}\n\nApply ALL of the following fixes:\n${fixList}\n\nProduce the complete improved version.` }],
       systemPrompt: 'You are revising a council output. Apply every fix listed. Produce the full corrected version in markdown. Do not skip any fix.',
       options: {}
@@ -4885,7 +4963,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
       </div>`);
 
     const result = await window.avis.apiCall({
-      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      provider: 'claude', model: 'claude-fable-5',
       messages: [{ role: 'user', content: `Original task: ${this._councilPrompt}\n\nCurrent output:\n${this._councilLastResult}\n\nUSER CORRECTION (must be applied exactly):\n${amendment}\n\nProduce the complete corrected version.` }],
       systemPrompt: 'The user found mistakes in the council output. Apply their corrections exactly as described. Produce the full corrected version in markdown.',
       options: {}
@@ -4946,7 +5024,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
     this.showToast('Analyzing image...');
 
     const result = await window.avis.apiCall({
-      provider: 'claude', model: 'claude-sonnet-4-20250514',
+      provider: 'claude', model: 'claude-fable-5',
       messages: [{
         role: 'user',
         content: [
@@ -5042,7 +5120,7 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
 
     try {
       const structResult = await window.avis.apiCall({
-        provider: 'claude', model: 'claude-sonnet-4-20250514',
+        provider: 'claude', model: 'claude-fable-5',
         messages: [{ role: 'user', content: fp.msg }],
         systemPrompt: fp.sys, options: {}
       });
@@ -5356,7 +5434,20 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
   // ====================================================================
   CHANGELOG: [
     {
-      version: '4.4.0', date: '2026-04-02', label: 'latest',
+      version: '4.6.0', date: '2026-07-01', label: 'latest',
+      items: [
+        'Claude Fable 5 is now the default orchestrator model (claude-fable-5) — most capable Claude yet',
+        'Automatic Opus 4.8 fallback if a request is declined by safety classifiers',
+        'All Claude model IDs updated to current generation (Opus 4.8, Sonnet 4.6, Haiku 4.5)',
+        'NEW Macros tab — native keyboard & mouse record / replay via hardware-level input',
+        'Macro engine: exact-timing capture, speed control, repeat/loop, save & load named macros',
+        'Graphify knowledge graph generated for the AVIS codebase',
+        'UI polish — animated glowing nav underline, provider card hover states',
+        'Upgraded @anthropic-ai/sdk to 0.109.1'
+      ]
+    },
+    {
+      version: '4.4.0', date: '2026-04-02',
       items: [
         'GSAP-animated startup sequence with neural network icon and boot lines',
         'Startup sound (AVIS Echoes) plays during boot animation',

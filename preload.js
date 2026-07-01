@@ -143,6 +143,17 @@ contextBridge.exposeInMainWorld('avis', {
   // BUG 3: Get AVIS install path so Claude can find its own source files
   getAvisPath: () => ipcRenderer.invoke('get-avis-path'),
 
+  // Macro engine — native record / replay
+  macroRecordStart: () => ipcRenderer.invoke('macro-record-start'),
+  macroRecordStop: () => ipcRenderer.invoke('macro-record-stop'),
+  macroPlay: (opts) => ipcRenderer.invoke('macro-play', opts),
+  macroStop: () => ipcRenderer.invoke('macro-stop'),
+  macroSave: (name) => ipcRenderer.invoke('macro-save', name),
+  macroLoad: (name) => ipcRenderer.invoke('macro-load', name),
+  macroList: () => ipcRenderer.invoke('macro-list'),
+  macroState: () => ipcRenderer.invoke('macro-state'),
+  onMacroStatus: (cb) => ipcRenderer.on('macro-status', (_, s) => cb(s)),
+
   // Chrome MCP extension — browser automation
   chromeNavigate: (url) => ipcRenderer.invoke('chrome:navigate', url),
   chromeScreenshot: () => ipcRenderer.invoke('chrome:screenshot'),

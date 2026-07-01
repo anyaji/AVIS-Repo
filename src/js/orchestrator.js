@@ -224,8 +224,8 @@ For every user request:
   PROVIDER_TOOLS: [
     {
       name: "call_claude", provider: "claude",
-      description: "Call a different Claude model for specialized tasks. Use claude-opus-4-5 for deep reasoning/analysis, claude-haiku-4-5 for fast simple subtasks. You (the orchestrator) are Sonnet — use this to delegate to Opus or Haiku.",
-      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to the Claude model" }, model: { type: "string", enum: ["claude-opus-4-20250514", "claude-sonnet-4-5-20250514", "claude-haiku-4-5-20251001"], description: "Which Claude model (default: opus)" } }, required: ["prompt"] }
+      description: "Call a different Claude model for specialized tasks. Use claude-opus-4-8 for deep reasoning/analysis, claude-haiku-4-5 for fast simple subtasks. You (the orchestrator) are Fable 5 — use this to delegate cheaper subtasks to Opus or Haiku.",
+      input_schema: { type: "object", properties: { prompt: { type: "string", description: "Task to send to the Claude model" }, model: { type: "string", enum: ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"], description: "Which Claude model (default: opus)" } }, required: ["prompt"] }
     },
     {
       name: "call_claude_code", provider: null,
@@ -672,7 +672,7 @@ DELEGATION RULES (follow these always):
             if (fc.success) {
               // Let Claude analyze the page content
               const analysisResult = await window.avis.apiCallAgentic({
-                model: 'claude-sonnet-4-20250514',
+                model: 'claude-sonnet-4-6',
                 messages: [{ role: 'user', content: `User wanted to do this browser task: ${userMessage}\nChrome extension not available.\nHere's the page content from Firecrawl:\n${fc.content?.substring(0, 8000)}\n\nHelp the user accomplish what they need based on this content. Tell them you couldn't automate it but here's the information.` }],
                 systemPrompt: this.SYSTEM_PROMPT,
                 tools: []
@@ -1211,7 +1211,7 @@ DELEGATION RULES (follow these always):
         case 'generate_document': return await this.toolGenerateDocx(input.content, input.options);
         case 'generate_spreadsheet': return await this.toolGenerateXlsx(input.sheets, input.options);
         // AI provider calls
-        case 'call_claude': return await this.callProvider('claude', input.prompt, input.model || 'claude-opus-4-20250514');
+        case 'call_claude': return await this.callProvider('claude', input.prompt, input.model || 'claude-opus-4-8');
         case 'call_claude_code': return await this.toolClaudeCode(input.task, input.project_path, input.flags);
         case 'call_gemini': return await this.callProvider('gemini', input.prompt, input.model);
         case 'call_gpt4': return await this.callProvider('openai', input.prompt, input.model);
@@ -1290,7 +1290,7 @@ DELEGATION RULES (follow these always):
 
         if (handling.action === 'retry' && providerName === 'claude' && model && model.includes('opus')) {
           this.emitStep('warn', 'Claude Opus unavailable — using Sonnet', 'warn');
-          return await this.callProvider('claude', prompt, 'claude-sonnet-4-20250514');
+          return await this.callProvider('claude', prompt, 'claude-sonnet-4-6');
         }
 
         return `${providerObj.displayName}: ${this.parseError(result.message)}`;

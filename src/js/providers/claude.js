@@ -3,16 +3,18 @@ const ClaudeProvider = {
   name: 'claude',
   displayName: 'Claude',
   models: [
-    { id: 'claude-opus-4-20250514', name: 'Opus', tier: 0 },
-    { id: 'claude-sonnet-4-20250514', name: 'Sonnet', tier: 1 },
-    { id: 'claude-haiku-4-5-20251001', name: 'Haiku', tier: 2 }
+    { id: 'claude-fable-5', name: 'Fable 5', tier: 0 },
+    { id: 'claude-opus-4-8', name: 'Opus', tier: 1 },
+    { id: 'claude-sonnet-4-6', name: 'Sonnet', tier: 2 },
+    { id: 'claude-haiku-4-5-20251001', name: 'Haiku', tier: 3 }
   ],
   costs: {
-    'claude-opus-4-20250514': { input: 15, output: 75 },
-    'claude-sonnet-4-20250514': { input: 3, output: 15 },
-    'claude-haiku-4-5-20251001': { input: 0.25, output: 1.25 }
+    'claude-fable-5': { input: 10, output: 50 },
+    'claude-opus-4-8': { input: 5, output: 25 },
+    'claude-sonnet-4-6': { input: 3, output: 15 },
+    'claude-haiku-4-5-20251001': { input: 1, output: 5 }
   },
-  currentModelIndex: 1, // Start with Sonnet
+  currentModelIndex: 0, // Start with Fable 5
   status: 'unconfigured',
 
   getCurrentModel() {
@@ -42,7 +44,7 @@ const ClaudeProvider = {
   },
 
   resetTier() {
-    this.currentModelIndex = 1;
+    this.currentModelIndex = 0;
     this.status = 'active';
   },
 

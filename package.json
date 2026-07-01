@@ -1,6 +1,6 @@
 {
   "name": "avis",
-  "version": "4.5.5",
+  "version": "4.6.0",
   "description": "AVIS - Avel Intelligence Services: Multi-AI Orchestration Platform",
   "main": "main.js",
   "author": "Avel Productions LLC",
@@ -72,7 +72,7 @@
     }
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.109.1",
     "@google/generative-ai": "^0.21.0",
     "@mendable/firecrawl-js": "^4.18.0",
     "axios": "^1.7.0",
@@ -82,11 +82,13 @@
     "electron-updater": "^6.3.0",
     "gsap": "^3.14.2",
     "highlight.js": "^11.10.0",
+    "koffi": "^2.16.2",
     "mammoth": "^1.8.0",
     "marked": "^15.0.0",
     "openai": "^4.73.0",
     "pdf-parse": "^1.1.1",
     "pptxgenjs": "^4.0.1",
+    "uiohook-napi": "^1.5.5",
     "ws": "^8.20.0",
     "xlsx": "^0.18.5"
   },

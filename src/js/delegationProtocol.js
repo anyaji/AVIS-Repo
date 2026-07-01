@@ -124,9 +124,9 @@ const DelegationProtocol = {
 
   selectBrowserModel(taskType, complexity) {
     if (taskType === 'navigation' || complexity === 'simple') return 'claude-haiku-4-5-20251001';
-    if (taskType === 'form_filling' || taskType === 'web_research') return 'claude-sonnet-4-20250514';
-    if (taskType === 'task_execution' && complexity === 'complex') return 'claude-opus-4-5';
-    return 'claude-sonnet-4-20250514';
+    if (taskType === 'form_filling' || taskType === 'web_research') return 'claude-sonnet-4-6';
+    if (taskType === 'task_execution' && complexity === 'complex') return 'claude-opus-4-8';
+    return 'claude-sonnet-4-6';
   },
 
   // Provider failure tracker for rule 7 (escalate after 2 failures)

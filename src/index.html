@@ -36,6 +36,8 @@
       <div class="tab-separator"></div>
       <button class="nav-tab" data-tab="control">Control</button>
       <div class="tab-separator"></div>
+      <button class="nav-tab" data-tab="macros">&#127909; Macros</button>
+      <div class="tab-separator"></div>
       <button class="nav-tab council-tab" data-tab="council">&#9733; Council</button>
       <button class="nav-tab" data-tab="developer" id="dev-tab-btn" style="display:none;">Dev</button>
     </div>
@@ -451,6 +453,54 @@
         <!-- Changelog Section -->
         <div class="panel-section" id="changelog-section">
           <div class="changelog-container" id="changelog-container"></div>
+        </div>
+
+        <!-- Macros — native record / replay -->
+        <div class="panel-section" id="macros-section">
+          <div class="macro-panel">
+            <div class="macro-header">
+              <div class="macro-status-dot" id="macro-dot"></div>
+              <span class="macro-status-text" id="macro-status-text">Idle</span>
+              <span class="macro-event-count" id="macro-event-count"></span>
+            </div>
+
+            <div class="macro-hint">
+              Record keyboard &amp; mouse, then replay via hardware-level input.
+              Recording captures every key, click, move, and scroll with exact timing.
+            </div>
+
+            <div class="macro-controls">
+              <button class="macro-btn macro-btn-rec" id="macro-rec-btn">&#9679; Record</button>
+              <button class="macro-btn macro-btn-play" id="macro-play-btn">&#9654; Play</button>
+              <button class="macro-btn macro-btn-stop" id="macro-stop-btn">&#9632; Stop</button>
+            </div>
+
+            <div class="macro-row">
+              <label>Speed
+                <select id="macro-speed">
+                  <option value="0.5">0.5&times;</option>
+                  <option value="1" selected>1&times;</option>
+                  <option value="1.5">1.5&times;</option>
+                  <option value="2">2&times;</option>
+                </select>
+              </label>
+              <label>Repeat
+                <input type="number" id="macro-repeat" min="1" max="9999" value="1">
+              </label>
+            </div>
+
+            <div class="macro-row">
+              <input type="text" id="macro-name" placeholder="Macro name" class="macro-name-input">
+              <button class="macro-btn macro-btn-save" id="macro-save-btn">Save</button>
+            </div>
+
+            <div class="macro-saved">
+              <div class="macro-saved-title">Saved Macros</div>
+              <div class="macro-saved-list" id="macro-saved-list">
+                <div class="macro-saved-empty">No saved macros yet.</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
