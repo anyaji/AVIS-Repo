@@ -938,7 +938,14 @@ DELEGATION RULES (follow these always):
   async streamDirect(userMessage) {
     const systemPrompt = await this.buildSystemPrompt();
     const rawHistory = MemoryManager.getConversationMessages();
-    const messages = [...this.trimContext(rawHistory), { role: 'user', content: userMessage }];
+    const messages = [...this.trimContext(rawHistory)];
+    // The current user turn is already in history (MemoryManager.addMessage runs
+    // before process). Only append it if it isn't already the last entry — avoids
+    // duplicating the user message into the model context (retry path has no entry).
+    const _lastH = messages[messages.length - 1];
+    if (!(_lastH && _lastH.role === 'user' && _lastH.content === userMessage)) {
+      messages.push({ role: 'user', content: userMessage });
+    }
 
     this.emitStep('thinking', 'Streaming response...');
 
@@ -1020,6 +1027,10 @@ DELEGATION RULES (follow these always):
       if (images.length > 0) lastMsg.images = images;
     }
 
+    // If history already ends with this user turn (added before process), replace
+    // that plain entry with the enriched lastMsg rather than appending a duplicate.
+    const _lastH = messages[messages.length - 1];
+    if (_lastH && _lastH.role === 'user' && _lastH.content === userMessage) messages.pop();
     messages.push(lastMsg);
 
     // BUG 1: Dynamic iteration limit based on task type

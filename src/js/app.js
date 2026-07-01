@@ -42,6 +42,9 @@ const AVIS = {
     if (typeof UsageMeter !== 'undefined' && UsageMeter.providers && Object.keys(UsageMeter.providers).length === 0) {
       UsageMeter.init();   // populate per-provider usage state before any meter render
     }
+    if (typeof MemoryManager !== 'undefined' && !MemoryManager.currentConversation) {
+      await MemoryManager.init();   // start a conversation so messages persist across turns
+    }
     this.setupTabs();
     this.setupInput();
     this.setupMacros();
@@ -508,7 +511,9 @@ const AVIS = {
   // ====================================================================
   animateMessageIn(el) {
     if (typeof gsap === 'undefined') return;
-    gsap.from(el, { opacity: 0, y: 14, duration: 0.35, ease: 'power2.out' });
+    // clearProps guarantees GSAP releases opacity/transform on completion so the
+    // element rests at its CSS state (opacity:1) — never stuck invisible.
+    gsap.from(el, { opacity: 0, y: 14, duration: 0.35, ease: 'power2.out', clearProps: 'opacity,transform' });
   },
 
   animateSendPress() {
@@ -3832,6 +3837,11 @@ Powered by AVIS 💕`;
     this.isProcessing = true;
     this.showStopButton(true);
 
+    // Clear any leftover stream bubble from a previous turn that didn't finalize
+    // (e.g. a streamed turn that fell back to the agentic loop). Prevents the next
+    // reply from being appended into a stale bubble at the wrong DOM position.
+    if (this._streamBubble) { this._streamBubble = null; this._streamRafPending = false; }
+
     const welcome = document.getElementById('welcome-msg');
     if (welcome) welcome.remove();
 
@@ -3878,7 +3888,13 @@ Powered by AVIS 💕`;
       } else if (result.error && result.friendlyError) {
         this.addErrorCard(result.text, result.provider);
       } else if (result.streamed) {
-        this.finalizeStreamBubble(result.provider, result.model);
+        if (this._streamBubble) {
+          this.finalizeStreamBubble(result.provider, result.model);
+        } else if (result.text) {
+          // Stream completed with no chunk events (e.g. instant/short reply) — the
+          // live bubble was never created, so render the full text directly.
+          this.addMessageToChat('ai', result.text, result.provider, result.model);
+        }
       } else if (result.failover) {
         // Show failover notice then the response
         this.addMessageToChat('ai', `\u26A0\uFE0F *Claude unavailable — response from ${result.activeOrchestrator}:*\n\n${result.text}`, result.provider, result.model);
@@ -4179,6 +4195,11 @@ Powered by AVIS 💕`;
 
   finalizeStreamBubble(provider, model) {
     if (!this._streamBubble) return;
+    // Flush the final text in case a throttled RAF render was still pending
+    // (otherwise the last streamed chunk batch is dropped and the reply truncates).
+    const contentEl = this._streamBubble.querySelector('.stream-content');
+    if (contentEl && this._streamFullText != null) contentEl.innerHTML = this.renderMarkdown(this._streamFullText);
+    this._streamRafPending = false;
     // Remove cursor
     const cursor = this._streamBubble.querySelector('.stream-cursor');
     if (cursor) cursor.remove();
@@ -5437,7 +5458,18 @@ Assign 2+ AIs. For presentations/reports/visual tasks, always assign DALLE.`,
   // ====================================================================
   CHANGELOG: [
     {
-      version: '4.6.1', date: '2026-07-01', label: 'latest',
+      version: '4.6.2', date: '2026-07-01', label: 'latest',
+      items: [
+        'Fixed: chat messages invisible / "cut out" — three animation systems (two CSS keyframes + GSAP) fought over .message and left it stuck at opacity:0; consolidated to one and guaranteed a visible resting state',
+        'Fixed: cross-message memory was dead — MemoryManager.init() was never called, so Claude forgot every prior turn; now initialized at boot',
+        'Fixed: user message was double-appended into the model context each turn; now de-duplicated in both streaming and agentic paths',
+        'Fixed: stale stream bubble leaking across turns (streamed reply falling back to agentic loop) could land the next reply in the wrong place',
+        'Fixed: streamed replies with no chunk events, and last-chunk truncation from a render race',
+        'Found via a multi-agent code audit (20 confirmed issues); the highest-impact ones are addressed here'
+      ]
+    },
+    {
+      version: '4.6.1', date: '2026-07-01',
       items: [
         'Fixed: chat messages/replies vanishing and provider dots never turning green — root cause was an uninitialized usage meter crashing operator boot (UsageMeter.init now runs; renderMeters is null-safe)'
       ]

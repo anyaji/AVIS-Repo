@@ -498,7 +498,7 @@ body {
   display: flex;
   gap: 10px;
   max-width: min(85%, 700px);
-  animation: fadeIn 0.2s ease;
+  opacity: 1;               /* resting state: always visible (animation is handled by animateMessageIn) */
   flex-shrink: 0;
 }
 
@@ -1613,19 +1613,8 @@ body {
 .panel-action-btn:hover { transform: translateY(-1px); }
 .send-btn:active { transform: scale(0.97); }
 
-/* Message slide-in animations */
-.message { animation: messageSlideIn 0.3s ease; }
-.message.user { animation: messageSlideInRight 0.3s ease; }
-
-@keyframes messageSlideIn {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes messageSlideInRight {
-  from { opacity: 0; transform: translateX(12px); }
-  to { opacity: 1; transform: translateX(0); }
-}
+/* Message reveal is handled by animateMessageIn() (GSAP) — no CSS animation here.
+   Two competing CSS animations plus GSAP previously left messages stuck at opacity:0. */
 
 /* Staggered fade for provider list */
 .provider-item { animation: staggerFade 0.3s ease backwards; }
